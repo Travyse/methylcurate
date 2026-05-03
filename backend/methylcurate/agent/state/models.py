@@ -11,7 +11,7 @@ from ...contracts.harmonize import HumanReadableConceptInput, LabelMappingSet
 from ...contracts.harmonize import Concept as HarmonizationConcepts
 from ...contracts.geo import Concept as GEOConcepts
 from ...contracts.geo import GEODownloadResult, GEOMetadataExtractionInput, GEOMetadataExtractionResult, MetadataSummary, GeoSampleLevelMetadataBatch
-from ...contracts.preprocess import PreprocessDataInput, PreprocessDataResult, SampleLevelQCInput, SampleLevelQCResult, CpGLevelQCInput, CpGLevelQCResult, DNAmQCInput, DNAmQCResult, InterarrayCorrelationQCInput, InterarrayCorrelationQCResult
+from ...contracts.qc import PreprocessDataInput, PreprocessDataResult, SampleLevelQCInput, SampleLevelQCResult, CpGLevelQCInput, CpGLevelQCResult, DNAmQCInput, DNAmQCResult, InterarrayCorrelationQCInput, InterarrayCorrelationQCResult
 from ...contracts.common import ArtifactRef, StepStatus, HumanReviewRequest, HumanReviewDecision
 from ...contracts.clocks import MethylationClocks
 from ...contracts.router import RouterOutput

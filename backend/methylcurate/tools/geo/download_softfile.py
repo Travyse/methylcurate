@@ -22,9 +22,29 @@ from ...utils.exception_handling import classify_geo_error
 from ...utils.helper import compute_sha256, write_feather
 
 def _family_soft_path(output_dir: str, accession: str) -> str:
+    """Build the expected path for a GEO family SOFT file.
+
+    Args:
+        output_dir: Directory where the SOFT file should reside.
+        accession: GEO accession code (e.g. "GSE12345").
+
+    Returns:
+        Full path to the expected family SOFT (.soft.gz) file.
+    """
     return os.path.join(output_dir, f"{accession}_family.soft.gz")
 
 def _cache_metadata(gse: Any) -> Dict[str, Any]:
+    """Extract and cache per-sample and dataset-level metadata from a GEOparse GSE object.
+
+    Collects sample metadata for each GSM, top-level dataset fields (title, summary,
+    overall_design), and any supplementary-file metadata keys.
+
+    Args:
+        gse: A GEOparse GSE object.
+
+    Returns:
+        A dict with keys ``sample_metadata`` and ``dataset_metadata``.
+    """
     sample_metadata = {gsm_name: gsm.metadata for gsm_name, gsm in list(gse.gsms.items())}
     metadata = {
         "sample_metadata": sample_metadata,
@@ -38,7 +58,21 @@ def _cache_metadata(gse: Any) -> Dict[str, Any]:
         metadata["dataset_metadata"][k] = gse.metadata.get(k, None)
     return metadata
 
-def _cache_methylation_data(gse: Any, output_dir: str) -> Dict[str, Any]:
+def _cache_methylation_data(gse: Any, output_dir: str) -> pd.DataFrame:
+    """Extract and cache methylation data from a GEOparse GSE object.
+
+    Iterates over each GSM sample, filters rows by detection p-value <= 0.05,
+    and collects ``VALUE`` / ``ID_REF`` columns into a merged DataFrame.
+
+    Args:
+        gse: A GEOparse GSE object containing GSM samples with methylation tables.
+        output_dir: Directory for caching (unused by this function but passed
+            for interface compatibility).
+
+    Returns:
+        Merged methylation matrix as a DataFrame keyed by sample (``Sample``).
+        Returns an empty DataFrame if no valid methylation data is found.
+    """
     methylation_rows = []
     methylation_col_names = []
     
@@ -65,6 +99,33 @@ def _cache_methylation_data(gse: Any, output_dir: str) -> Dict[str, Any]:
     return _merge_to_dataframe(methylation_rows, methylation_col_names, index_col="Sample") 
 
 def _download_geo_dataset(accession: str, output_dir: str):
+    """Download a single GEO dataset and extract metadata and methylation data.
+
+    Checks a shared cache directory first. On cache hit, returns existing
+    artifacts for the SOFT file, metadata JSON, and pre-QC methylation matrix.
+    On cache miss, retrieves the dataset via GEOparse, extracts per-sample
+    metadata and methylation data, writes cache files, and collects
+    supplementary-file URLs. Retries up to 3 times on download errors.
+
+    Args:
+        accession: GEO accession code (e.g. ``"GSE12345"``).
+        output_dir: Dataset-specific output directory (used to derive the
+            shared cache directory).
+
+    Returns:
+        A tuple of ``(artifacts, supplementary_files, result)`` where:
+
+        * *artifacts*: list of :class:`~methylcurate.contracts.common.ArtifactRef`
+          for the SOFT file, metadata cache, and methylation data.
+        * *supplementary_files*: dict mapping accession to a list of
+          supplementary file URLs (empty dict on failure).
+        * *result*: :class:`~methylcurate.contracts.geo.GEODownloadResult`
+          with per-accession status and any warnings.
+
+    Raises:
+        No exceptions are propagated; errors are captured in the returned
+        ``GEODownloadResult`` with ``status="failed"``.
+    """
     started_at = datetime.now(timezone.utc).isoformat()
 
     # Ensure output directory exists
@@ -195,6 +256,8 @@ def _download_geo_dataset(accession: str, output_dir: str):
             print(f"Raw error message: {str(e)}")
             print(f"Error downloading {accession}: {error_msg}")
             continue
+    else:
+        error_msg = "Download failed after all retries"
     return artifacts, {}, GEODownloadResult(
             accession=accession,
             artifact=None,
@@ -252,6 +315,18 @@ def download_geo_datasets(config: GEOIngestionConfig, batch: GEODownloadBatchInp
     )
 
 def _check_supplementary_files(gse: Any):
+    """Collect supplementary file URLs from a GEO dataset's metadata.
+
+    Scans dataset-level metadata keys containing ``"supplement"`` (case-
+    insensitive) and gathers all associated URLs.
+
+    Args:
+        gse: A GEOparse GSE object whose metadata may contain supplementary
+            file references.
+
+    Returns:
+        A sorted list of unique supplementary file URL strings.
+    """
     supplementary_files = set()
     possible_supplementary_keys = [k for k in gse.metadata.keys() if "supplement" in k.lower()]
     for supplementary_key in possible_supplementary_keys:
@@ -262,6 +337,18 @@ def _check_supplementary_files(gse: Any):
     return sorted(list(supplementary_files))
 
 def ftp_to_https(url: str) -> str:
+    """Convert an FTP URL to its HTTPS equivalent.
+
+    NCBI supports the same resource path over HTTPS, so FTP URLs are
+    rewritten accordingly. Non-FTP URLs are returned unchanged.
+
+    Args:
+        url: The URL string to convert.
+
+    Returns:
+        The HTTPS-equivalent URL if the scheme was ``ftp``, otherwise the
+        original URL.
+    """
     u = urlparse(url)
     if u.scheme != "ftp":
         return url
@@ -270,7 +357,31 @@ def ftp_to_https(url: str) -> str:
 
 def download(
         accession_code: str, url: str, destdir: str | Path = ".", chunk_size: int = 1024 * 1024,
-        max_retries: int = 3) -> Path:
+        max_retries: int = 3) -> ArtifactRef:
+    """Download a single supplementary file with caching and retry logic.
+
+    Checks a shared cache directory first, returning the existing artifact
+    on hit. On miss, downloads the file via streaming HTTP, shows a progress
+    bar, and retries up to ``max_retries`` times on failure.
+
+    Args:
+        accession_code: GEO accession code associated with the file.
+        url: The URL to download from (FTP URLs are automatically converted
+            to HTTPS).
+        destdir: Destination directory (used to derive the shared cache
+            directory). Defaults to ``"."``.
+        chunk_size: Stream read chunk size in bytes. Defaults to
+            ``1024 * 1024`` (1 MiB).
+        max_retries: Maximum download attempts before raising an error.
+            Defaults to ``3``.
+
+    Returns:
+        An :class:`~methylcurate.contracts.common.ArtifactRef` for the
+        downloaded file with kind ``"supplementary_file_methylation_data"``.
+
+    Raises:
+        RuntimeError: If the download fails after all retry attempts.
+    """
     # Add supplementary files info
     print(f"Downloading supplementary file for {accession_code} from {url}...")
     destdir = Path(destdir)
@@ -295,16 +406,6 @@ def download(
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
 
-    if os.path.exists(cache_download_path):
-        return ArtifactRef.model_validate({
-            "path": str(cache_download_path),
-            "kind": "supplementary_file_methylation_data",
-            "accession_code": accession_code,
-            "sha256": compute_sha256(cache_download_path, is_path=True),
-            "bytes": os.path.getsize(cache_download_path),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        })
-    
     for attempt in range(1, max_retries + 1):
         try:
             with requests.get(https_url, stream=True, timeout=(10, 60)) as r:
@@ -346,7 +447,27 @@ def download(
 
     raise RuntimeError(f"Failed to download {filename} for {accession_code} after {max_retries} attempts.")
 
-def parallel_downloads(accession_code: str, urls: List[str], destdir: str, chunk_size: int = 1024 * 1024) -> List[Path]:
+def parallel_downloads(accession_code: str, urls: List[str], destdir: str, chunk_size: int = 1024 * 1024) -> Dict[str, List[ArtifactRef]]:
+    """Download multiple supplementary files in parallel for a single accession.
+
+    Dispatches each URL to :func:`download` using ``joblib.Parallel`` with
+    all available CPU cores.
+
+    Args:
+        accession_code: GEO accession code associated with the files.
+        urls: List of file URLs to download.
+        destdir: Destination directory for downloads.
+        chunk_size: Stream read chunk size in bytes. Defaults to
+            ``1024 * 1024`` (1 MiB).
+
+    Returns:
+        A dict with a single key ``"artifacts"`` mapping to the list of
+        :class:`~methylcurate.contracts.common.ArtifactRef` for each
+        downloaded file.
+
+    Raises:
+        RuntimeError: If any individual download fails after all retries.
+    """
     print(f"Starting parallel downloads for {accession_code} from URLs: {urls}")
     artifacts = Parallel(n_jobs=-1)(
         delayed(download)(accession_code, url, destdir, chunk_size) for url in urls)

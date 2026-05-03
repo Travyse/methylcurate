@@ -504,8 +504,8 @@ def update_small_progress_tracker(state: Any, retrieval: str) -> ToolMessage:
     accession_codes = sorted(state.datasets.keys())
     hash = _get_status_id(state.messages, retrieval)
 
-    num_completed = sum(1 for x in accession_codes if state.datasets[x].steps["quality_control"] == "completed")
-    all_completed = all(state.datasets[x].steps["quality_control"] in {'completed', 'failed', 'skipped'} for x in accession_codes)
+    num_completed = sum(1 for x in accession_codes if state.datasets[x].steps["quality_control"].status == "completed")
+    all_completed = all(state.datasets[x].steps["quality_control"].status in {'completed', 'failed', 'skipped'} for x in accession_codes)
 
 
     # Hash from accession codes + user message + user message time

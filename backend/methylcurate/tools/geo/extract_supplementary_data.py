@@ -33,6 +33,21 @@ CALL_TIMEOUT = 180
 GLOBAL_RETRY_LIMIT = 5
 
 def cpg_union(data_rows: List[List[Any]], col_rows: List[List[str]]) -> Tuple[List[List[Any]], List[str]]:
+    """Align heterogeneous rows to a unified column set.
+
+    Each group of rows may have different columns; this produces a common
+    superset of column names and pads missing values with None.
+
+    Args:
+        data_rows: Lists of row values, one list per group.
+        col_rows: Lists of column names corresponding to each group in
+            data_rows.
+
+    Returns:
+        A tuple of (aligned_data_rows, union_column_names) where every
+        row in aligned_data_rows has the same length as
+        union_column_names.
+    """
     union_cols = list(dict.fromkeys(chain.from_iterable(col_rows)))
     aligned = []
     for rows, cols in zip(data_rows, col_rows):
@@ -41,6 +56,24 @@ def cpg_union(data_rows: List[List[Any]], col_rows: List[List[str]]) -> Tuple[Li
     return aligned, union_cols
 
 def _merge_to_dataframe(rows: List[Any], col_names: List[str], index_col: Optional[str] = None) -> pd.DataFrame:
+    """Build a DataFrame from heterogeneous row/column groups.
+
+    Uses cpg_union to align rows to a common column set, then constructs
+    a DataFrame, optionally setting an index column.
+
+    Args:
+        rows: Lists of row-value groups.
+        col_names: Lists of column-name groups.
+        index_col: If provided and present in the resulting DataFrame,
+            this column is set as the index.
+
+    Returns:
+        A DataFrame with aligned columns.
+
+    Raises:
+        ValueError: If any aligned row length does not match the unified
+            column count.
+    """
     rows, col_names = cpg_union(rows, col_names)
     for row in rows:
         if len(row) != len(col_names):
@@ -50,7 +83,19 @@ def _merge_to_dataframe(rows: List[Any], col_names: List[str], index_col: Option
         df.set_index(index_col, inplace=True)
     return df
 
-def _check_for_cpg_probes(sample_data: pd.DataFrame) -> bool:
+def _check_for_cpg_probes(sample_data: pd.DataFrame) -> Dict[str, bool]:
+    """Determine whether CpG probes are in rows or columns.
+
+    Counts how many indices and column headers contain "cg" and returns
+    a dict indicating the predominant layout.
+
+    Args:
+        sample_data: A methylation data DataFrame.
+
+    Returns:
+        A dict with keys "columns" and "rows", each True if that axis
+        contains the majority of CpG probe identifiers.
+    """
     cols = np.asarray(sample_data.columns, dtype=str)
     rows = np.asarray(sample_data.index, dtype=str)
 
@@ -63,13 +108,45 @@ def _check_for_cpg_probes(sample_data: pd.DataFrame) -> bool:
     }
 
 def _check_for_detection_columns(sample_data: pd.DataFrame) -> bool:
+    """Heuristic check for presence of detection p-value columns.
+
+    Returns True when the number of columns is less than the number of
+    rows, which suggests paired beta/detection columns rather than a
+    matrix with CpG probes as rows.
+
+    Args:
+        sample_data: A methylation data DataFrame.
+
+    Returns:
+        True if detection columns are likely present.
+    """
     columns = sample_data.columns.tolist()
     #detection_cols = [col for col in columns if "detect" in col.lower()] # May not have detect in the name
     columns_lt_rows = len(columns) < len(sample_data.index) # There will almost certainly be more probes than samples
     #columns_even = len(columns) % 2 == 0 # Thoughts, doesn't necessarily have to be so
     return columns_lt_rows
 
-async def _process_detection_columns(artifact: ArtifactRef, sample_data: pd.DataFrame, config: RunnableConfig, messages: List[AnyMessage]) -> pd.DataFrame:
+async def _process_detection_columns(artifact: ArtifactRef, sample_data: pd.DataFrame, config: RunnableConfig, messages: List[AnyMessage]) -> Tuple[pd.DataFrame, ArtifactRef]:
+    """Process methylation data with paired beta and detection p-value columns.
+
+    Uses LLM-assisted column scheme resolution to identify beta and
+    detection columns, then applies a vectorized filter to retain only
+    beta values with detection p < 0.05.
+
+    Args:
+        artifact: Artifact reference for the sample data file.
+        sample_data: Raw methylation DataFrame read from the artifact.
+        config: LangChain runnable config providing LLM dependencies.
+        messages: Prior conversation messages for context.
+
+    Returns:
+        A tuple of (filtered_methylation_df, column_scheme_artifact)
+        where filtered_methylation_df has CpG probes as columns and
+        samples as rows.
+
+    Raises:
+        ValueError: If the column scheme cannot be resolved.
+    """
     start_time = datetime.now()
     column_scheme, artifact = await _get_column_scheme(artifact, sample_data, config)
     end_time = datetime.now()
@@ -150,7 +227,25 @@ async def _process_detection_columns(artifact: ArtifactRef, sample_data: pd.Data
 
     return methylation_df, artifact
 
-async def _process_detection_columns_alt(artifact:ArtifactRef, sample_data: pd.DataFrame, config: RunnableConfig, messages: List[AnyMessage]) -> pd.DataFrame:
+async def _process_detection_columns_alt(artifact:ArtifactRef, sample_data: pd.DataFrame, config: RunnableConfig, messages: List[AnyMessage]) -> Tuple[pd.DataFrame, ArtifactRef]:
+    """Alternative detection-column processing via per-subject pair extraction.
+
+    Resolves column scheme with LLM, then processes each beta/detection
+    column pair individually (iterative approach).  Suitable when the
+    vectorized approach in _process_detection_columns is not a fit.
+
+    Args:
+        artifact: Artifact reference for the sample data file.
+        sample_data: Raw methylation DataFrame.
+        config: LangChain runnable config providing LLM dependencies.
+        messages: Prior conversation messages for context.
+
+    Returns:
+        A tuple of (filtered_methylation_df, column_scheme_artifact).
+
+    Raises:
+        ValueError: If the column scheme cannot be resolved.
+    """
     column_scheme, artifact = await _get_column_scheme(artifact, sample_data, config)
     if all(s.status in ["error", "missing"] for s in [column_scheme.beta_column, column_scheme.detection_column]):
         raise ValueError(f"Unable to determine column scheme for dataset {artifact.accession_code} with artifact {artifact.path}. Beta column notes: {column_scheme.beta_column.notes}, Detection column notes: {column_scheme.detection_column.notes}")
@@ -188,6 +283,18 @@ async def _process_detection_columns_alt(artifact:ArtifactRef, sample_data: pd.D
     return methylation_df, artifact
 
 def _matrix_shape_check(sample_data: pd.DataFrame) -> pd.DataFrame:
+    """Ensure CpG probes are columns and samples are rows.
+
+    Detects whether CpG probes reside on the index or columns axis,
+    then transposes if necessary to produce a sample-x-CpG layout.
+    Only rows/columns starting with "cg" (case-insensitive) are kept.
+
+    Args:
+        sample_data: A methylation DataFrame.
+
+    Returns:
+        A DataFrame with samples as rows and CpG probes as columns.
+    """
     data_shape = _check_for_cpg_probes(sample_data)
 
     if data_shape["rows"]:
@@ -200,6 +307,19 @@ def _matrix_shape_check(sample_data: pd.DataFrame) -> pd.DataFrame:
     return sample_data.loc[:, cpg_cols]
 
 def _identify_delimiter(first_line: str) -> str:
+    """Detect the field delimiter from a header line.
+
+    Checks for tab, comma, or space in order of precedence.
+
+    Args:
+        first_line: The first non-comment, non-empty line of the file.
+
+    Returns:
+        The delimiter character ("\t", ",", or " ").
+
+    Raises:
+        ValueError: If none of the expected delimiters is found.
+    """
     if '\t' in first_line:
         return '\t'
     elif ',' in first_line:
@@ -210,6 +330,22 @@ def _identify_delimiter(first_line: str) -> str:
         raise ValueError("Unable to identify delimiter. Expected tab, comma, or space.")
     
 def _read_sample_data(file_path: str) -> pd.DataFrame:
+    """Read a supplementary methylation data file into a DataFrame.
+
+    Handles gzipped files.  Auto-detects the delimiter, skips comment
+    lines (starting with "#"), and attempts to set the index to the
+    first column containing mostly "cg"-prefixed values.
+
+    Args:
+        file_path: Path to the data file (may be .gz).
+
+    Returns:
+        A DataFrame with cleaned, lowercased column names.
+
+    Raises:
+        ValueError: If no valid header line is found within the first
+            20 lines of the file.
+    """
     if file_path.endswith(".gz"):
         open_func = gzip.open
     else:
@@ -235,7 +371,19 @@ def _read_sample_data(file_path: str) -> pd.DataFrame:
     sample_data.columns = [x.lower().strip() for x in sample_data.columns.tolist()]
     return sample_data
 
-def _generate_data_samples(sample_data: pd.DataFrame, seed: int = 0) -> Dict[str, Any]:
+def _generate_data_samples(sample_data: pd.DataFrame, seed: int = 0) -> Tuple[str, pd.DataFrame]:
+    """Generate a random column subset for LLM prompts.
+
+    Samples up to 15 columns with a reproducible seed and returns both
+    a markdown table (for prompts) and the sampled DataFrame.
+
+    Args:
+        sample_data: The full methylation DataFrame.
+        seed: Random seed for reproducible column selection.
+
+    Returns:
+        A tuple of (markdown_string, sampled_dataframe).
+    """
     random.seed(seed)
     n_cols = sample_data.shape[1]
     k = min(15, n_cols)
@@ -244,7 +392,16 @@ def _generate_data_samples(sample_data: pd.DataFrame, seed: int = 0) -> Dict[str
     sample_data_markdown = sample_data[sampled_columns].head(5).to_markdown(index=False)
     return sample_data_markdown, sample_data[sampled_columns].copy()
 
-def _check_pattern_performance(pattern:str, columns: List[str]) -> Any:
+def _check_pattern_performance(pattern:str, columns: List[str]) -> Tuple[set, set]:
+    """Evaluate a regex pattern against a list of column names.
+
+    Args:
+        pattern: A regex pattern string (may be empty/None).
+        columns: Column names to test the pattern against.
+
+    Returns:
+        A tuple of (matching_columns_set, missing_columns_set).
+    """
     if not pattern:
         return set(), set(columns)
     regex = re.compile(pattern, re.IGNORECASE)
@@ -256,6 +413,24 @@ def _check_pattern_performance_change(
     prev_beta_pattern: str, prev_detection_pattern: Optional[str],
     current_beta_pattern: str, current_detection_pattern: Optional[str],
     columns: List[str]) -> bool:
+    """Check if pattern refinement changed what was matched.
+
+    Compares the sets of matching/missing columns for both beta and
+    detection patterns between two attempts.
+
+    Args:
+        prev_beta_pattern: Previous beta column regex pattern.
+        prev_detection_pattern: Previous detection column regex pattern
+            (may be None).
+        current_beta_pattern: Current beta column regex pattern.
+        current_detection_pattern: Current detection column regex
+            pattern (may be None).
+        columns: The full list of column names.
+
+    Returns:
+        True if both beta and detection matching/missing sets are
+        identical between attempts.
+    """
     # Beta pattern performance
     prev_beta_matching_cols, prev_beta_missing_cols = _check_pattern_performance(prev_beta_pattern, columns)
     current_beta_matching_cols, current_beta_missing_cols = _check_pattern_performance(current_beta_pattern, columns)
@@ -273,7 +448,35 @@ def _check_pattern_performance_change(
 async def _get_column_scheme(
         artifact: ArtifactRef, sample_data: pd.DataFrame, config: RunnableConfig,
         messages: List[AIMessage] = [], count=0, prohibited_patterns: Optional[List[str]] = None,
-        prev_beta_pattern: Optional[str] = None, prev_detection_pattern: Optional[str] = None) -> SampleDataResolution:
+        prev_beta_pattern: Optional[str] = None, prev_detection_pattern: Optional[str] = None) -> Tuple[SampleDataResolution, ArtifactRef]:
+    """Resolve beta/detection column patterns via LLM with iterative refinement.
+
+    Sends sampled column data to the deterministic LLM for structured
+    column scheme inference.  Retries on timeout or validation errors,
+    and refines patterns across up to 3 correction attempts.  The final
+    scheme is persisted as a JSON artifact.
+
+    Args:
+        artifact: Artifact reference for the sample data file.
+        sample_data: Raw methylation DataFrame.
+        config: LangChain runnable config providing LLM dependencies.
+        messages: Accumulated conversation messages (used for
+            correction attempts).
+        count: Current attempt number (0-indexed, max 3 refinement
+            attempts).
+        prohibited_patterns: Patterns to instruct the LLM to avoid.
+        prev_beta_pattern: Previous attempt's beta pattern for
+            convergence detection.
+        prev_detection_pattern: Previous attempt's detection pattern
+            for convergence detection.
+
+    Returns:
+        A tuple of (resolved_column_scheme, scheme_artifact_ref).
+
+    Raises:
+        ValueError: If the LLM fails to produce a valid scheme after
+            all retries.
+    """
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
     default_llm = deps.default_llm
@@ -418,6 +621,24 @@ async def _get_column_scheme(
 async def format_individual_methylation_data(
         accession_code: str, return_dict: Dict[str, Any], config: RunnableConfig,
         artifact: ArtifactRef, messages: List[AnyMessage]) -> Dict[str, Any]:
+    """Format a single supplementary methylation data file.
+
+    Reads raw data, processes detection columns if present, shapes the
+    matrix, and writes a Feather file.  Updates the return dict with
+    the new artifact and marks the dataset as running.
+
+    Args:
+        accession_code: GEO accession identifier.
+        return_dict: Mutable result dict with "config" and "datasets"
+            keys.
+        config: LangChain runnable config providing LLM dependencies.
+        artifact: Artifact reference for the raw data file.
+        messages: Prior conversation messages for context.
+
+    Returns:
+        The updated return_dict with the formatted methylation artifact
+        appended and supplementary_data state marked.
+    """
     methylation_dataframe_output_path = f"{os.path.splitext(artifact.path)[0]}_proc.feather"
 
     sample_data = _read_sample_data(artifact.path)
@@ -442,6 +663,19 @@ async def format_individual_methylation_data(
     return return_dict
 
 def merge_formatted_supplementary_data(state: GeoIngestionSubgraphState, accession_code: str) -> pd.DataFrame:
+    """Concatenate all formatted supplementary data for a GEO accession.
+
+    Finds all formatted methylation artifacts belonging to the given
+    accession and row-wise concatenates them.
+
+    Args:
+        state: The geo ingestion subgraph state containing config and
+            datasets.
+        accession_code: GEO accession identifier.
+
+    Returns:
+        A DataFrame of concatenated formatted methylation data.
+    """
     state_config = state.config
     dataset_state = state.datasets[accession_code]
     print(f"\nDataset supplementary data state: {dataset_state.supplementary_data}")
@@ -451,6 +685,23 @@ def merge_formatted_supplementary_data(state: GeoIngestionSubgraphState, accessi
     return merged_data
     
 async def format_methylation_data(state_config: GEOIngestionConfig, state: GeoDatasetState, config: RunnableConfig, messages: List[AnyMessage]) -> Dict[str, Any]:
+    """Format all supplementary methylation files for a dataset.
+
+    Iterates over every supplementary methylation data artifact for
+    the accession, processes detection columns where present, and
+    concatenates the results into a single pre-QC methylation matrix
+    CSV.  New artifacts are consolidated into the return dict.
+
+    Args:
+        state_config: GEO ingestion configuration with artifact list.
+        state: Per-dataset state containing accession and output
+            directory.
+        config: LangChain runnable config providing LLM dependencies.
+        messages: Prior conversation messages for context.
+
+    Returns:
+        A dict with the updated config (including new artifacts).
+    """
     formatted_datasets = []
     accession_code = state.accession
     methylation_dataframe_output_path = os.path.join(state.output_dir, "preqc_methylation_matrix.csv")
@@ -497,6 +748,18 @@ async def format_methylation_data(state_config: GEOIngestionConfig, state: GeoDa
     return return_dict
 
 def generate_lexical_features(name: str) -> LexFeat:
+    """Tokenize and normalize a column name into lexical features.
+
+    Splits on camelCase boundaries, separators, and alphanumeric
+    transitions, then partitions tokens into numeric and word groups.
+
+    Args:
+        name: A raw column or sample identifier string.
+
+    Returns:
+        A LexFeat named tuple with raw, normalized, token, numeric, and
+        word representations.
+    """
     CAMEL_RE = re.compile(r"(?<=[a-z])(?=[A-Z])")
     SEP_RE = re.compile(r"[_\-/]+")
     NON_ALNUM_RE = re.compile(r"[^a-zA-Z0-9\s]+")
@@ -532,6 +795,19 @@ def generate_lexical_features(name: str) -> LexFeat:
     return featurize(name)
 
 def build_vocab(featsA: List[LexFeat], featsB: List[LexFeat], attr: str) -> Dict[str, int]:
+    """Build a vocabulary index from a lexical feature attribute.
+
+    Scans the given attribute (e.g. "words" or "nums") across both
+    feature lists and assigns a unique integer index to each token.
+
+    Args:
+        featsA: Lexical features from the first string list.
+        featsB: Lexical features from the second string list.
+        attr: The LexFeat attribute to index (e.g. "words", "nums").
+
+    Returns:
+        A dict mapping each unique token to its integer index.
+    """
     vocab: Dict[str, int] = {}
     for f in featsA:
         for t in set(getattr(f, attr)):
@@ -544,7 +820,19 @@ def build_vocab(featsA: List[LexFeat], featsB: List[LexFeat], attr: str) -> Dict
     return vocab
 
 def incidence_matrix(feats: List[LexFeat], vocab: Dict[str, int], attr: str) -> np.ndarray:
-    # Use uint8 to keep memory tiny; we cast for matmul.
+    """Build a binary incidence matrix for a lexical feature attribute.
+
+    Each row corresponds to a feature and each column to a vocabulary
+    token; the entry is 1 if the token is present in that feature.
+
+    Args:
+        feats: Lexical features to encode.
+        vocab: Token-to-index mapping.
+        attr: The LexFeat attribute to use (e.g. "words", "nums").
+
+    Returns:
+        A (len(feats), len(vocab)) uint8 binary matrix.
+    """
     X = np.zeros((len(feats), len(vocab)), dtype=np.uint8)
     for i, f in enumerate(feats):
         for t in set(getattr(f, attr)):
@@ -607,6 +895,22 @@ def token_count_penalty_matrix(featsA, featsB, gamma: float = 2.0) -> np.ndarray
 
 
 def lexical_score_matrix(A: List[str], B: List[str], workers: int = -1,  no_count_penalty: bool = False) -> np.ndarray:
+    """Compute a lexical similarity matrix between two string lists.
+
+    Combines token-sort-ratio fuzziness, word-level Jaccard, and
+    numeric compatibility with optional token-count penalty.
+
+    Args:
+        A: First list of strings (e.g. beta column names).
+        B: Second list of strings (e.g. detection column names).
+        workers: Number of parallel workers for rapidfuzz
+            (-1 = all CPUs).
+        no_count_penalty: If True, skip the token-count penalty.
+
+    Returns:
+        An (N, M) float32 similarity matrix where N = len(A) and
+        M = len(B).
+    """
     featsA = [generate_lexical_features(x) for x in A]
     featsB = [generate_lexical_features(x) for x in B]
 
@@ -647,6 +951,22 @@ def lexical_score_matrix(A: List[str], B: List[str], workers: int = -1,  no_coun
 
 def extract_subject_column_mapping(
         metadata_artifact: ArtifactRef, sample_data_df: pd.DataFrame, return_dict: Dict[str, Any]) -> Any:
+    """Map sample data indices to metadata subject IDs via lexical scoring.
+
+    Reads the metadata CSV, computes a lexical similarity matrix
+    between sample data index values and metadata Subject entries, and
+    saves the best mapping as a JSON artifact.
+
+    Args:
+        metadata_artifact: Artifact reference for the metadata CSV.
+        sample_data_df: Methylation DataFrame whose index values are
+            sample-level identifiers.
+        return_dict: Mutable result dict whose "config"."artifacts"
+            will be updated with the mapping artifact.
+
+    Returns:
+        The updated return_dict.
+    """
     metadata_df = pd.read_csv(metadata_artifact.path, index_col=0)
     subject_ids = metadata_df['Subject'].tolist()
     print(f"\nMetadata subject IDs: {subject_ids}")
@@ -679,6 +999,24 @@ def extract_subject_column_mapping(
     return return_dict
 
 def _extract_best_subject_id_fields(user_input: Any, sample_data: pd.DataFrame) -> Tuple[Optional[str], Optional[str]]:
+    """Identify which metadata field best matches sample data indices.
+
+    Collects candidate values from all metadata fields (including
+    characteristics_ch1 sub-keys), then scores each against the sample
+    data index using lexical_score_matrix to find the best-matching
+    field and optional sub-key.
+
+    Args:
+        user_input: A GEO sample record whose attributes are scanned
+            for candidate subject-ID values.
+        sample_data: Methylation DataFrame whose index holds target
+            sample identifiers.
+
+    Returns:
+        A tuple of (field_name, key_name) where field_name is the best
+        metadata attribute and key_name is the characteristics_ch1
+        sub-key (or None).
+    """
     field_name = None
     key_name = None
     candidate_dict = {}
@@ -729,7 +1067,26 @@ def _extract_best_subject_id_fields(user_input: Any, sample_data: pd.DataFrame) 
 
 def _create_subject_id_mapping(
     accession_code: str, user_input: pd.DataFrame, metadata_dict: Dict[str, Any], sample_data: pd.DataFrame
-):
+) -> pd.DataFrame:
+    """Build a mapping table linking GEO samples to best subject IDs.
+
+    Inspects all metadata fields to find the one that lexically best
+    matches the sample data index, then for each GEO sample extracts
+    the corresponding subject identifier.  Also assigns the closest
+    beta-format subject column value for downstream use.
+
+    Args:
+        accession_code: GEO accession identifier.
+        user_input: A DataFrame of GEO sample-level records.
+        metadata_dict: Full metadata dict keyed by GSM names, each
+            containing field-value mappings.
+        sample_data: Methylation DataFrame whose index holds target
+            sample identifiers.
+
+    Returns:
+        A DataFrame with columns "Sample", "Subject", and
+        "Beta_Subjects".
+    """
     # This is to map from the original subject id to the best subject id
     # I have the field name and key name, I need to extract that here
     def _extract_subject(

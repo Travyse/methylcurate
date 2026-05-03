@@ -9,6 +9,22 @@ from ..contracts.geo import GEOSampleLevelMetadataBatch
 # Check for percentage cg in each column, the column that is above 90% is the CpG column. Stop at the first one.
 
 def _get_gpl_features(gpl_id: str, destdir: str) -> List[str]:
+    """Retrieve the list of CpG probe IDs for a GEO platform record.
+
+    Downloads the GPL record and scans its table columns for a column
+    whose content is at least 90% CpG identifiers (case-insensitive
+    ``cg*`` prefix).
+
+    Args:
+        gpl_id: GEO platform accession (e.g. ``"GPL13534"``).
+        destdir: Directory used for the GEOparse download.
+
+    Returns:
+        List of CpG probe identifier strings found in the platform table.
+
+    Raises:
+        RuntimeError: If no suitable CpG probe ID column is found.
+    """
     def _percentage_cg(total_values: int, subset_count: int) -> float:
         if total_values < 1:
             return 0.0
@@ -29,7 +45,20 @@ def _get_gpl_features(gpl_id: str, destdir: str) -> List[str]:
         raise RuntimeError(f"Could not find CpG probe ID column in platform {gpl_id}") 
     return features
 
-def find_common_cpgs(dataset_metadata: List[GEOSampleLevelMetadataBatch]) -> None:
+def find_common_cpgs(dataset_metadata: List[GEOSampleLevelMetadataBatch]) -> set:
+    """Compute the intersection of CpG probes across all platforms in a dataset.
+
+    Collects every unique GPL platform referenced by any sample, fetches
+    the CpG probe lists for each platform, and returns the probes that
+    appear on **all** platforms.
+
+    Args:
+        dataset_metadata: Per-dataset sample-level metadata batches.
+            Each sample's ``platform`` field contributes a GPL accession.
+
+    Returns:
+        A ``set`` of CpG probe IDs common to every platform found.
+    """
     gpls = set()
     for dataset in dataset_metadata:
         for sample in dataset.samples:

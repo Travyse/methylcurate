@@ -68,6 +68,18 @@ class SessionStore:
         """
         return self._runs[run_id]
 
+    def delete(self, run_id: str) -> None:
+        """
+        Deletes a run session by its run ID.
+
+        Args:
+            run_id (str): The unique identifier for the run to delete.
+
+        Raises:
+            KeyError: If no session exists for the given run ID.
+        """
+        del self._runs[run_id]
+
     def exists(self, run_id: str) -> bool:
         """
         Checks if a run session exists for the given run ID.

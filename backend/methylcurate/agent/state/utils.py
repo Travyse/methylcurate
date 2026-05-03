@@ -265,7 +265,7 @@ def get_dataset_for_subgraph(subgraph_name: str) -> Any:
     if subgraph_name == "geo_retrieval":
         return GeoDatasetState
     elif subgraph_name == "harmonization":
-        return ConceptHarmonizationState
+        return HarmonizationDatasetState
     elif subgraph_name == "quality_control":
         return DatasetQualityControlState
     else:

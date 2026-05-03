@@ -37,9 +37,24 @@ CALL_TIMEOUT = 180
 GLOBAL_RETRY_LIMIT = 5
 
 async def get_all_extraction_resolutions():
+    """Retrieve all extraction resolutions across known concepts.
+
+    Returns:
+        None: Not yet implemented.
+    """
     pass
 
 def has_alternation_anywhere(regex: str) -> bool:
+    """Check whether a regular expression contains alternation (``|``) at any nesting level.
+
+    Parses the regex into a ``greenery`` syntax tree and walks its subpatterns recursively.
+
+    Args:
+        regex: The regular expression string to inspect.
+
+    Returns:
+        True if any subpattern contains more than one alternative branch.
+    """
     root = parse(regex)
 
     def walk_pattern(p: Pattern) -> bool:
@@ -58,6 +73,22 @@ def has_alternation_anywhere(regex: str) -> bool:
     return walk_pattern(root)
 
 def _get_custom_models(user_input: GEOMetadataExtractionInput):
+    """Build dynamic Pydantic models and collect key names from ``characteristics_ch1``.
+
+    Extracts the set of key names used across all sample characteristic dictionaries,
+    then constructs a dynamic ``GEOMetadataExtractionResult`` model specialised for those keys.
+
+    Args:
+        user_input: The GEO metadata extraction input whose ``characteristics_ch1``
+            list is scanned for key names.
+
+    Returns:
+        A 4-tuple of:
+        - The dynamic ``GEOMetadataExtractionResult`` model class.
+        - The dynamic ``FieldResolution`` model class.
+        - The dynamic ``FieldResolutionEnvelope`` model class.
+        - The set of discovered key names.
+    """
     key_names = set()
     for example in user_input.characteristics_ch1:
         key_names.update(v.split(":", 1)[0].strip() for v in example)
@@ -65,6 +96,19 @@ def _get_custom_models(user_input: GEOMetadataExtractionInput):
     return GEOMetadataExtractionResultDyn, FieldResolutionDyn, FieldResolutionEnvelopeDyn, key_names
 
 def _get_parse_rate(metadata_summary: Dict[str, Any] = None) -> Dict[str, float]:
+    """Extract per-concept parse rates from a metadata summary dictionary.
+
+    For each ``Concept`` whose entry in the summary is not a list, reads the
+    ``parse_rate`` value.
+
+    Args:
+        metadata_summary: An optional metadata summary dictionary keyed by concept
+            name.  Each value is expected to contain a ``parse_rate`` key when it is
+            not a list.  If ``None``, an empty dict is returned.
+
+    Returns:
+        A mapping from concept name to its parse rate as a float.
+    """
     parse_rates = {}
     if metadata_summary is not None:
         parse_rates = {
@@ -73,6 +117,18 @@ def _get_parse_rate(metadata_summary: Dict[str, Any] = None) -> Dict[str, float]
     return parse_rates
 
 def _get_extraction_resolutions(extraction_result: Any) -> Dict[Concept, Any]:
+    """Extract per-concept ``FieldResolution`` objects from a raw extraction result.
+
+    The result may be either a dictionary or an object with attribute access.
+    Each present concept is wrapped through ``FieldResolutionEnvelope``.
+
+    Args:
+        extraction_result: A dict or object containing resolution data for each
+            ``Concept``.
+
+    Returns:
+        A mapping from each ``Concept`` to its unwrapped ``FieldResolution``.
+    """
     resolutions = {}
     for concept in get_args(Concept):
         concept_presence = (concept in extraction_result) if isinstance(extraction_result, dict) else hasattr(extraction_result, concept)
@@ -82,6 +138,21 @@ def _get_extraction_resolutions(extraction_result: Any) -> Dict[Concept, Any]:
     return resolutions
 
 def _check_extraction_patterns(resolutions: Dict[str, Any]) -> List[Concept]:
+    """Flag concepts whose extraction patterns embed their own key names.
+
+    Iterates over resolved concepts sourced from ``characteristics_ch1`` and
+    checks whether the extraction pattern string contains the key name it is
+    meant to match (indicating a non-generic, overfitted pattern).
+
+    Args:
+        resolutions: Per-concept ``FieldResolution`` objects keyed by concept name.
+
+    Returns:
+        A 2-tuple of:
+        - A list of concept names whose patterns were flagged.
+        - A dict mapping each flagged concept to a human-readable note explaining
+          why it was flagged.
+    """
     flagged_patterns = []
     flexible_concepts = ["sex", "disease_status", "tissue", "cell_type"]
     notes_flagged_patterns = {}
@@ -101,6 +172,25 @@ def _check_extraction_patterns(resolutions: Dict[str, Any]) -> List[Concept]:
 async def _extract_column_for_concept_age(
     resolutions: Dict[str, Any], config: RunnableConfig, user_input: GEOMetadataExtractionInput,
     messages: List[AnyMessage], resolution_model: Any) -> Dict[str, Any]:
+    """Attempt to resolve a missing ``age`` column via an LLM clarification check.
+
+    Constructs a prompt that asks the LLM to re-examine the metadata for age
+    information that may have been overlooked, then calls the deterministic LLM
+    with a dynamic resolution correction model.
+
+    Args:
+        resolutions: Current per-concept resolutions, including the ``age``
+            entry whose ``status`` is ``"missing"``.
+        config: The runnable config providing access to ``Deps``.
+        user_input: The original GEO metadata extraction input.
+        messages: The message history to include in the prompt context.
+        resolution_model: The dynamic ``FieldResolution`` model class used to
+            build the correction model.
+
+    Returns:
+        The updated resolutions dict, with ``age`` potentially resolved or
+        left unchanged on failure.
+    """
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
     default_llm = deps.default_llm
@@ -124,6 +214,24 @@ async def _extract_column_for_concept_age(
 
 async def _extract_column_for_concept_disease_status(
     resolutions: Dict[str, Any], config: RunnableConfig, parsed_disease_statuses: List[str]) -> Dict[str, Any]:
+    """Identify the control value among disease statuses via an LLM call.
+
+    Builds a dynamic control identification model from the set of parsed
+    disease status values and asks the deterministic LLM to pick the control.
+    Retries on timeout, parse failure, and validation errors up to
+    ``GLOBAL_RETRY_LIMIT``.
+
+    Args:
+        resolutions: Current per-concept resolutions, where
+            ``disease_status`` must be in ``"resolved"`` state.
+        config: The runnable config providing access to ``Deps``.
+        parsed_disease_statuses: The list of distinct disease status strings
+            parsed from the dataset.
+
+    Returns:
+        The updated resolutions dict with ``disease_status`` enriched with a
+        ``control_value`` on success, or left unchanged on failure.
+    """
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
     default_llm = deps.default_llm
@@ -177,6 +285,27 @@ async def _extract_column_for_concept_disease_status(
 async def _extract_column_for_concept_misformatted(
         misformatted_concepts: List[Concept], messages: List[AnyMessage], config: RunnableConfig,
         resolution_model: Any, resolutions: Dict[str, Any], resolution_model_envelope: Any) -> Dict[Concept, FieldResolution]:
+    """Re-extract columns for concepts flagged with misformatted patterns.
+
+    Generates a targeted feedback prompt that describes which concepts have
+    problematic extraction patterns and asks the LLM to produce corrected
+    resolutions.  Retries on timeout, parse failure, and validation errors.
+
+    Args:
+        misformatted_concepts: The list of concept names whose patterns were
+            flagged as non-generic.
+        messages: The message history used to build the prompt context.
+        config: The runnable config providing access to ``Deps``.
+        resolution_model: The dynamic ``FieldResolution`` model class for
+            building the correction model.
+        resolutions: Current per-concept resolutions, which will be updated
+            in-place for flagged concepts.
+        resolution_model_envelope: Not used in the current implementation.
+
+    Returns:
+        The updated resolutions dict with corrected entries for the
+        misformatted concepts, or error resolutions on validation failure.
+    """
     print(f"\n\nMisformatted concepts: {misformatted_concepts}")
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
@@ -248,6 +377,34 @@ async def _extract_column_for_concept_poor_parsing(
         poorly_parsed_concepts: List[Concept], messages: Dict[str, List[AnyMessage]], config: RunnableConfig,
         resolution_model: Any, parse_rates: Dict[str, float], user_input: GEOMetadataExtractionInput,
         resolutions: Dict[str, Any], resolution_model_envelope: Any, failed_parsing_info: Dict[str, Any]) -> Dict[Concept, FieldResolution]:
+    """Re-extract columns for concepts whose parse rate is below 1.0.
+
+    Builds a feedback-loop prompt that includes parse rate metrics and
+    examples of failed parsing attempts, then asks the LLM to produce
+    improved resolutions.  Retries on timeout, parse failure, and validation
+    errors up to ``GLOBAL_RETRY_LIMIT``.
+
+    Args:
+        poorly_parsed_concepts: The list of concept names with a parse rate
+            in (0, 1).
+        messages: The message history (only the first entry is reused as
+            context in the new prompt).
+        config: The runnable config providing access to ``Deps``.
+        resolution_model: The dynamic ``FieldResolution`` model class for
+            building the correction model.
+        parse_rates: Per-concept parse rates as floats.
+        user_input: The original GEO metadata extraction input.
+        resolutions: Current per-concept resolutions, updated in-place on
+            success.
+        resolution_model_envelope: Not used in the current implementation.
+        failed_parsing_info: Per-concept lists of samples that failed to parse
+            with the current pattern, used to illustrate the problem to the
+            LLM.
+
+    Returns:
+        The updated resolutions dict with improved entries for the poorly
+        parsed concepts, or error resolutions on validation failure.
+    """
     print(f"\n\nPoorly parsed concepts: {poorly_parsed_concepts} with parse rates {parse_rates}")
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
@@ -331,6 +488,40 @@ async def _extract_column_for_concept_with_retry(
         resolutions: Dict[str, Any] = None, config: RunnableConfig = None, messages: List[AnyMessage] = None,
         user_input: GEOMetadataExtractionInput = None, failed_parsing_info: Dict[str, Any] = None,
         parsed_disease_statuses: List[str] = None) -> Dict[Concept, Any]:
+    """Orchestrate iterative refinement of extraction resolutions with retries.
+
+    This is the main feedback-loop coordinator.  On each call it:
+    1. Checks for misformatted patterns and invokes
+       ``_extract_column_for_concept_misformatted``.
+    2. Optionally checks for poorly parsed concepts and invokes
+       ``_extract_column_for_concept_poor_parsing``.
+    3. Attempts to identify the control value for ``disease_status``.
+    4. Attempts to resolve a missing ``age`` column.
+
+    Recursion is bounded by ``count`` and ``retries``.
+
+    Args:
+        extraction_result: The raw extraction result from the initial LLM call.
+        count: Current recursion depth (0-indexed).
+        retries: Maximum recursion depth before returning.
+        parse_rates: Per-concept parse rates from the metadata summary.
+        formatting_only: If True, skip poor-parsing, disease-status, and age
+            checks; only correct misformatted patterns.
+        resolutions: Current per-concept resolutions.  Built from
+            ``extraction_result`` if not provided on first call.
+        config: The runnable config providing access to ``Deps``.
+        messages: The message history for prompt construction.
+        user_input: The original GEO metadata extraction input.
+        failed_parsing_info: Per-concept lists of sample values that failed to
+            parse.
+        parsed_disease_statuses: Distinct disease status strings parsed from
+            the dataset.
+
+    Returns:
+        A 2-tuple of (updated resolutions dict, re_run boolean).  ``re_run``
+        is True if any concept was re-extracted and the caller should
+        re-evaluate the workflow.
+    """
     # Construct the message here
     _, resolution_model, resolution_model_envelope, __ = _get_custom_models(user_input)
     resolutions = _get_extraction_resolutions(extraction_result) if resolutions is None else resolutions
@@ -377,6 +568,24 @@ async def _extract_all_columns(
         config: RunnableConfig,
         result_model: Any,
 ) -> GEOMetadataExtractionResult:
+    """Call the deterministic LLM to extract all metadata columns in one pass.
+
+    Uses the provided dynamic result model and retries on timeout, output
+    parser errors, and validation errors up to ``GLOBAL_RETRY_LIMIT``.
+    On validation failure a synthetic failed result is constructed with all
+    concepts set to error status.
+
+    Args:
+        messages: The prompt message history for the LLM call.
+        config: The runnable config providing access to ``Deps``.
+        result_model: The dynamic Pydantic model class (from
+            ``_get_custom_models``) that the LLM output must conform to.
+
+    Returns:
+        A constructed ``GEOMetadataExtractionResult`` with resolved
+        per-concept entries on success, or an all-error result on persistent
+        failure.
+    """
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
     default_llm = deps.default_llm
@@ -438,6 +647,30 @@ async def extract_metadata_columns_alt(
     accession_code: str,
     llm_messages: List[AnyMessage]
 ) -> GEOMetadataExtractionResult:
+    """Extract metadata columns using the alternative all-at-once LLM strategy.
+
+    Builds custom dynamic models from the input's ``characteristics_ch1`` keys,
+    constructs a single all-in-one prompt via
+    ``generate_metadata_column_user_query_alt``, calls ``_extract_all_columns``,
+    and saves the resulting extraction protocol as a JSON artifact when all
+    resolutions are sufficiently confident.
+
+    Args:
+        user_input: The GEO metadata extraction input describing the dataset and
+            field requests.
+        return_dict: The shared workflow state dictionary.  The
+            ``llm_messages`` list is appended to, and the extraction result is
+            written into ``datasets[accession_code]``.
+        config: The runnable config providing access to ``Deps``.
+        output_root: Directory under which the ``extraction_protocol.json``
+            artifact is written.
+        accession_code: The GEO accession code identifying the current dataset.
+        llm_messages: The message history used as context for the LLM call
+            (only the first entry is reused).
+
+    Returns:
+        The updated ``return_dict`` after recording the extraction result.
+    """
     GSESpecificMetadataExtractionResult, _, __, key_names = _get_custom_models(user_input)
     key_names_str = ", ".join(sorted(list(key_names)))
     human_message = HumanMessage(
@@ -488,6 +721,21 @@ async def _extract_column_for_concept(
     messages: List[AnyMessage],
     config: RunnableConfig
 ) -> FieldResolution:
+    """Extract a single metadata column resolution for one concept via the LLM.
+
+    Calls the deterministic LLM with the provided message history and validates
+    the output against ``FieldResolution``.  On validation error a fallback
+    error ``FieldResolution`` is returned instead of raising.
+
+    Args:
+        messages: The prompt message history including the concept-specific
+            extraction query.
+        config: The runnable config providing access to ``Deps``.
+
+    Returns:
+        A ``FieldResolution`` object on success, or an error ``FieldResolution``
+        when the LLM output fails validation.
+    """
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
     default_llm = deps.default_llm
@@ -513,6 +761,27 @@ async def extract_metadata_columns(
     output_root: str,
     accession_code: str
 ) -> GEOMetadataExtractionResult:
+    """Extract metadata columns using the per-concept LLM extraction strategy.
+
+    Iterates over every ``Concept``, builds a concept-specific user query via
+    ``generate_metadata_column_user_query``, calls ``_extract_column_for_concept``
+    for each, and saves the resulting extraction protocol as a JSON artifact
+    when all resolutions are sufficiently confident.
+
+    Args:
+        user_input: The GEO metadata extraction input describing the dataset and
+            field requests.
+        return_dict: The shared workflow state dictionary.  Messages are appended
+            to ``messages`` and ``concept_messages[concept]``, and the extraction
+            result is written into ``datasets[accession_code]``.
+        config: The runnable config providing access to ``Deps``.
+        output_root: Directory under which the ``extraction_protocol.json``
+            artifact is written.
+        accession_code: The GEO accession code identifying the current dataset.
+
+    Returns:
+        The updated ``return_dict`` after recording the extraction result.
+    """
     def _check_execution_status(resolutions: Dict[Concept, FieldResolution]) -> str:
         status = "succeeded"
         resolution_statuses = [r.status for r in resolutions.values()]

@@ -2,9 +2,21 @@ __all__ = ["detect_data_type", "convert_data_type"]
 import pandas as pd
 import numpy as np
 from typing import List, Tuple
-from ...contracts.preprocess import PreprocessDataInput, PreprocessDataResult, PreprocessClippingInput
+from ...contracts.qc import PreprocessDataInput, PreprocessDataResult, PreprocessClippingInput
 
 def detect_data_type(data_matrix: pd.DataFrame) -> str: # TODO Fix the input
+    """Detect whether methylation data is in beta-value or M-value representation.
+
+    Evaluates the proportion of non-NA values that fall within [0, 1].
+    If more than 95% are in that range the data is classified as "beta";
+    otherwise it is classified as "m".
+
+    Args:
+        data_matrix: Methylation data frame (samples × probes).
+
+    Returns:
+        ``"beta"`` if >95% of values lie in [0, 1], otherwise ``"m"``.
+    """
     non_na = data_matrix.notna()
     in_range = (data_matrix >= 0) & (data_matrix <= 1)
 
@@ -18,6 +30,7 @@ def detect_data_type(data_matrix: pd.DataFrame) -> str: # TODO Fix the input
         return "m"
     
 def _convert_beta_to_m(beta_matrix: np.ndarray, clipping: PreprocessClippingInput = None) -> np.ndarray:
+    """Convert beta-values to M-values, optionally clipping extreme values first."""
     if clipping is not None:
         lower = clipping.lower_bound if clipping.lower_bound is not None else 0.001
         upper = clipping.upper_bound if clipping.upper_bound is not None else 0.999
@@ -28,10 +41,28 @@ def _convert_beta_to_m(beta_matrix: np.ndarray, clipping: PreprocessClippingInpu
     return beta_values
 
 def _convert_m_to_beta(m_matrix: np.ndarray) -> np.ndarray:
+    """Convert M-values to beta-values via the logistic function."""
     beta_values = 1 / (1 + np.power(2, -m_matrix))
     return beta_values
 
 def convert_data_type(data_conversion_input: PreprocessDataInput, data_df: pd.DataFrame) -> Tuple[PreprocessDataResult, pd.DataFrame]:
+    """Convert methylation data between beta-value and M-value representations.
+
+    When the source and target types differ the appropriate conversion
+    function is applied and a new DataFrame is returned.  Clipping is
+    forwarded to the underlying conversion helper.
+
+    Args:
+        data_conversion_input: Conversion specification (from/to types
+            and optional clipping bounds).
+        data_df: Methylation data frame (samples × probes).
+
+    Returns:
+        A tuple of (conversion result, converted DataFrame).
+
+    Raises:
+        ValueError: If the requested conversion pair is unsupported.
+    """
     if data_conversion_input.from_type == data_conversion_input.to_type:
         return PreprocessDataResult(
             data_type=data_conversion_input.to_type), data_df

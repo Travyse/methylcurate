@@ -22,6 +22,20 @@ from ...agent.state.models import GeoDatasetState, GEOIngestionConfig
 
 def get_sample_data(
         accession_code: str, gsm_table: pd.DataFrame = None, gsm_name: str = None, value_col: str = "VALUE") -> Optional[pd.DataFrame]:
+    """Filter sample data by detection P-value if available.
+
+    If the sample table contains columns with "detection" in their name, rows
+    with a detection P-value greater than 0.05 are dropped.
+
+    Args:
+        accession_code: GEO accession identifier (e.g. "GSE12345").
+        gsm_table: DataFrame of methylation data for a single GSM sample.
+        gsm_name: Name of the GSM sample (used for logging).
+        value_col: Name of the column containing methylation beta values.
+
+    Returns:
+        The filtered DataFrame, or None if the table is missing or empty.
+    """
     sample_data = gsm_table
     if sample_data is None:
         print(f"{gsm_name} from {accession_code} is missing sample data")
@@ -35,6 +49,20 @@ def get_sample_data(
     return sample_data
 
 def cpg_union(data_rows: List[List[Any]], col_rows: List[List[str]]) -> Tuple[List[List[Any]], List[str]]:
+    """Align heterogeneous row-column pairs to a unified superset of columns.
+
+    Each entry in ``data_rows`` and ``col_rows`` is aligned so that all output
+    rows share the same column ordering (the union of all column names). Missing
+    values are filled with None.
+
+    Args:
+        data_rows: List of value lists, one per sample.
+        col_rows: List of column-name lists corresponding to each value list.
+
+    Returns:
+        A tuple of ``(aligned_rows, union_columns)`` where ``aligned_rows``
+        share the unified column set and ``union_columns`` preserves insertion order.
+    """
     union_cols = list(dict.fromkeys(chain.from_iterable(col_rows)))
     aligned = []
     for rows, cols in zip(data_rows, col_rows):
@@ -43,6 +71,22 @@ def cpg_union(data_rows: List[List[Any]], col_rows: List[List[str]]) -> Tuple[Li
     return aligned, union_cols
 
 def apply_extraction_rule(field_values: List[str], rule: ExtractionRule) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+    """Apply an extraction rule to a list of raw field values.
+
+    Currently supports ``"regex"`` extraction rules. When the target field is
+    ``characteristics_ch1``, values are parsed as key-value pairs and matched
+    against the rule's ``key_name`` before applying the regex.
+
+    Args:
+        field_values: Raw metadata values from a GSM sample.
+        rule: Extraction rule specifying type, pattern, group_index, field_name,
+            and optionally key_name.
+
+    Returns:
+        A tuple of ``(extracted_value, raw_source)`` where ``extracted_value``
+        is the matched regex group (or None) and ``raw_source`` is the original
+        value that was matched (or None).
+    """
     typ = getattr(rule, "type", "none")
     if typ == "regex":
         pattern = rule.pattern
@@ -74,6 +118,19 @@ def apply_extraction_rule(field_values: List[str], rule: ExtractionRule) -> Tupl
     return None, None
 
 def _get_platform_title_from_gsm(gpl: str, max_retries: int = 3) -> Optional[str]:
+    """Fetch the platform title for a GPL accession from NCBI GEO.
+
+    Args:
+        gpl: Platform accession identifier (e.g. "GPL13534").
+        max_retries: Maximum number of HTTP request attempts with 3-second delays.
+
+    Returns:
+        The platform title string, or None if the request fails after all retries.
+
+    Raises:
+        requests.exceptions.RequestException: Propagated on the final attempt
+            after all retries are exhausted.
+    """
     url = f"https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc={gpl}&form=text&view=brief"
     for attempt in range(1, max_retries + 1):
         try:
@@ -89,6 +146,19 @@ def _get_platform_title_from_gsm(gpl: str, max_retries: int = 3) -> Optional[str
     return None
 
 def _get_platform_gpl_from_accession_code(accession_code: str, max_retries: int = 3) -> Optional[str]:
+    """Extract the platform GPL identifier from a GEO series accession page.
+
+    Args:
+        accession_code: GEO series accession (e.g. "GSE12345").
+        max_retries: Maximum number of HTTP request attempts with 3-second delays.
+
+    Returns:
+        The platform GPL identifier string, or None if it cannot be determined.
+
+    Raises:
+        requests.exceptions.RequestException: Propagated on the final attempt
+            after all retries are exhausted.
+    """
     url = f"https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc={accession_code}&form=text&view=brief"
     for attempt in range(1, max_retries + 1):
         try:
@@ -104,6 +174,18 @@ def _get_platform_gpl_from_accession_code(accession_code: str, max_retries: int 
     return None
 
 def get_platform_gpls(gse: Any = None, accession_code: str = None) -> List[str]:
+    """Return the platform GPL identifiers for a GEO dataset.
+
+    Args:
+        gse: A GEOparse GSE object whose ``.name`` yields the accession.
+        accession_code: Fallback accession string used when ``gse`` is None.
+
+    Returns:
+        A single-element list containing the platform GPL identifier.
+
+    Raises:
+        RuntimeError: If the platform GPL could not be resolved via NCBI.
+    """
     gse_id = gse.name if gse is not None else accession_code
     platform = _get_platform_gpl_from_accession_code(gse_id)
     if platform is None:
@@ -111,6 +193,19 @@ def get_platform_gpls(gse: Any = None, accession_code: str = None) -> List[str]:
     return [platform]
 
 def get_platform_title(gse: Any = None, accession_code: str = None) -> Optional[str]:
+    """Return the human-readable platform title(s) for a GEO dataset.
+
+    Resolves GPL identifiers via ``get_platform_gpls`` and fetches each
+    platform title from NCBI.
+
+    Args:
+        gse: A GEOparse GSE object.
+        accession_code: Fallback accession string when ``gse`` is None.
+
+    Returns:
+        A comma-separated string of platform titles, or None if no platforms
+        could be resolved.
+    """
     platforms = get_platform_gpls(gse = gse, accession_code = accession_code)
     platform_set = set()
     if len(platforms) < 1:
@@ -121,6 +216,18 @@ def get_platform_title(gse: Any = None, accession_code: str = None) -> Optional[
     return ", ".join(platform_set)
 
 def get_platform_metadata(gse: Any = None, accession_code: str = None) -> Dict[str, Any]:
+    """Return platform metadata for a GEO dataset.
+
+    Fetches the first platform's GPL identifier and title as a dictionary.
+
+    Args:
+        gse: A GEOparse GSE object.
+        accession_code: Fallback accession string when ``gse`` is None.
+
+    Returns:
+        A dict with keys ``"platform_id"`` and ``"title"``, or None if no
+        platforms could be resolved.
+    """
     platforms = get_platform_gpls(gse = gse, accession_code = accession_code)
     platform_metadata = {}
     for platform in platforms:
@@ -135,6 +242,24 @@ def get_platform_metadata(gse: Any = None, accession_code: str = None) -> Dict[s
     return platform_metadata[platform]
 
 def _merge_to_dataframe(rows: List[Any], col_names: List[str], index_col: Optional[str] = None) -> pd.DataFrame:
+    """Merge heterogeneous rows and column-name lists into a unified DataFrame.
+
+    Delegates to ``cpg_union`` to align columns and then constructs a
+    pandas DataFrame.
+
+    Args:
+        rows: List of row-lists with heterogeneous lengths and column sets.
+        col_names: List of column-name lists corresponding to each row.
+        index_col: If provided and present in the unified columns, this column
+            is set as the DataFrame index.
+
+    Returns:
+        A DataFrame with unified columns, optionally indexed by ``index_col``.
+
+    Raises:
+        ValueError: If any aligned row length does not match the unified
+            column count.
+    """
     rows, col_names = cpg_union(rows, col_names)
     for row in rows:
         if len(row) != len(col_names):
@@ -144,7 +269,25 @@ def _merge_to_dataframe(rows: List[Any], col_names: List[str], index_col: Option
         df.set_index(index_col, inplace=True)
     return df
 
-def get_field_value(gsm_metadata: dict, resolution: FieldResolution) -> Optional[str]:
+def get_field_value(gsm_metadata: dict, resolution: FieldResolution) -> Tuple[Optional[str], Optional[str], bool]:
+    """Extract a metadata field value from GSM metadata using a field resolution.
+
+    If the resolution status is ``"missing"`` or ``"error"``, a failure tuple
+    is returned. When the extraction field_name is ``"default"``, the raw
+    resolution value is used directly. Otherwise the extraction rule is applied
+    to the raw field values.
+
+    Args:
+        gsm_metadata: Dictionary of metadata fields for a single GSM sample.
+        resolution: Field resolution object carrying the status, field name, and
+            extraction rule.
+
+    Returns:
+        A tuple of ``(extracted_value, raw_source_value, is_failure)``.
+        ``is_failure`` is True when extraction succeeded on the rule level but
+        yielded None for both outputs; it may also be a non-bool truthy value
+        in some edge cases.
+    """
     if resolution.status in {"missing", "error"}:
         return None, None, False
     if resolution.extraction.field_name == "default":
@@ -159,7 +302,17 @@ def get_field_value(gsm_metadata: dict, resolution: FieldResolution) -> Optional
     extracted_value, target_field = apply_extraction_rule(field_values, resolution.extraction)
     return extracted_value, target_field, False if (extracted_value is not None) or all(x is None for x in [extracted_value, target_field]) else (extracted_value, target_field, True)
 
-def get_field_Coverage(sample_batch: GeoSampleLevelMetadataBatch, field: str) -> FieldCoverage:
+def get_field_coverage(sample_batch: GeoSampleLevelMetadataBatch, field: str) -> FieldCoverage:
+    """Compute coverage statistics for a metadata field across a sample batch.
+
+    Args:
+        sample_batch: Batch of sample-level metadata objects.
+        field: Name of the attribute to inspect on each sample.
+
+    Returns:
+        A ``FieldCoverage`` instance with present/missing counts, parse rate,
+        unique value count, and up to 10 example values.
+    """
     return FieldCoverage(
         present=sum(1 for s in sample_batch.samples if getattr(s, field) is not None),
         missing=sum(1 for s in sample_batch.samples if getattr(s, field) is None),
@@ -168,7 +321,17 @@ def get_field_Coverage(sample_batch: GeoSampleLevelMetadataBatch, field: str) ->
         examples=[str(getattr(s, field)) for s in sample_batch.samples if getattr(s, field) is not None][:10]
     )
 
-def get_df_field_Coverage(metadata: pd.DataFrame, field: str) -> FieldCoverage:
+def get_df_field_coverage(metadata: pd.DataFrame, field: str) -> FieldCoverage:
+    """Compute coverage statistics for a metadata column in a DataFrame.
+
+    Args:
+        metadata: DataFrame containing sample metadata.
+        field: Column name to inspect.
+
+    Returns:
+        A ``FieldCoverage`` instance with present/missing counts, parse rate,
+        unique value count, and up to 10 example values.
+    """
     return FieldCoverage(
         present=metadata[metadata[field].notna()][field].count(),
         missing=metadata[metadata[field].isna()][field].count(),
@@ -187,6 +350,30 @@ def extract_dataset_metadata(
         gpls: Optional[List[str]] = None,
         platform: Optional[List[str]] = None,
         return_dict: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Extract sample-level metadata for a GEO dataset and write artifacts.
+
+    Iterates over all GSM samples and applies field resolutions for disease
+    status, condition, age, sex, tissue, cell type, and subject ID. Produces
+    a sample metadata CSV artifact and populates ``return_dict`` with artifact
+    references, raw disease statuses, and any per-concept parsing failures.
+
+    Args:
+        accession: GEO accession identifier.
+        state_config: Configuration specifying output root and existing artifacts.
+        metadata_dict: Dictionary containing ``"sample_metadata"`` keyed by GSM name.
+        metadata_extraction_result: Resolutions mapping each ``Concept`` to its
+            ``FieldResolution``.
+        overwrite_artifact: If True, overwrite an existing metadata CSV on disk.
+        gpls: Optional list of platform GPL identifiers.
+        platform: Optional list of platform names.
+        return_dict: Mutable dictionary to populate with extraction results.
+            Must contain ``"config"`` with ``"artifacts"``, and ``"datasets"``
+            with the accession-keyed entry.
+
+    Returns:
+        The same ``return_dict`` dictionary, updated with artifact information,
+        raw disease statuses, and example parsing errors.
+    """
     def get_resolution(metadata_extraction_result: GEOMetadataExtractionResult, concept: Concept) -> Optional[FieldResolution]:
         if hasattr(metadata_extraction_result, "resolutions"):
             return metadata_extraction_result.resolutions.get(concept, None)
@@ -287,6 +474,24 @@ def extract_dataset_metadata(
 def generate_summary_data(
         metadata: pd.DataFrame, accession_code: str, platforms: List[str], gpls: List[str], failed_parsing_info: Dict[str, List[Any]],
         return_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate a metadata coverage summary for a dataset.
+
+    Computes per-field coverage statistics (subject ID, age, sex, tissue,
+    cell type, condition, disease status) and attaches a ``MetadataSummary``
+    to ``return_dict`` under the dataset's accession key.
+
+    Args:
+        metadata: DataFrame of sample-level metadata.
+        accession_code: GEO accession identifier.
+        platforms: List of platform names.
+        gpls: List of platform GPL identifiers.
+        failed_parsing_info: Dictionary of parsing failures keyed by concept.
+        return_dict: Mutable dictionary to update with the summary. Must contain
+            a ``"datasets"`` entry keyed by ``accession_code``.
+
+    Returns:
+        The same ``return_dict`` dictionary with the summary attached.
+    """
     # Evaluation
     if metadata.empty:
         sample_summary = MetadataSummary(
@@ -303,13 +508,13 @@ def generate_summary_data(
             gpl=[])
     
     else:
-        subject_id_coverage = get_df_field_Coverage(metadata, "Subject")
-        age_coverage = get_df_field_Coverage(metadata, "age")
-        sex_coverage = get_df_field_Coverage(metadata, "Sex")
-        tissue_coverage = get_df_field_Coverage(metadata, "Tissue")
-        cell_type_coverage = get_df_field_Coverage(metadata, "Cell_Type")
-        condition_coverage = get_df_field_Coverage(metadata, "Condition")
-        disease_status_coverage = get_df_field_Coverage(metadata, "Disease_Status")
+        subject_id_coverage = get_df_field_coverage(metadata, "Subject")
+        age_coverage = get_df_field_coverage(metadata, "age")
+        sex_coverage = get_df_field_coverage(metadata, "Sex")
+        tissue_coverage = get_df_field_coverage(metadata, "Tissue")
+        cell_type_coverage = get_df_field_coverage(metadata, "Cell_Type")
+        condition_coverage = get_df_field_coverage(metadata, "Condition")
+        disease_status_coverage = get_df_field_coverage(metadata, "Disease_Status")
 
         print(f"\n GPLs: {gpls}")
         print(f"\n Platforms: {platforms}")
@@ -330,6 +535,20 @@ def generate_summary_data(
     return return_dict
 
 def get_all_methylation_data(state_config: GEOIngestionConfig, state: GeoDatasetState) -> Dict[str, Any]:
+    """Extract all methylation beta values from a GEO dataset.
+
+    Loads the GEO SOFT file from the download artifact, iterates over all GSM
+    samples, filters low-quality CpG sites via ``get_sample_data``, and merges
+    heterogeneous probe sets into a unified pre-QC methylation matrix CSV.
+
+    Args:
+        state_config: Configuration with output root and existing artifacts.
+        state: Workflow state carrying the GEO accession and download result.
+
+    Returns:
+        A dict with an ``"artifacts"`` list containing an ``ArtifactRef`` for
+        the generated pre-QC methylation matrix CSV.
+    """
     methylation_rows = []
     methylation_col_names = []
     accession_code = state.accession

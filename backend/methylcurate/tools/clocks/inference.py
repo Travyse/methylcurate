@@ -78,7 +78,7 @@ def get_available_methylation_dataframe(accession_code:str, artifacts: List[Any]
     if preqc_methylation_data is not None:
         return load_metadata_aligned_methylation_data(accession_code, artifacts)
     
-    return ValueError("No methylation data")
+    raise ValueError("No methylation data")
 
 def get_dataset_predictions(accession_code: str, artifacts: List[Any]) -> pd.DataFrame:
     """
@@ -95,7 +95,7 @@ def get_dataset_predictions(accession_code: str, artifacts: List[Any]) -> pd.Dat
     if dataset_predictions_artifact is not None:
         return pd.read_csv(dataset_predictions_artifact.path, index_col=0)
     
-    return ValueError("No dataset predictions")
+    raise ValueError("No dataset predictions")
 
 def get_all_methylation_aging_clocks(output_dir: str) -> List[MethylationAgingClock]:
     """
@@ -199,7 +199,7 @@ def welch_one_sided_aac_gt_hc(
 def bootstrap_welch_one_sided_aac_gt_hc(
     prediction_df: pd.DataFrame,
     extraction_protocol: Any,
-    clocks: list = [],
+    clocks: Optional[List[str]] = None,
     n_bootstraps: int = 1000
 ) -> pd.DataFrame:
     """
@@ -227,7 +227,7 @@ def bootstrap_welch_one_sided_aac_gt_hc(
 
         shuffled_labels = [
             sub_prediction_df["Disease_Status"].sample(frac=1, random_state=i).to_numpy()
-            for i in range(1000)
+            for i in range(n_bootstraps)
         ]
         for clock in clocks:
             if clock not in sub_prediction_df.columns:
@@ -304,7 +304,7 @@ def one_sample_t_test(
 def bootstrap_aa1_test(
     prediction_df: pd.DataFrame,
     extraction_protocol: Any,
-    clocks: list = [],
+    clocks: Optional[List[str]] = None,
     n_bootstraps: int = 1000
 ) -> pd.DataFrame:
     """
@@ -333,7 +333,7 @@ def bootstrap_aa1_test(
 
         shuffled_labels = [
             sub_prediction_df["Disease_Status"].sample(frac=1, random_state=i).to_numpy()
-            for i in range(1000)
+            for i in range(n_bootstraps)
         ]
         
         for clock in clocks:
@@ -370,7 +370,7 @@ def bootstrap_aa1_test(
 def compute_mae(
     prediction_df: pd.DataFrame,
     extraction_protocol: Any,
-    clocks: list = [],
+    clocks: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """
     Compute the mean absolute error (MAE) for each clock in the dataset.
@@ -412,7 +412,7 @@ def compute_mae(
 def compute_medae(
     prediction_df: pd.DataFrame,
     extraction_protocol: Any,
-    clocks: list = [],
+    clocks: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """
     Compute the median absolute error (MedAE) for each clock in the dataset.
@@ -454,7 +454,7 @@ def compute_medae(
 def compute_pearson_r(
     prediction_df: pd.DataFrame,
     extraction_protocol: Any,
-    clocks: list = [],
+    clocks: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """
     Compute the Pearson correlation coefficient (R) for each clock in the dataset.

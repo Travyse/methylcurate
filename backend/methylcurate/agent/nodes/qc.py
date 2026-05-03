@@ -16,10 +16,10 @@ from ...utils.helper import (
 from ..state.models import QualityControlSubgraphState, DatasetQualityControlState
 from ..policies.validations.qc import qc_verification
 from ...utils.prompting import generate_qc_plan_prompt
-from ...tools.preprocess.workflow import run_all_qc
+from ...tools.qc.workflow import run_all_qc
 from langchain_core.messages import ToolMessage
-from ...tools.preprocess.data_type_conversion import detect_data_type
-from ...contracts.preprocess import PreprocessDataInput, DNAmQCInput, CpGLevelQCInput, SampleLevelQCInput, InterarrayCorrelationQCInput, ImputationInput
+from ...tools.qc.data_type_conversion import detect_data_type
+from ...contracts.qc import PreprocessDataInput, DNAmQCInput, CpGLevelQCInput, SampleLevelQCInput, InterarrayCorrelationQCInput, ImputationInput
 
 def _get_data_conversion_input_or_default(accession_code: str, state: DatasetQualityControlState) -> PreprocessDataInput:
     """
@@ -221,15 +221,7 @@ def quality_control_summarization_node(state: QualityControlSubgraphState) -> Qu
     }
     accession_codes = sorted([x for x in state.datasets.keys() if state.datasets[x].steps["quality_control"].status == "completed"])
 
-    # Artifact Dump
-    for artifact in state.config.artifacts:
-        pass
     for accession_code in accession_codes:
-        # TODO: DEBUG, REMOVE THIS
-        with open(f"/Users/travyse/Documents/Research/Agentic-AI/agentic_ai_aging_clock_helper/outputs/{accession_code}_dataset_state.json", "w") as f:
-            json.dump(
-                state.datasets[accession_code].model_dump(), f, indent=4
-            )
         preqc_methylation_df = load_metadata_aligned_methylation_data(accession_code, state.config.artifacts)
         postqc_methylation_artifact = next((artifact for artifact in state.config.artifacts if artifact.accession_code == accession_code and artifact.kind == "postqc_methylation_data"), None)
         postqc_methylation_df = read_feather(postqc_methylation_artifact.path, index_name="subject_id")

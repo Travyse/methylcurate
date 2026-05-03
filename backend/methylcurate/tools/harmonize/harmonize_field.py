@@ -10,8 +10,7 @@ from datetime import datetime, timezone
 from pydantic import ValidationError
 from langchain_core.exceptions import OutputParserException
 from langchain_core.runnables import RunnableConfig
-from pydantic import ValidationError
-from typing import Dict, Any, List, get_args
+from typing import Dict, Any, List, Tuple, get_args
 from langchain_core.messages import HumanMessage, AnyMessage, SystemMessage
 from ...agent.graphs.deps import Deps
 from ...contracts.harmonize import (
@@ -59,7 +58,22 @@ ONTOLOGY_DICT = {
     }
 }
 
-def search_ols(query, ontology="mondo", k=5):
+def search_ontology_term(query: str, ontology: str = "mondo", k: int = 5) -> List[Dict[str, Any]]:
+    """Search the EBI Ontology Lookup Service for terms matching a query.
+
+    Falls back to searching DOID if no results are found in Mondo.
+
+    Args:
+        query: The search term to look up in the ontology.
+        ontology: The ontology abbreviation to search (e.g. "mondo", "uberon", "cl").
+        k: Maximum number of results to return.
+
+    Returns:
+        A list of dicts, each with keys "ontology", "id" (obo_id), and "label".
+
+    Raises:
+        requests.HTTPError: If the OLS API request fails.
+    """
     url = "https://www.ebi.ac.uk/ols4/api/search"
     
     params = {
@@ -91,9 +105,22 @@ def search_ols(query, ontology="mondo", k=5):
     ]
 
 def gather_concept_context(metadata_dict: Dict[str, Any], extraction_protocol: Dict[str, Any], unique_concept_labels: List[str]) -> HumanReadableConceptInput:
-    # Get metadata description
-    # Get unique metadata values for a given concept
-    # Get field name and key name if applicable
+    """Assemble dataset context for LLM-assisted ontology label guessing.
+
+    Constructs a HumanReadableConceptInput from dataset metadata and extraction
+    protocol details, providing the context needed for an LLM to suggest
+    human-readable concept labels.
+
+    Args:
+        metadata_dict: Dictionary containing dataset-level metadata (title, summary,
+            overall design).
+        extraction_protocol: Dictionary with extraction instructions, including field
+            name and optional key name.
+        unique_concept_labels: Unique raw labels found in the dataset for the field.
+
+    Returns:
+        A HumanReadableConceptInput populated with dataset context and concept labels.
+    """
     params = {
         "dataset_title": metadata_dict["dataset_metadata"]["title"],
         "dataset_summary": metadata_dict["dataset_metadata"]["summary"],
@@ -105,12 +132,21 @@ def gather_concept_context(metadata_dict: Dict[str, Any], extraction_protocol: D
     return HumanReadableConceptInput.model_validate(params)
 
 def slugify(value, allow_unicode=False):
-    """
-    Taken From Django: https://github.com/django/django/blob/stable/6.0.x/django/utils/text.py#L17
-    Convert to ASCII if 'allow_unicode' is False. Convert spaces or repeated
-    dashes to single dashes. Remove characters that aren't alphanumerics,
-    underscores, or hyphens. Convert to lowercase. Also strip leading and
+    """Convert a string to a URL-safe slug.
+
+    Adapted from Django: https://github.com/django/django/blob/stable/6.0.x/django/utils/text.py#L17
+
+    Converts to ASCII if allow_unicode is False. Replaces spaces or repeated
+    dashes with single dashes. Removes characters that are not alphanumerics,
+    underscores, or hyphens. Converts to lowercase. Strips leading and
     trailing whitespace, dashes, and underscores.
+
+    Args:
+        value: The string to slugify.
+        allow_unicode: If True, preserves Unicode characters.
+
+    Returns:
+        A URL-safe slug string.
     """
     value = str(value)
     if allow_unicode:
@@ -126,14 +162,35 @@ def slugify(value, allow_unicode=False):
 
 # Possibly Remove this
 def create_slugified_concept_mapping(concepts: List[str]) -> Dict[str, str]:
-    # TODO Use this when creating the models
+    """Create a mapping from original concept labels to their slugified forms.
+
+    Args:
+        concepts: List of concept label strings.
+
+    Returns:
+        A dict mapping each original concept label to its slugified representation.
+    """
     slugified_mapping = {}
     for concept in concepts:
         slugified_mapping[concept] = slugify(concept)
     return slugified_mapping
 
-async def llm_conversation(
+async def call_llm_structured_with_retries(
     messages: List[Any], config: RunnableConfig, ResultModel: Any = None) -> Any:
+    """Call an LLM with structured output, retrying on timeout or parse failure.
+
+    Retries up to GLOBAL_RETRY_LIMIT times on timeout. On an OutputParserException,
+    appends a correction message and recurses with one more retry. On a
+    ValidationError, breaks and returns the current (possibly None) result.
+
+    Args:
+        messages: The message list to send to the LLM.
+        config: A RunnableConfig containing a "deps" key with deterministic_llm.
+        ResultModel: The Pydantic model to parse the structured output into.
+
+    Returns:
+        The parsed structured output, or None if all retries or validation failed.
+    """
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
     default_llm = deps.default_llm
@@ -158,7 +215,7 @@ async def llm_conversation(
                 })
             messages += [human_message]
             retries = 4
-            return await llm_conversation(messages, config, ResultModel)
+            return await call_llm_structured_with_retries(messages, config, ResultModel)
         except ValidationError as e:
             print(f"\n\nValidation error for concept disease_status: {e}. Setting resolution to error with notes.")
             break
@@ -172,7 +229,23 @@ async def llm_conversation(
 
 async def _guess_human_readable_labels(
         guess_input: HumanReadableConceptInput, guess_result: Any, config: RunnableConfig,
-        ontology: str = "mondo", ontology_literal: str = "mondo") -> Dict[str, str]:
+        ontology: str = "mondo", ontology_literal: str = "mondo") -> Any:
+    """Use an LLM to guess human-readable labels from raw concept labels.
+
+    Generates example-guided system prompt and dataset-contextualized query
+    to suggest human-readable labels for each raw concept, suitable for ontology
+    search.
+
+    Args:
+        guess_input: Dataset context and raw concept labels.
+        guess_result: Dynamic Pydantic model used for structured output parsing.
+        config: RunnableConfig with LLM dependencies.
+        ontology: Ontology abbreviation (e.g. "mondo", "uberon", "cl").
+        ontology_literal: Ontology literal string for the dynamic model discriminator.
+
+    Returns:
+        A LabelMappingSet with the LLM's suggested human-readable mappings.
+    """
     system_message = generate_ontology_guess_examples(ontology=ontology)
     template_input_labels = [f"'{label}'" for label in guess_input.concepts]    
     query_prompt = generate_ontology_label_query(
@@ -197,13 +270,28 @@ async def _guess_human_readable_labels(
         ontology,
         allowed_target_labels = None,
         high_level = False) 
-    resolved = await llm_conversation(
+    resolved = await call_llm_structured_with_retries(
         [system_message, human_message], config, ResultModel = LabelMappingSetDyn)
     return resolved
 
 async def _guess_human_readable_high_level_labels(
         input_labels: List[str], guess_result: Any, config: RunnableConfig,
-        ontology: str = "mondo", ontology_literal: str = "mondo") -> Dict[str, str]:
+        ontology: str = "mondo", ontology_literal: str = "mondo") -> Any:
+    """Use an LLM to guess high-level category labels from harmonized labels.
+
+    Similar to _guess_human_readable_labels but operates on already-harmonized
+    labels to suggest broader, high-level categories for grouping purposes.
+
+    Args:
+        input_labels: List of harmonized label strings to categorize.
+        guess_result: Dynamic Pydantic model used for structured output parsing.
+        config: RunnableConfig with LLM dependencies.
+        ontology: Ontology abbreviation (e.g. "mondo", "uberon", "cl").
+        ontology_literal: Ontology literal string for the dynamic model discriminator.
+
+    Returns:
+        A LabelMappingSet with the LLM's suggested high-level categorical mappings.
+    """
     system_message = generate_high_level_ontology_guess_examples(ontology=ontology)
     template_input_labels = [f"'{label}'" for label in input_labels]
     query_prompt = generate_ontology_group_guess_user_query(
@@ -223,13 +311,30 @@ async def _guess_human_readable_high_level_labels(
         ontology,
         allowed_target_labels = None,
         high_level = True) 
-    resolved = await llm_conversation(
+    resolved = await call_llm_structured_with_retries(
         [system_message, human_message], config, ResultModel = LabelMappingSetDyn)
     return resolved
 
 async def _select_best_ontology_labels(
         ontology_label_dict: Dict[str, Any], guess_input: HumanReadableConceptInput, guess_result: Any, config: RunnableConfig,
-        ontology: str = "mondo") -> Dict[str, str]:
+        ontology: str = "mondo") -> Any:
+    """Use an LLM to select the best ontology label from candidate choices.
+
+    Presents candidate labels for each suggested human-readable label to the LLM
+    and asks it to choose the most appropriate ontology term based on dataset
+    context.
+
+    Args:
+        ontology_label_dict: Dict mapping suggested labels to lists of candidate
+            ontology labels.
+        guess_input: Dataset context for informed selection.
+        guess_result: Dynamic Pydantic model used for structured output parsing.
+        config: RunnableConfig with LLM dependencies.
+        ontology: Ontology abbreviation (e.g. "mondo", "uberon", "cl").
+
+    Returns:
+        A LabelMappingSet with the LLM's best-choice ontology label selections.
+    """
     system_message = generate_ontology_selection_examples(ontology=ontology)
     table = pd.DataFrame([
         {"Label": key, "Candidate Mondo Labels": value } for key, value in ontology_label_dict.items()
@@ -249,13 +354,28 @@ async def _select_best_ontology_labels(
         additional_kwargs={
             'created_at': datetime.now(timezone.utc).isoformat(),
         })
-    resolved = await llm_conversation(
+    resolved = await call_llm_structured_with_retries(
         [system_message, human_message], config, ResultModel = guess_result)
     return resolved
 
 async def _select_best_high_level_ontology_labels(
         ontology_label_dict: Dict[str, Any], guess_result: Any, config: RunnableConfig,
-        ontology: str = "mondo") -> Dict[str, str]:
+        ontology: str = "mondo") -> Any:
+    """Use an LLM to select the best high-level ontology category from candidates.
+
+    Presents candidate high-level labels to the LLM and asks it to choose the
+    most appropriate category for each.
+
+    Args:
+        ontology_label_dict: Dict mapping labels to lists of candidate high-level
+            ontology categories.
+        guess_result: Dynamic Pydantic model used for structured output parsing.
+        config: RunnableConfig with LLM dependencies.
+        ontology: Ontology abbreviation (e.g. "mondo", "uberon", "cl").
+
+    Returns:
+        A LabelMappingSet with the LLM's best-choice high-level category selections.
+    """
     system_message = generate_high_level_ontology_selection_examples(ontology=ontology)
     table = pd.DataFrame([
         {"Label": key, "Candidate Mondo Labels": value } for key, value in ontology_label_dict.items()
@@ -272,13 +392,36 @@ async def _select_best_high_level_ontology_labels(
         additional_kwargs={
             'created_at': datetime.now(timezone.utc).isoformat(),
         })
-    resolved = await llm_conversation(
+    resolved = await call_llm_structured_with_retries(
         [system_message, human_message], config, ResultModel = guess_result)
     return resolved
 
 async def _harmonize_ontology_labels(
         metadata_dict: Dict[str, Any], extraction_protocol: Dict[str, Any], sample_metadata: pd.DataFrame, config: RunnableConfig,
-        ontology: str = "mondo", ontology_literal: str = "mondo", column_name: str = "disease_status"):
+        ontology: str = "mondo", ontology_literal: str = "mondo", column_name: str = "disease_status") -> Tuple[LabelMappingSet, LabelMappingSet, LabelMappingSet]:
+    """Harmonize raw dataset labels to ontology terms via LLM-guided mapping.
+
+    Orchestrates a pipeline that (1) guesses human-readable labels from raw
+    values, (2) searches OLS for candidate ontology terms, (3) uses an LLM to
+    select the best ontology label per suggestion, and (4) handles control labels
+    and un-mappable labels as best-guess fallbacks.
+
+    Args:
+        metadata_dict: Dataset-level metadata including title, summary, and design.
+        extraction_protocol: Extraction protocol with field name, optional key name,
+            and optional control_value for Mondo harmonization.
+        sample_metadata: DataFrame containing sample-level metadata.
+        config: RunnableConfig with LLM dependencies.
+        ontology: Ontology abbreviation (e.g. "mondo", "uberon", "cl").
+        ontology_literal: Ontology literal for the dynamic model discriminator.
+        column_name: Column name in sample_metadata to harmonize.
+
+    Returns:
+        A tuple of (human_readable_ontology_labels, label_to_top_n_ontology,
+        ontology_label_selection). The first is the LLM's human-readable guesses,
+        the second is a dict of suggested labels to OLS search results, and the
+        third is the LLM's best-choice ontology selections.
+    """
     control_label = None
     unique_dataset_labels = sorted([str(x) for x in sample_metadata[column_name].unique()])
     if ontology == "mondo":
@@ -335,7 +478,7 @@ async def _harmonize_ontology_labels(
 
     # Get best ontology label
     label_to_top_n_ontology = {
-        suggested_label: search_ols(suggested_label, ontology=ontology, k=5) for suggested_label in suggested_human_readable_ontology_labels
+        suggested_label: search_ontology_term(suggested_label, ontology=ontology, k=5) for suggested_label in suggested_human_readable_ontology_labels
     }
     missing_labels = [x.source_label for x in human_readable_ontology_labels.mappings if x.ontology == "missing"]
     # Get missing
@@ -379,7 +522,25 @@ async def _harmonize_ontology_labels(
     return human_readable_ontology_labels, label_to_top_n_ontology, ontology_label_selection
 
 async def _harmonize_ontology_group_labels(
-        harmonized_labels: List[str], config: RunnableConfig, ontology: str = "mondo", ontology_literal: str = "mondo"):
+        harmonized_labels: List[str], config: RunnableConfig, ontology: str = "mondo", ontology_literal: str = "mondo") -> Tuple[LabelMappingSet, LabelMappingSet, LabelMappingSet]:
+    """Harmonize already-harmonized labels into high-level ontology categories.
+
+    Takes a list of already-harmonized ontology labels and maps them to broader,
+    high-level categories. Uses LLM-guided guessing for high-level labels, OLS
+    search for candidate categories, and LLM selection of the best match.
+
+    Args:
+        harmonized_labels: List of previously harmonized label strings.
+        config: RunnableConfig with LLM dependencies.
+        ontology: Ontology abbreviation (e.g. "mondo", "uberon", "cl").
+        ontology_literal: Ontology literal for the dynamic model discriminator.
+
+    Returns:
+        A tuple of (human_readable_ontology_labels, label_to_top_n_ontology,
+        ontology_label_selection). The first contains the LLM's high-level
+        guesses, the second maps labels to OLS search results, and the third
+        contains the LLM's best-category selections.
+    """
     unique_harmonized_labels = sorted(set(harmonized_labels))
     _, DatasetLabelMappingSetDyn = create_ontology_mapping_model(
         unique_harmonized_labels,
@@ -397,7 +558,7 @@ async def _harmonize_ontology_group_labels(
 
     # Get best ontology label
     label_to_top_n_ontology = {
-        suggested_label: search_ols(suggested_label, ontology=ontology, k=5) for suggested_label in suggested_human_readable_ontology_labels
+        suggested_label: search_ontology_term(suggested_label, ontology=ontology, k=5) for suggested_label in suggested_human_readable_ontology_labels
     }
     missing_labels = [x.source_label for x in human_readable_ontology_labels.mappings if x.ontology == "missing"]
     # Get missing
@@ -433,7 +594,24 @@ async def _harmonize_ontology_group_labels(
     return human_readable_ontology_labels, label_to_top_n_ontology, ontology_label_selection
 
 async def _harmonize_sex_labels(
-        metadata_dict: Dict[str, Any], extraction_protocol: Dict[str, Any], sample_metadata: pd.DataFrame, config: RunnableConfig):
+        metadata_dict: Dict[str, Any], extraction_protocol: Dict[str, Any], sample_metadata: pd.DataFrame, config: RunnableConfig) -> Tuple[LabelMappingSet, LabelMappingSet, LabelMappingSet]:
+    """Harmonize raw sex labels to "Male", "Female", or "Unknown/Other".
+
+    Uses the PATO ontology context to map raw sex labels to a fixed set of
+    harmonized values via LLM-guided selection.
+
+    Args:
+        metadata_dict: Dataset-level metadata including title, summary, and design.
+        extraction_protocol: Extraction protocol with field details for the sex column.
+        sample_metadata: DataFrame containing sample-level metadata.
+        config: RunnableConfig with LLM dependencies.
+
+    Returns:
+        A tuple of (unique_dataset_labels, ontology_label_dict,
+        ontology_label_selection). The first is the sorted unique raw labels,
+        the second maps raw labels to the harmonized ["Male", "Female",
+        "Unknown/Other"] options, and the third contains the LLM's selections.
+    """
     column_name = "Sex"
     unique_dataset_labels = sorted([str(x) for x in sample_metadata[column_name].unique()])
     dataset_context = gather_concept_context(metadata_dict, extraction_protocol[column_name.lower()], unique_dataset_labels)
@@ -451,7 +629,21 @@ async def _harmonize_sex_labels(
         ontology_label_dict, dataset_context, OntologyGroupLabelMappingSetDyn, config, ontology = "pato")
     return unique_dataset_labels, ontology_label_dict, ontology_label_selection
 
-def construct_raw_to_harmonized_label_mapping(guessed_ontology_labels: LabelMappingSet, ontology_label_selection: LabelMappingSet):
+def construct_raw_to_harmonized_label_mapping(guessed_ontology_labels: LabelMappingSet, ontology_label_selection: LabelMappingSet) -> LabelMappingSet:
+    """Build the final raw-to-harmonized label mapping from two LLM outputs.
+
+    Joins the human-readable guesses with the best ontology selections to
+    produce a single LabelMappingSet that maps each raw source label to its
+    final harmonized target label. Labels that could not be mapped are preserved
+    as best-guess fallbacks.
+
+    Args:
+        guessed_ontology_labels: Human-readable label guesses from the LLM.
+        ontology_label_selection: Best ontology label selections from the LLM.
+
+    Returns:
+        A LabelMappingSet with finalized raw-to-harmonized mappings.
+    """
     fixed_harmonized_label_mapping = {
         "mappings": []
     }
@@ -464,11 +656,19 @@ def construct_raw_to_harmonized_label_mapping(guessed_ontology_labels: LabelMapp
                 "notes": "This label was not able to be mapped to the ontology, so the best guess is to keep the original label. This is likely because the label is either very noisy or represents a concept that is not well represented in the ontology."
             })
             continue
-        best_guess_mapping = next(m for m in ontology_label_selection.mappings if m.source_label == mapping.target_label)
-        fixed_harmonized_label_mapping["mappings"].append({
-            "ontology": best_guess_mapping.ontology,
-            "source_label": mapping.source_label,
-            "target_label": best_guess_mapping.target_label if hasattr(best_guess_mapping, "target_label") else mapping.source_label,
-            "notes": best_guess_mapping.notes
-        })
+        best_guess_mapping = next((m for m in ontology_label_selection.mappings if m.source_label == mapping.target_label), None)
+        if best_guess_mapping is None:
+            fixed_harmonized_label_mapping["mappings"].append({
+                "ontology": "best_guess",
+                "source_label": mapping.source_label,
+                "target_label": mapping.source_label,
+                "notes": "This label was not able to be mapped to the ontology, so the best guess is to keep the original label. This is likely because the label is either very noisy or represents a concept that is not well represented in the ontology."
+            })
+        else:
+            fixed_harmonized_label_mapping["mappings"].append({
+                "ontology": best_guess_mapping.ontology,
+                "source_label": mapping.source_label,
+                "target_label": best_guess_mapping.target_label if hasattr(best_guess_mapping, "target_label") else mapping.source_label,
+                "notes": best_guess_mapping.notes
+            })
     return LabelMappingSet.model_validate(fixed_harmonized_label_mapping)
