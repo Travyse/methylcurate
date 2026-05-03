@@ -1,11 +1,9 @@
 __all__ = ["classify_geo_error"]
-import GEOparse
 import socket
 import ssl
 import urllib.error
 import ftplib
 import gzip
-import io
 import os
 
 from typing import Tuple

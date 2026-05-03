@@ -13,14 +13,16 @@
   },
   "permission": {
     "bash": {
-      "*": "ask",
       "git *": "allow",
       "npm *": "allow",
       "rm *": "deny",
       "grep *": "allow"
     },
     "edit": {
-      "*": "deny",
+      "*": "ask",
+      "tests/*": "allow",
+      "backend/*": "allow",
+      "frontend/*": "allow",
       "packages/web/src/content/docs/*.mdx": "allow"
     }
   }

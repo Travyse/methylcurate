@@ -9,7 +9,7 @@ from .models import (
     HarmonizationIngestionConfig, HarmonizationDatasetState, HarmonizationSubgraphState,
     QualityControlIngestionConfig, DatasetQualityControlState, QualityControlSubgraphState,
     BenchmarkingIngestionConfig, BenchmarkingDatasetState, BenchmarkingSubgraphState, MainState, SubgraphHandle)
-from ...contracts.harmonize import Concept as HarmonizationConcepts
+from ...contracts.harmonize import HarmonizationConcept
 from ...contracts.geo import Concept as GEOConcepts
 from ...contracts.geo import GEOMetadataExtractionResult
 from ...utils.prompting import (
@@ -270,3 +270,14 @@ def get_dataset_for_subgraph(subgraph_name: str) -> Any:
         return DatasetQualityControlState
     else:
         raise ValueError(f"Unknown subgraph: {subgraph_name}")
+# Register parameter schemas for each subgraph
+from ..registry.nodes import PARAM_SCHEMAS
+from .models import (
+    GEOIngestionConfig, HarmonizationIngestionConfig,
+    QualityControlIngestionConfig, BenchmarkingIngestionConfig,
+)
+PARAM_SCHEMAS['geo_retrieval'] = GEOIngestionConfig
+PARAM_SCHEMAS['harmonization'] = HarmonizationIngestionConfig
+PARAM_SCHEMAS['quality_control'] = QualityControlIngestionConfig
+PARAM_SCHEMAS['benchmarking'] = BenchmarkingIngestionConfig
+

@@ -632,7 +632,7 @@ def qc_progress(state: Any) -> ToolMessage:
     )
     return message
 
-def _get_supplementary_file_id(supplementary_files: List[str], accession_code: Any) -> List[str]:
+def _get_supplementary_file_id(supplementary_files: List[str], accession_code: Any) -> str:
     """
     Generate a unique ID for a supplementary file based on its content and the accession code.
 

@@ -36,6 +36,70 @@ from ...utils.prompting import (
 CALL_TIMEOUT = 180
 GLOBAL_RETRY_LIMIT = 5
 
+
+async def _invoke_llm_with_retry(
+    messages, model, config, retry_limit=5, timeout=180,
+    feedback_fn=None, error_result_factory=None,
+):
+    """Invoke an LLM with structured output, retrying on common failures.
+
+    Args:
+        messages: LangChain message list to send.
+        model: Pydantic model class for structured output parsing.
+        config: RunnableConfig with LLM dependencies.
+        retry_limit: Maximum number of retry attempts.
+        timeout: Timeout in seconds for each individual attempt.
+        feedback_fn: Optional async callable(messages, config, attempt) that
+            returns (new_messages, should_continue) for recovery attempts.
+        error_result_factory: Optional callable() -> Any that creates a
+            fallback result when all retries are exhausted.
+
+    Returns:
+        The parsed structured output, or the result of error_result_factory()
+        if all retries are exhausted.
+    """
+    import asyncio
+    from pydantic import ValidationError
+    from langchain_core.exceptions import OutputParserException
+    from ...agent.graphs.deps import Deps
+    from langchain_core.messages import HumanMessage
+
+    deps = config["configurable"]["deps"]
+    llm = deps.deterministic_llm
+
+    retries = 0
+    resolved = None
+    while retries < retry_limit:
+        try:
+            resolved = await asyncio.wait_for(
+                llm.acall_structured(messages, model), timeout=timeout,
+            )
+            break
+        except asyncio.TimeoutError:
+            retries += 1
+            continue
+        except OutputParserException as e:
+            if feedback_fn is not None:
+                messages, should_continue = await feedback_fn(messages, config, retries)
+                if not should_continue:
+                    break
+                retries += 1
+                continue
+            retries += 1
+            continue
+        except ValidationError:
+            if error_result_factory is not None:
+                return error_result_factory()
+            break
+        except Exception:
+            retries += 1
+            if retries >= retry_limit:
+                if error_result_factory is not None:
+                    return error_result_factory()
+                break
+    return resolved
+
+
 async def get_all_extraction_resolutions():
     """Retrieve all extraction resolutions across known concepts.
 

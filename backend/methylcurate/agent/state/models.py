@@ -8,7 +8,7 @@ from typing import List, Dict, Optional, Literal, Annotated, Union, Any
 from operator import add
 from pydantic import BaseModel, Field, field_validator, model_validator
 from ...contracts.harmonize import HumanReadableConceptInput, LabelMappingSet
-from ...contracts.harmonize import Concept as HarmonizationConcepts
+from ...contracts.harmonize import HarmonizationConcept
 from ...contracts.geo import Concept as GEOConcepts
 from ...contracts.geo import GEODownloadResult, GEOMetadataExtractionInput, GEOMetadataExtractionResult, MetadataSummary, GeoSampleLevelMetadataBatch
 from ...contracts.qc import PreprocessDataInput, PreprocessDataResult, SampleLevelQCInput, SampleLevelQCResult, CpGLevelQCInput, CpGLevelQCResult, DNAmQCInput, DNAmQCResult, InterarrayCorrelationQCInput, InterarrayCorrelationQCResult
@@ -21,6 +21,29 @@ from ..registry.nodes import GRAPH_BUILDERS, PARAM_SCHEMAS
 
 def merge_dict(left: dict, right: dict) -> dict:
     return {**left, **right}
+def _validate_geo_accession(v: str) -> str:
+    """Ensure a value is a valid GEO Series accession (must start with 'GSE')."""
+    if not v or not isinstance(v, str):
+        raise ValueError("each accession must be a non-empty string")
+    if not v.upper().startswith("GSE"):
+        raise ValueError(f"accession {v} is not a valid GEO Series accession (must start with 'GSE')")
+    return v
+
+def _validate_accessions_list(v):
+    """Ensure accessions is a non-empty list of valid GEO Series accessions."""
+    if not v or not isinstance(v, list) or len(v) == 0:
+        raise ValueError("accessions must be a non-empty list of strings")
+    for acc in v:
+        _validate_geo_accession(acc)
+    return v
+
+def _validate_output_root(v):
+    """Ensure output_root is a valid existing directory path."""
+    if not v or not isinstance(v, str) or not os.path.exists(v):
+        raise ValueError("output_root must be a non-empty string and existing directory")
+    return v
+
+
 
 # ----------------------------
 # GEO Subgraph States
@@ -32,15 +55,9 @@ class GEOIngestionConfig(BaseModel):
     artifacts: List[ArtifactRef] = Field(default_factory=list)
     
     @field_validator("accessions", mode="before")
+    @classmethod
     def validate_accessions(cls, v):
-        if not v or not isinstance(v, list) or len(v) == 0:
-            raise ValueError("accessions must be a non-empty list of strings")
-        for acc in v:
-            if not acc or not isinstance(acc, str):
-                raise ValueError("each accession must be a non-empty string")
-            if not acc.upper().startswith("GSE"):
-                raise ValueError(f"accession {acc} is not a valid GEO Series accession (must start with 'GSE')")
-        return v
+        return _validate_accessions_list(v)
 
 class GPLMetadata(BaseModel):
     platform_id: Optional[NonEmptyStr] = None
@@ -89,12 +106,9 @@ class GeoDatasetState(BaseModel):
     errors: List[NonEmptyStr] = Field(default_factory=list)
     
     @field_validator("accession", mode="before")
+    @classmethod
     def validate_accession(cls, v):
-        if not v or not isinstance(v, str):
-            raise ValueError("each accession must be a non-empty string")
-        if not v.upper().startswith("GSE"):
-            raise ValueError(f"accession {v} is not a valid GEO Series accession (must start with 'GSE')")
-        return v
+        return _validate_geo_accession(v)
 
 class GeoIngestionSubgraphState(BaseModel):
     run_id: NonEmptyStr
@@ -123,10 +137,7 @@ class GeoIngestionSubgraphState(BaseModel):
         if not self.datasets:
             raise ValueError("datasets must be a non-empty dictionary")
         for key in self.datasets.keys():
-            if not key.upper().startswith("GSE"):
-                raise ValueError(
-                    f"accession {key} is not a valid GEO Series accession (must start with 'GSE')"
-                )
+            _validate_geo_accession(key)
         return self
 
 # ----------------------------
@@ -139,21 +150,14 @@ class HarmonizationIngestionConfig(BaseModel):
     artifacts: List[ArtifactRef] = Field(default_factory=list)
 
     @field_validator("output_root", mode="before")
+    @classmethod
     def validate_output_root(cls, v):
-        if not v or not isinstance(v, str) or not os.path.exists(v):
-            raise ValueError("output_root must be a non-empty string")
-        return v
+        return _validate_output_root(v)
     
     @field_validator("accessions", mode="before")
+    @classmethod
     def validate_accessions(cls, v):
-        if not v or not isinstance(v, list) or len(v) == 0:
-            raise ValueError("accessions must be a non-empty list of strings")
-        for acc in v:
-            if not acc or not isinstance(acc, str):
-                raise ValueError("each accession must be a non-empty string")
-            if not acc.upper().startswith("GSE"):
-                raise ValueError(f"accession {acc} is not a valid GEO Series accession (must start with 'GSE')")
-        return v
+        return _validate_accessions_list(v)
 
 class HarmonizationDatasetState(BaseModel):
     accession: NonEmptyStr
@@ -214,21 +218,14 @@ class QualityControlIngestionConfig(BaseModel):
     artifacts: List[ArtifactRef] = Field(default_factory=list)
 
     @field_validator("output_root", mode="before")
+    @classmethod
     def validate_output_root(cls, v):
-        if not v or not isinstance(v, str) or not os.path.exists(v):
-            raise ValueError("output_root must be a non-empty string")
-        return v
+        return _validate_output_root(v)
     
     @field_validator("accessions", mode="before")
+    @classmethod
     def validate_accessions(cls, v):
-        if not v or not isinstance(v, list) or len(v) == 0:
-            raise ValueError("accessions must be a non-empty list of strings")
-        for acc in v:
-            if not acc or not isinstance(acc, str):
-                raise ValueError("each accession must be a non-empty string")
-            if not acc.upper().startswith("GSE"):
-                raise ValueError(f"accession {acc} is not a valid GEO Series accession (must start with 'GSE')")
-        return v
+        return _validate_accessions_list(v)
 
 class DatasetQualityControlState(BaseModel):
     accession: NonEmptyStr
@@ -247,12 +244,9 @@ class DatasetQualityControlState(BaseModel):
     artifacts: List[ArtifactRef] = Field(default_factory=list)
     
     @field_validator("accession", mode="before")
+    @classmethod
     def validate_accessions(cls, v):
-        if not v or not isinstance(v, str):
-            raise ValueError("each accession must be a non-empty string")
-        if not v.upper().startswith("GSE"):
-            raise ValueError(f"accession {v} is not a valid GEO Series accession (must start with 'GSE')")
-        return v
+        return _validate_geo_accession(v)
 
 class QualityControlSubgraphState(BaseModel):
     run_id: NonEmptyStr
@@ -281,10 +275,7 @@ class QualityControlSubgraphState(BaseModel):
         if not self.datasets:
             raise ValueError("datasets must be a non-empty dictionary")
         for key in self.datasets.keys():
-            if not key.upper().startswith("GSE"):
-                raise ValueError(
-                    f"accession {key} is not a valid GEO Series accession (must start with 'GSE')"
-                )
+            _validate_geo_accession(key)
         return self
 
 # ----------------------------
@@ -298,19 +289,14 @@ class BenchmarkingIngestionConfig(BaseModel):
     artifacts: List[ArtifactRef] = Field(default_factory=list)
 
     @field_validator("accessions", mode="before")
+    @classmethod
     def validate_accessions(cls, v):
-        if not v or not isinstance(v, list) or len(v) == 0:
-            raise ValueError("accessions must be a non-empty list of strings")
-        for acc in v:
-            if not acc.upper().startswith("GSE"):
-                raise ValueError(f"accession {acc} is not a valid GEO Series accession (must start with 'GSE')")
-        return v
+        return _validate_accessions_list(v)
     
     @field_validator("output_root", mode="before")
+    @classmethod
     def validate_output_root(cls, v):
-        if not v or not isinstance(v, str) or not os.path.exists(v):
-            raise ValueError("output_root must be a non-empty string")
-        return v
+        return _validate_output_root(v)
 
 class BenchmarkingDatasetState(BaseModel):
     accession: NonEmptyStr
@@ -328,12 +314,9 @@ class BenchmarkingDatasetState(BaseModel):
     artifacts: List[ArtifactRef] = Field(default_factory=list)
     
     @field_validator("accession", mode="before")
+    @classmethod
     def validate_accessions(cls, v):
-        if not v or not isinstance(v, str):
-            raise ValueError("each accession must be a non-empty string")
-        if not v.upper().startswith("GSE"):
-            raise ValueError(f"accession {v} is not a valid GEO Series accession (must start with 'GSE')")
-        return v
+        return _validate_geo_accession(v)
 
 class BenchmarkingSubgraphState(BaseModel):
     run_id: NonEmptyStr
@@ -382,8 +365,3 @@ class MainState(BaseModel):
     errors: List[NonEmptyStr] = Field(default_factory=list)
 
     next_action_hint: Optional[NonEmptyStr] = None
-
-PARAM_SCHEMAS['geo_retrieval'] = GEOIngestionConfig
-PARAM_SCHEMAS['harmonization'] = HarmonizationIngestionConfig
-PARAM_SCHEMAS['quality_control'] = QualityControlIngestionConfig
-PARAM_SCHEMAS['benchmarking'] = BenchmarkingIngestionConfig

@@ -4,6 +4,48 @@ import pickle
 import pandas as pd
 import numpy as np
 
+
+def _impute_clock_data(required_cpgs, dnam, default_imputation, user_imputation=None):
+    """Align and impute missing CpG values for a clock model.
+
+    Args:
+        required_cpgs: List of CpG identifiers required by the model.
+        dnam: Methylation DataFrame (samples × probes).
+        default_imputation: Reference mean values for CpGs when no user
+            imputation is provided.
+        user_imputation: Optional user-provided CpG mean values.
+
+    Returns:
+        NumPy float32 array with no NaN values.
+
+    Raises:
+        ValueError: If required CpGs are missing and no imputation
+            reference is available.
+    """
+    X = dnam.reindex(columns=required_cpgs).to_numpy(dtype=np.float32, copy=True)
+
+    if user_imputation is not None:
+        imp = pd.Series(user_imputation.iloc[0]).reindex(required_cpgs).to_numpy(dtype=np.float32)
+    elif default_imputation is not None:
+        imp = pd.Series(default_imputation.iloc[0]).reindex(required_cpgs).to_numpy(dtype=np.float32)
+    else:
+        imp = None
+    mask = np.isnan(X)
+    if mask.any():
+        col_means = np.nanmean(X, axis=0)
+
+        if imp is None and np.isnan(col_means).any():
+            raise ValueError("Missing required CpGs and no imputation reference was provided.")
+
+        fill_vals = col_means if imp is None else np.where(np.isnan(col_means), imp, col_means)
+
+        if np.isnan(fill_vals).any():
+            raise ValueError("Imputation reference is missing required CpG values.")
+
+        X[mask] = fill_vals[np.where(mask)[1]]
+
+    return X
+
 class CorticalAge:
     def __init__(self, coefs, intercept=0.577682570446177, default_imputation=None):
         """
@@ -19,31 +61,21 @@ class CorticalAge:
         self.required_cpgs = self.coefs.index.tolist()
 
     def impute_data(self, dnam, user_imputation=None):
+        """Align and impute missing CpG values.
+
+        Delegates to the shared ``_impute_clock_data`` utility.
+
+        Args:
+            dnam: Methylation DataFrame (samples × probes).
+            user_imputation: Optional user-provided CpG mean values.
+
+        Returns:
+            NumPy float32 array with no NaN values.
         """
-        Handles missing CpGs (columns) and missing values (NaNs).
-        """
-        df = dnam.reindex(columns=self.required_cpgs)
-        X = df.to_numpy(dtype=np.float32, copy=True)
-
-        if user_imputation is not None:
-            imp = pd.Series(user_imputation.iloc[0]).reindex(self.required_cpgs).to_numpy(dtype=np.float32)
-        else:
-            imp = pd.Series(self.default_imputation.iloc[0]).reindex(self.required_cpgs).to_numpy(dtype=np.float32)
-        mask = np.isnan(X)
-        if mask.any():
-            col_means = np.nanmean(X, axis=0)
-
-            if imp is None and np.isnan(col_means).any():
-                raise ValueError("Missing required CpGs and no imputation reference was provided.")
-
-            fill_vals = col_means if imp is None else np.where(np.isnan(col_means), imp, col_means)
-
-            if np.isnan(fill_vals).any():
-                raise ValueError("Imputation reference is missing required CpG values.")
-
-            X[mask] = fill_vals[np.where(mask)[1]]
-
-        return X
+        return _impute_clock_data(
+            self.required_cpgs, dnam, self.default_imputation,
+            user_imputation=user_imputation,
+        )
 
     def predict(self, dnam, pheno=None, user_imputation=None):
         """
@@ -122,28 +154,21 @@ class PCBrainAge:
         self.required_cpgs = rotation.index.tolist()
 
     def impute_data(self, dnam, user_imputation=None):
-        df = dnam.reindex(columns=self.required_cpgs)
-        X = df.to_numpy(dtype=np.float32, copy=True)
+        """Align and impute missing CpG values.
 
-        if user_imputation is not None:
-            imp = pd.Series(user_imputation.iloc[0]).reindex(self.required_cpgs).to_numpy(dtype=np.float32)
-        else:
-            imp = pd.Series(self.default_imputation.iloc[0]).reindex(self.required_cpgs).to_numpy(dtype=np.float32)
-        mask = np.isnan(X)
-        if mask.any():
-            col_means = np.nanmean(X, axis=0)
+        Delegates to the shared ``_impute_clock_data`` utility.
 
-            if imp is None and np.isnan(col_means).any():
-                raise ValueError("Missing required CpGs and no imputation reference was provided.")
+        Args:
+            dnam: Methylation DataFrame (samples × probes).
+            user_imputation: Optional user-provided CpG mean values.
 
-            fill_vals = col_means if imp is None else np.where(np.isnan(col_means), imp, col_means)
-
-            if np.isnan(fill_vals).any():
-                raise ValueError("Imputation reference is missing required CpG values.")
-
-            X[mask] = fill_vals[np.where(mask)[1]]
-
-        return X
+        Returns:
+            NumPy float32 array with no NaN values.
+        """
+        return _impute_clock_data(
+            self.required_cpgs, dnam, self.default_imputation,
+            user_imputation=user_imputation,
+        )
     
     def predict(self, dnam, pheno=None, user_imputation=None):
         """

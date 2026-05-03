@@ -11,7 +11,7 @@ import torch
 import pyaging as pya
 import pandas as pd
 from functools import reduce
-from typing import List, Any, Tuple, get_args
+from typing import List, Any, Tuple, Optional, Dict, get_args
 from scipy import stats
 import statsmodels.api as sm
 from joblib import Parallel, delayed
@@ -40,6 +40,29 @@ def get_extraction_protocol(accession_code: str, artifacts: List[Any]) -> Any:
     with open(extraction_protocol_artifact.path, "r") as f:
         extraction_protocol = json.load(f)
     return extraction_protocol
+_HC_SAMPLE_THRESHOLD = 10
+
+def _get_healthy_subset(prediction_df, extraction_protocol):
+    """Extract the healthy control subset and return target disease labels.
+
+    Args:
+        prediction_df: Prediction DataFrame with "Accession_Code" and
+            "Disease_Status" columns.
+        extraction_protocol: Dict with
+            extraction_protocol["disease_status"]["extraction"]["control_value"].
+
+    Returns:
+        Tuple of (accession_code, control_label, healthy_subset, target_labels).
+        healthy_subset is the DataFrame filtered to control samples.
+        target_labels lists unique non-control disease statuses.
+    """
+    accession_code = prediction_df["Accession_Code"].unique()[0]
+    control_label = extraction_protocol["disease_status"]["extraction"]["control_value"]
+    healthy_subset = prediction_df[prediction_df["Disease_Status"] == control_label]
+    target_labels = [x for x in prediction_df["Disease_Status"].unique().tolist() if x != control_label]
+    return accession_code, control_label, healthy_subset, target_labels
+
+
 
 def get_metadata_dataframe(accession_code: str, artifacts: List[Any]) -> pd.DataFrame:
     """
@@ -198,7 +221,7 @@ def welch_one_sided_aac_gt_hc(
 
 def bootstrap_welch_one_sided_aac_gt_hc(
     prediction_df: pd.DataFrame,
-    extraction_protocol: Any,
+    extraction_protocol: Dict[str, Any],
     clocks: Optional[List[str]] = None,
     n_bootstraps: int = 1000
 ) -> pd.DataFrame:
@@ -213,6 +236,8 @@ def bootstrap_welch_one_sided_aac_gt_hc(
     Returns:
         pd.DataFrame: A DataFrame containing the results of the bootstrap analysis, including t-stat
     """
+    if clocks is None:
+        clocks = []
     rows = []
     accession_code = prediction_df['Accession_Code'].unique()[0]
     control_label = extraction_protocol["disease_status"]["extraction"]["control_value"]
@@ -303,7 +328,7 @@ def one_sample_t_test(
 
 def bootstrap_aa1_test(
     prediction_df: pd.DataFrame,
-    extraction_protocol: Any,
+    extraction_protocol: Dict[str, Any],
     clocks: Optional[List[str]] = None,
     n_bootstraps: int = 1000
 ) -> pd.DataFrame:
@@ -319,6 +344,8 @@ def bootstrap_aa1_test(
     Returns:
         pd.DataFrame: A DataFrame containing the results of the bootstrap analysis, including t-statistics and p-values.
     """
+    if clocks is None:
+        clocks = []
     rows = []
     accession_code = prediction_df['Accession_Code'].unique()[0]
     control_label = extraction_protocol["disease_status"]["extraction"]["control_value"]
@@ -367,177 +394,109 @@ def bootstrap_aa1_test(
         return pd.DataFrame(columns=["Accession_Code", "Disease", "Disease_Group", "Clock", "AA1", "AA1_Empirical_p"])
     return pd.DataFrame(rows)
 
-def compute_mae(
-    prediction_df: pd.DataFrame,
-    extraction_protocol: Any,
-    clocks: Optional[List[str]] = None,
-) -> pd.DataFrame:
-    """
-    Compute the mean absolute error (MAE) for each clock in the dataset.
+def _compute_hc_metric(
+    prediction_df, extraction_protocol, clocks, metric_fn, metric_name
+):
+    """Compute a per-clock metric restricted to healthy control samples.
 
     Args:
-        prediction_df (pd.DataFrame): The DataFrame containing the predictions and metadata for the dataset.
-        extraction_protocol (Any): The metadata extraction protocol containing information about disease status and control values.
-        clocks (list): A list of clock names to analyze.
+        prediction_df: Prediction DataFrame.
+        extraction_protocol: Metadata extraction protocol.
+        clocks: List of clock names (or None, which defaults to all).
+        metric_fn: Callable(clock_subset, clock_name) -> float.
+        metric_name: Column name for the result in the output DataFrame.
 
     Returns:
-        pd.DataFrame: A DataFrame containing the MAE for each clock.
+        DataFrame with columns ["Accession_Code", "Clock", metric_name].
     """
-    accession_code = prediction_df['Accession_Code'].unique()[0]
-    control_label = extraction_protocol["disease_status"]["extraction"]["control_value"]
-    healthy_subset = prediction_df[prediction_df['Disease_Status'] == control_label]
+    accession_code, control_label, healthy_subset, _ = _get_healthy_subset(
+        prediction_df, extraction_protocol,
+    )
     rows = []
+    if clocks is None:
+        clocks = []
     for clock in clocks:
         if clock not in prediction_df.columns:
             continue
-        clock_subset = healthy_subset.dropna(subset=[clock.lower(), 'age'])
+        clock_subset = healthy_subset.dropna(subset=[clock.lower(), "age"])
         if len(clock_subset) < 2:
-            rows.append({
-                "Accession_Code": accession_code,
-                "Clock": clock,
-                "Pearson_R": 0.0
-            })
             continue
-        age = clock_subset['age']
-        clock_pred_age = clock_subset[clock.lower()]
-        mae = mean_absolute_error(age, clock_pred_age)
+        score = metric_fn(clock_subset, clock)
         rows.append({
             "Accession_Code": accession_code,
             "Clock": clock,
-            "MAE": mae
+            metric_name: score,
         })
-    results_df = pd.DataFrame(rows)
-    return results_df
+    return pd.DataFrame(rows)
+
+
+
+def compute_mae(
+    prediction_df: pd.DataFrame,
+    extraction_protocol: Dict[str, Any],
+    clocks: Optional[List[str]] = None,
+) -> pd.DataFrame:
+    """Compute the mean absolute error (MAE) for each clock.
+
+    Args:
+        prediction_df: DataFrame with predictions and metadata.
+        extraction_protocol: Metadata extraction protocol.
+        clocks: Clock names to analyze (uses all columns if None).
+
+    Returns:
+        DataFrame with MAE scores per clock.
+    """
+    return _compute_hc_metric(
+        prediction_df, extraction_protocol, clocks,
+        metric_fn=lambda clock_subset, clock: (abs(clock_subset[clock.lower() + "_accel"] - clock_subset["age"])).mean(),
+        metric_name="MAE_score",
+    )
+
 
 def compute_medae(
     prediction_df: pd.DataFrame,
-    extraction_protocol: Any,
+    extraction_protocol: Dict[str, Any],
     clocks: Optional[List[str]] = None,
 ) -> pd.DataFrame:
-    """
-    Compute the median absolute error (MedAE) for each clock in the dataset.
+    """Compute the median absolute error (MedAE) for each clock.
 
     Args:
-        prediction_df (pd.DataFrame): The DataFrame containing the predictions and metadata for the dataset.
-        extraction_protocol (Any): The metadata extraction protocol containing information about disease status and control values.
-        clocks (list): A list of clock names to analyze.
+        prediction_df: DataFrame with predictions and metadata.
+        extraction_protocol: Metadata extraction protocol.
+        clocks: Clock names to analyze (uses all columns if None).
 
     Returns:
-        pd.DataFrame: A DataFrame containing the MedAE for each clock.
+        DataFrame with MedAE scores per clock.
     """
-    accession_code = prediction_df['Accession_Code'].unique()[0]
-    control_label = extraction_protocol["disease_status"]["extraction"]["control_value"]
-    healthy_subset = prediction_df[prediction_df['Disease_Status'] == control_label]
-    rows = []
-    for clock in clocks:
-        if clock not in prediction_df.columns:
-            continue
-        clock_subset = healthy_subset.dropna(subset=[clock.lower(), 'age'])
-        if len(clock_subset) < 2:
-            rows.append({
-                "Accession_Code": accession_code,
-                "Clock": clock,
-                "Pearson_R": 0.0
-            })
-            continue
-        age = clock_subset['age']
-        clock_pred_age = clock_subset[clock.lower()]
-        medae = median_absolute_error(age, clock_pred_age)
-        rows.append({
-            "Accession_Code": accession_code,
-            "Clock": clock,
-            "MedAE": medae
-        })
-    results_df = pd.DataFrame(rows)
-    return results_df
+    return _compute_hc_metric(
+        prediction_df, extraction_protocol, clocks,
+        metric_fn=lambda clock_subset, clock: (abs(clock_subset[clock.lower() + "_accel"] - clock_subset["age"])).median(),
+        metric_name="MedAE_score",
+    )
+
 
 def compute_pearson_r(
     prediction_df: pd.DataFrame,
-    extraction_protocol: Any,
+    extraction_protocol: Dict[str, Any],
     clocks: Optional[List[str]] = None,
 ) -> pd.DataFrame:
-    """
-    Compute the Pearson correlation coefficient (R) for each clock in the dataset.
+    """Compute the Pearson correlation for each clock vs chronological age.
 
     Args:
-        prediction_df (pd.DataFrame): The DataFrame containing the predictions and metadata for the dataset.
-        extraction_protocol (Any): The metadata extraction protocol containing information about disease status and control values.
-        clocks (list): A list of clock names to analyze.
+        prediction_df: DataFrame with predictions and metadata.
+        extraction_protocol: Metadata extraction protocol.
+        clocks: Clock names to analyze (uses all columns if None).
 
     Returns:
-        pd.DataFrame: A DataFrame containing the Pearson R for each clock.
+        DataFrame with Pearson_R scores per clock.
     """
-    accession_code = prediction_df['Accession_Code'].unique()[0]
-    control_label = extraction_protocol["disease_status"]["extraction"]["control_value"]
-    healthy_subset = prediction_df[prediction_df['Disease_Status'] == control_label]
-    rows = []
-    for clock in clocks:
-        if clock not in prediction_df.columns:
-            continue
-        clock_subset = healthy_subset.dropna(subset=[clock.lower(), 'age'])
-        # If there are less than 2 samples, skip this clock for this dataset
-        if len(clock_subset) < 2:
-            rows.append({
-                "Accession_Code": accession_code,
-                "Clock": clock,
-                "Pearson_R": 0.0
-            })
-            continue
-        age = clock_subset['age']
-        clock_pred_age = clock_subset[clock.lower()]
-        pearson_r, _ = stats.pearsonr(age, clock_pred_age)
-        rows.append({
-            "Accession_Code": accession_code,
-            "Clock": clock,
-            "Pearson_R": pearson_r
-        })
-    results_df = pd.DataFrame(rows)
-    return results_df
-
-def merge_and_process_computation_dfs(
-    dfs: List[pd.DataFrame]) -> pd.DataFrame:
-    """
-    Merge and process multiple computation DataFrames, adjusting p-values and computing scores.
-
-    Args:
-        dfs (List[pd.DataFrame]): A list of DataFrames containing computation results.
-
-    Returns:
-        pd.DataFrame: A merged and processed DataFrame with adjusted p-values and scores.
-    """
-
-    full_df = pd.concat(dfs, ignore_index=True, axis=0)
-    print(f"\nFull merged df before p-value adjustment and scoring: \n{full_df.head()}\n")
-    # Adjust p-values for AA1 and AA2 across all clocks and datasets
-    full_df['AA1'] = full_df.groupby(['Accession_Code', 'Disease'])['AA1'].transform(
-        lambda x: multipletests(x, method='fdr_bh')[1]
+    return _compute_hc_metric(
+        prediction_df, extraction_protocol, clocks,
+        metric_fn=lambda clock_subset, clock: stats.pearsonr(
+            clock_subset[clock.lower() + "_accel"], clock_subset["age"]
+        )[0],
+        metric_name="Pearson_R_score",
     )
-    full_df['AA1_Empirical_p'] = full_df.groupby(['Accession_Code', 'Disease'])['AA1_Empirical_p'].transform(
-        lambda x: multipletests(x, method='fdr_bh')[1]
-    )
-    full_df['AA2'] = full_df.groupby(['Accession_Code', 'Disease'])['AA2'].transform(
-        lambda x: multipletests(x, method='fdr_bh')[1]
-    )
-    full_df['AA2_Empirical_p'] = full_df.groupby(['Accession_Code', 'Disease'])['AA2_Empirical_p'].transform(
-        lambda x: multipletests(x, method='fdr_bh')[1]
-    )
-
-    # Compute Score
-    full_df['AA1_score'] = full_df.groupby(['Clock', 'Disease'])['AA1'].transform(lambda x: (x < 0.05).sum())
-    aa1_emp_by_clock = full_df.groupby(['Clock', 'Disease']).apply(
-        lambda g: ((g['AA1'] < 0.05) & (g['AA1_Empirical_p'] < 0.05)).sum()
-    ).reset_index(name='AA1_emp_score')
-    full_df = full_df.merge(aa1_emp_by_clock, on=['Clock', 'Disease'], how='left')
-    full_df['AA2_score'] = full_df.groupby(['Clock', 'Disease'])['AA2'].transform(lambda x: (x < 0.05).sum())
-    aa2_emp_by_clock = full_df.groupby(['Clock', 'Disease']).apply(
-        lambda g: ((g['AA2'] < 0.05) & (g['AA2_Empirical_p'] < 0.05)).sum()
-    ).reset_index(name='AA2_emp_score') 
-    full_df = full_df.merge(aa2_emp_by_clock, on=['Clock', 'Disease'], how='left')
-    full_df['MAE_score'] = full_df.groupby('Clock')['MAE'].transform('mean')
-    full_df['MedAE_score'] = full_df.groupby('Clock')['MedAE'].transform('mean')
-    full_df['Pearson_R_score'] = full_df.groupby('Clock')['Pearson_R'].transform('mean')
-    full_df['Overall_score'] = full_df[['AA1_emp_score', 'AA2_emp_score']].sum(axis=1)
-    return full_df
 
 def _make_pcbrainage_prediction(df, metadata_cols=None, imputer_strategy='knn'):
     """

@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, model_validator, conlist, ConfigDict, cre
 from typing import Literal, Optional, List, Dict, Annotated, Union, Any, Tuple, get_args
 from ..utils.helper import NonEmptyStr
 
-Concept = Literal["tissue", "cell_type", "sex", "disease_status"]
+HarmonizationConcept = Literal["tissue", "cell_type", "sex", "disease_status"]
 
 class HumanReadableConceptInput(BaseModel):
     """

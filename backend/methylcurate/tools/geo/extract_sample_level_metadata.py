@@ -334,7 +334,7 @@ def get_df_field_coverage(metadata: pd.DataFrame, field: str) -> FieldCoverage:
     """
     return FieldCoverage(
         present=metadata[metadata[field].notna()][field].count(),
-        missing=metadata[metadata[field].isna()][field].count(),
+        missing=metadata[field].isna().sum(),
         parse_rate=metadata[metadata[field].notna()][field].count() / metadata.shape[0] if metadata.shape[0] > 0 else 0.0,
         unique_values=metadata[metadata[field].notna()][field].nunique(),
         examples=metadata[metadata[field].notna()][field].astype(str).tolist()[:10]

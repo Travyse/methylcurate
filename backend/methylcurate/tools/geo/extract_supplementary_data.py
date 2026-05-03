@@ -14,7 +14,6 @@ import random
 from rapidfuzz import fuzz, process
 from datetime import datetime, timezone
 from typing import List, Any, Tuple, Optional, Dict
-from itertools import chain
 from ollama._types import ResponseError
 from pydantic import ValidationError
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
@@ -25,63 +24,12 @@ from ...utils.prompting import generate_infer_methylation_data_column_scheme_pro
 from ...contracts.common import ArtifactRef
 from ...contracts.geo import (
     SampleDataResolution, LexFeat, ErrorResolution, ForcedSampleDataResolution, GEOMetadataExtractionResult, ResolvedResolution)
-from .extract_sample_level_metadata import get_field_value
+from .extract_sample_level_metadata import get_field_value, cpg_union, _merge_to_dataframe
 from langchain_core.runnables import RunnableConfig
 from ...agent.graphs.deps import Deps
 
 CALL_TIMEOUT = 180
 GLOBAL_RETRY_LIMIT = 5
-
-def cpg_union(data_rows: List[List[Any]], col_rows: List[List[str]]) -> Tuple[List[List[Any]], List[str]]:
-    """Align heterogeneous rows to a unified column set.
-
-    Each group of rows may have different columns; this produces a common
-    superset of column names and pads missing values with None.
-
-    Args:
-        data_rows: Lists of row values, one list per group.
-        col_rows: Lists of column names corresponding to each group in
-            data_rows.
-
-    Returns:
-        A tuple of (aligned_data_rows, union_column_names) where every
-        row in aligned_data_rows has the same length as
-        union_column_names.
-    """
-    union_cols = list(dict.fromkeys(chain.from_iterable(col_rows)))
-    aligned = []
-    for rows, cols in zip(data_rows, col_rows):
-        col_map = {col: rows[idx] for idx, col in enumerate(cols)}
-        aligned.append([col_map.get(col, None) for col in union_cols])
-    return aligned, union_cols
-
-def _merge_to_dataframe(rows: List[Any], col_names: List[str], index_col: Optional[str] = None) -> pd.DataFrame:
-    """Build a DataFrame from heterogeneous row/column groups.
-
-    Uses cpg_union to align rows to a common column set, then constructs
-    a DataFrame, optionally setting an index column.
-
-    Args:
-        rows: Lists of row-value groups.
-        col_names: Lists of column-name groups.
-        index_col: If provided and present in the resulting DataFrame,
-            this column is set as the index.
-
-    Returns:
-        A DataFrame with aligned columns.
-
-    Raises:
-        ValueError: If any aligned row length does not match the unified
-            column count.
-    """
-    rows, col_names = cpg_union(rows, col_names)
-    for row in rows:
-        if len(row) != len(col_names):
-            raise ValueError(f"Row length {len(row)} does not match column names length {len(col_names)}")
-    df = pd.DataFrame(rows, columns=col_names)
-    if index_col is not None and index_col in df.columns:
-        df.set_index(index_col, inplace=True)
-    return df
 
 def _check_for_cpg_probes(sample_data: pd.DataFrame) -> Dict[str, bool]:
     """Determine whether CpG probes are in rows or columns.

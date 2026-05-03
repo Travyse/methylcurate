@@ -341,3 +341,17 @@ Own structured input and output schemas.
 ### State Models
 
 Own workflow state requirements and artifact tracking.
+
+## Testing
+
+This project uses an existing Mamba environment named `dnam-aging-agentic-ai`.
+
+Always run tests with:
+
+```bash
+mamba run -n dnam-aging-agentic-ai pytest
+```
+
+Do not run plain `pytest`.
+
+Do not create a new Conda environment.

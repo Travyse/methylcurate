@@ -58,6 +58,10 @@ ONTOLOGY_DICT = {
     }
 }
 
+
+BEST_GUESS_NOTES = "This label was not able to be mapped to the ontology, so the best guess is to keep the original label. This is likely because the label is either very noisy or represents a concept that is not well represented in the ontology."
+CONTROL_BEST_GUESS_NOTES = "This label represents the control samples in the dataset, and is not meant to be harmonized to the ontology."
+
 def search_ontology_term(query: str, ontology: str = "mondo", k: int = 5) -> List[Dict[str, Any]]:
     """Search the EBI Ontology Lookup Service for terms matching a query.
 
@@ -213,11 +217,11 @@ async def call_llm_structured_with_retries(
                 additional_kwargs={
                     'created_at': datetime.now(timezone.utc).isoformat(),
                 })
-            messages += [human_message]
-            retries = 4
-            return await call_llm_structured_with_retries(messages, config, ResultModel)
+            messages = messages + [human_message]
+            retries += 1
+            continue
         except ValidationError as e:
-            print(f"\n\nValidation error for concept disease_status: {e}. Setting resolution to error with notes.")
+            print(f"\n\nValidation error: {e}. Setting resolution to error with notes.")
             break
             
     return resolved
@@ -437,13 +441,13 @@ async def _harmonize_ontology_labels(
             "ontology": "best_guess",
             "source_label": control_label,
             "target_label": "Control",
-            "notes": "This label was not able to be mapped to the ontology, so the best guess is to keep the original label. This is likely because the label is either very noisy or represents a concept that is not well represented in the ontology."
+            "notes": BEST_GUESS_NOTES
         })
         other_mapping = BestGuessMapping.model_validate({
             "ontology": "best_guess",
             "source_label": "Control",
             "target_label": "Control",
-            "notes": "This label was not able to be mapped to the ontology, so the best guess is to keep the original label. This is likely because the label is either very noisy or represents a concept that is not well represented in the ontology."
+            "notes": BEST_GUESS_NOTES
         })
         human_readable_ontology_labels.mappings.append(control_mapping)
         ontology_label_selection.mappings.append(other_mapping)
@@ -466,7 +470,7 @@ async def _harmonize_ontology_labels(
                 "ontology": "best_guess",
                 "source_label": control_label,
                 "target_label": "Control",
-                "notes": "This label represents the control samples in the dataset, and is not meant to be harmonized to the ontology."
+                "notes": CONTROL_BEST_GUESS_NOTES
             })
         )
     # TODO: Add control back to guess
@@ -498,7 +502,6 @@ async def _harmonize_ontology_labels(
             ontology,
             allowed_target_labels = [entry['label'] for label, entries in label_to_top_n_ontology.items() for entry in entries],
             high_level = False)
-        ontology_label_dict = {label: [entry['label'] for entry in entries] for label, entries in label_to_top_n_ontology.items()}
         ontology_label_dict = {label: [f"'{entry}'" for entry in entries] for label, entries in label_to_top_n_ontology.items()}
         ontology_label_selection = await _select_best_ontology_labels(
             ontology_label_dict, dataset_context, OntologyGroupLabelMappingSetDyn, config, ontology = ontology)
@@ -516,7 +519,7 @@ async def _harmonize_ontology_labels(
                 "ontology": "best_guess",
                 "source_label": missing_label,
                 "target_label": target_label,
-                "notes": "This label was not able to be mapped to the ontology, so the best guess is to keep the original label. This is likely because the label is either very noisy or represents a concept that is not well represented in the ontology."
+                "notes": BEST_GUESS_NOTES
             })
         )
     return human_readable_ontology_labels, label_to_top_n_ontology, ontology_label_selection
@@ -587,7 +590,7 @@ async def _harmonize_ontology_group_labels(
                 "ontology": "best_guess",
                 "source_label": missing_label,
                 "target_label": "Unknown/Other",
-                "notes": "This label was not able to be mapped to the ontology, so the best guess is to keep the original label. This is likely because the label is either very noisy or represents a concept that is not well represented in the ontology."
+                "notes": BEST_GUESS_NOTES
             })
         )
     # TODO: Possibly set ontology of ontology_label_selection result to whatevers returned by the ols
@@ -653,7 +656,7 @@ def construct_raw_to_harmonized_label_mapping(guessed_ontology_labels: LabelMapp
                 "ontology": "best_guess",
                 "source_label": mapping.source_label,
                 "target_label": mapping.source_label,
-                "notes": "This label was not able to be mapped to the ontology, so the best guess is to keep the original label. This is likely because the label is either very noisy or represents a concept that is not well represented in the ontology."
+                "notes": BEST_GUESS_NOTES
             })
             continue
         best_guess_mapping = next((m for m in ontology_label_selection.mappings if m.source_label == mapping.target_label), None)
@@ -662,7 +665,7 @@ def construct_raw_to_harmonized_label_mapping(guessed_ontology_labels: LabelMapp
                 "ontology": "best_guess",
                 "source_label": mapping.source_label,
                 "target_label": mapping.source_label,
-                "notes": "This label was not able to be mapped to the ontology, so the best guess is to keep the original label. This is likely because the label is either very noisy or represents a concept that is not well represented in the ontology."
+                "notes": BEST_GUESS_NOTES
             })
         else:
             fixed_harmonized_label_mapping["mappings"].append({

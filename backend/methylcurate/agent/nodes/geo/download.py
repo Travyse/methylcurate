@@ -22,6 +22,23 @@ from ....contracts.geo import Concept as GeoConcept
 from ...state.models import GeoIngestionSubgraphState, GeoDatasetState, GEOIngestionConfig
 from ....tools.geo import (
     download_geo_datasets, parallel_downloads, get_platform_metadata)
+def _cancel_downstream_steps(return_dict, accession_code):
+    """Set all downstream steps to 'canceled' for a failed dataset.
+
+    Args:
+        return_dict: Dict with datasets key, mutated in-place.
+        accession_code: GEO accession code to cancel steps for.
+    """
+    ds = return_dict["datasets"][accession_code]
+    steps = ds.setdefault("steps", {})
+    for step_name in ("extract_metadata_schema", "refine_metadata_schema",
+                      "extract_data", "supplementary_file_check"):
+        steps[step_name] = set_step_status(
+            status="canceled", step=steps.get(step_name),
+        )
+
+
+
 
 # ----------------------------
 # GEO Download Contracts
@@ -160,10 +177,7 @@ def _check_platforms_used(return_dict: Dict[str, Any]) -> Dict[str, Any]:
         if not is_dnam_dataset or return_dict["datasets"][accession_code]["steps"]["check_valid_dataset"]["status"] == "failed":
             return_dict["datasets"][accession_code]["status"] = "failed"
             return_dict["datasets"][accession_code]["steps"]["check_valid_dataset"] = set_step_status(status="failed", step=return_dict["datasets"][accession_code]["steps"]["check_valid_dataset"])
-            return_dict["datasets"][accession_code]["steps"]["extract_metadata_schema"] = set_step_status(status="canceled", step=return_dict["datasets"][accession_code]["steps"]["extract_metadata_schema"])
-            return_dict["datasets"][accession_code]["steps"]["refine_metadata_schema"] = set_step_status(status="canceled", step=return_dict["datasets"][accession_code]["steps"]["refine_metadata_schema"])
-            return_dict["datasets"][accession_code]["steps"]["extract_data"] = set_step_status(status="canceled", step=return_dict["datasets"][accession_code]["steps"]["extract_data"])
-            return_dict["datasets"][accession_code]["steps"]["supplementary_file_check"] = set_step_status(status="canceled", step=return_dict["datasets"][accession_code]["steps"]["supplementary_file_check"])
+            _cancel_downstream_steps(return_dict, accession_code)
             return_dict["datasets"][accession_code]["is_valid_dataset"] = False
             return_dict["datasets"][accession_code]["errors"].append(f"Dataset {accession_code} does not appear to be a DNA methylation dataset. As of now, we only support DNA methylation datasets from GEO.")
             
@@ -225,10 +239,7 @@ def _check_if_data_present(artifacts: List[Any], return_dict: Dict[str, Any]) ->
             if selection["data"]["action"] == "skip":
                 return_dict["datasets"][accession_code]["status"] = "completed"
                 return_dict["datasets"][accession_code]["steps"]["check_valid_dataset"] = set_step_status(status="completed", step=return_dict["datasets"][accession_code]["steps"]["check_valid_dataset"])
-                return_dict["datasets"][accession_code]["steps"]["extract_metadata_schema"] = set_step_status(status="canceled", step=return_dict["datasets"][accession_code]["steps"]["extract_metadata_schema"])
-                return_dict["datasets"][accession_code]["steps"]["refine_metadata_schema"] = set_step_status(status="canceled", step=return_dict["datasets"][accession_code]["steps"]["refine_metadata_schema"])
-                return_dict["datasets"][accession_code]["steps"]["extract_data"] = set_step_status(status="canceled", step=return_dict["datasets"][accession_code]["steps"]["extract_data"])
-                return_dict["datasets"][accession_code]["steps"]["supplementary_file_check"] = set_step_status(status="canceled", step=return_dict["datasets"][accession_code]["steps"]["supplementary_file_check"])
+                _cancel_downstream_steps(return_dict, accession_code)
                 return_dict["datasets"][accession_code]["errors"].append(f"Dataset {accession_code} does not appear to have any GSM samples with data tables, and user chose to skip after being prompted with available supplementary files.")
             else:
                 selections = [s for s in supplementary_files if any(y in s for y in selection["data"]["data"]["selections"])]
@@ -251,10 +262,7 @@ def _check_if_data_present(artifacts: List[Any], return_dict: Dict[str, Any]) ->
         else:
             return_dict["datasets"][accession_code]["status"] = "completed"
             return_dict["datasets"][accession_code]["steps"]["check_valid_dataset"] = set_step_status(status="failed", step=return_dict["datasets"][accession_code]["steps"]["check_valid_dataset"])
-            return_dict["datasets"][accession_code]["steps"]["extract_metadata_schema"] = set_step_status(status="canceled", step=return_dict["datasets"][accession_code]["steps"]["extract_metadata_schema"])
-            return_dict["datasets"][accession_code]["steps"]["refine_metadata_schema"] = set_step_status(status="canceled", step=return_dict["datasets"][accession_code]["steps"]["refine_metadata_schema"])
-            return_dict["datasets"][accession_code]["steps"]["extract_data"] = set_step_status(status="canceled", step=return_dict["datasets"][accession_code]["steps"]["extract_data"])
-            return_dict["datasets"][accession_code]["steps"]["supplementary_file_check"] = set_step_status(status="canceled", step=return_dict["datasets"][accession_code]["steps"]["supplementary_file_check"])
+            _cancel_downstream_steps(return_dict, accession_code)
             return_dict["datasets"][accession_code]["errors"].append(f"Dataset {accession_code} does not appear to have any GSM samples with data tables.")
     else:
         return_dict["datasets"][accession_code]["steps"]["check_valid_dataset"] = set_step_status(status="completed", step=return_dict["datasets"][accession_code]["steps"]["check_valid_dataset"])

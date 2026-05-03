@@ -68,7 +68,7 @@ def handle_cpg_level_missingness(qc_input: CpGLevelQCInput, data_df: pd.DataFram
     data_df_filtered = data_df[high_quality_cpgs].copy()
     overall_missing_rate = data_df_filtered.isna().to_numpy().mean()
     
-    if state.imputation_strategy.imputation_model.concept == "knn":
+    if qc_input.imputation_strategy.imputation_model.concept == "knn":
         imputer = KNNImputer(
             n_neighbors=qc_input.imputation_strategy.imputation_model.n_neighbors,
             weights=qc_input.imputation_strategy.imputation_model.weights)
@@ -126,7 +126,13 @@ def interarray_correlation(qc_input: InterarrayCorrelationQCInput, data_df: pd.D
         return InterarrayCorrelationQCResult.model_validate({
             "removed_samples": []
         }), data_df
-    corr_matrix = np.corrcoef(data_df.values)
+    with np.errstate(invalid='ignore'):
+        corr_matrix = np.corrcoef(data_df.values)
+    if np.any(np.isnan(corr_matrix)):
+        return InterarrayCorrelationQCResult.model_validate({
+            "removed_samples": [],
+            "notes": "Correlation computation produced NaN (possibly due to constant-variance samples)."
+        }), data_df
     mean_inter_corr = (np.sum(corr_matrix, axis = 1) - 1) / (data_df.shape[0] - 1)
     corr_filter = mean_inter_corr > qc_input.correlation_cutoff
     data_df_filtered = data_df[corr_filter].copy()

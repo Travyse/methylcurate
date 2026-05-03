@@ -20,95 +20,106 @@ from ...tools.harmonize import (
     construct_raw_to_harmonized_label_mapping)
 from ...utils.helper import get_accession_codes, check_step_completion, update_harmonization_progress_tracker, compute_sha256, consolidate_artifacts
 from ...utils.examples import generate_metadata_harmonization_examples
-
-def _get_metadata_cache(accession_code: str, artifacts: List[ArtifactRef]):
-    """
-    Gets the metadata cache for a given accession code from the list of artifacts. The metadata cache is expected to be a JSON file that contains cached metadata information for the dataset corresponding to the accession code. If no such artifact is found, the function returns None.
+def _find_artifact_by_kind(accession_code, kind, artifacts):
+    """Retrieve the first ArtifactRef matching accession_code and kind.
 
     Args:
-        accession_code (str): The accession code for which to retrieve the metadata cache.
-        artifacts (List[ArtifactRef]): A list of ArtifactRef objects representing the available artifacts.
+        accession_code: GEO accession code to match.
+        kind: Artifact kind string to match.
+        artifacts: List of ArtifactRef objects to search.
 
     Returns:
-        dict: The metadata cache for the given accession code, or None if not found.
+        The matching ArtifactRef, or None if not found.
     """
     for artifact in artifacts:
-        if artifact.accession_code == accession_code and artifact.kind == "metadata_cache":
-            with open(artifact.path, 'r') as f:
-                return json.load(f)
+        if artifact.accession_code == accession_code and artifact.kind == kind:
+            return artifact
+    return None
+
+
+def _save_artifact_pair(return_dict, accession_code, guessed, harmonized, kind_prefix, output_dir):
+    """Write guessed and harmonized label sets as JSON and register ArtifactRefs.
+
+    Args:
+        return_dict: State update dict (mutated in-place with artifacts).
+        accession_code: GEO accession code.
+        guessed: LabelMappingSet with human-readable guesses.
+        harmonized: LabelMappingSet with ontology selections.
+        kind_prefix: Prefix for artifact kind strings (e.g. "disease").
+        output_dir: Directory to write JSON files into.
+
+    Returns:
+        List of new ArtifactRef objects appended to return_dict["config"]["artifacts"].
+    """
+    harmonization_dir = os.path.join(output_dir, "harmonization")
+    os.makedirs(harmonization_dir, exist_ok=True)
+    guessed_path = os.path.join(harmonization_dir, f"guessed_{kind_prefix}_labels.json")
+    harmonized_path = os.path.join(harmonization_dir, f"harmonized_{kind_prefix}_labels.json")
+    with open(guessed_path, "w") as f:
+        json.dump(guessed.model_dump(), f, indent=2)
+    with open(harmonized_path, "w") as f:
+        json.dump(harmonized.model_dump(), f, indent=2)
+    artifacts = [
+        ArtifactRef.model_validate({
+            "accession_code": accession_code,
+            "path": guessed_path,
+            "kind": f"{kind_prefix}_label_guessing",
+            "sha256": compute_sha256(guessed_path, is_path=True),
+            "bytes": os.path.getsize(guessed_path),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }),
+        ArtifactRef.model_validate({
+            "accession_code": accession_code,
+            "path": harmonized_path,
+            "kind": f"{kind_prefix}_label_harmonization",
+            "sha256": compute_sha256(harmonized_path, is_path=True),
+            "bytes": os.path.getsize(harmonized_path),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }),
+    ]
+    return_dict["config"]["artifacts"] = consolidate_artifacts(
+        [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]],
+        artifacts,
+    )
+    return artifacts
+
+
+
+def _get_metadata_cache(accession_code: str, artifacts: List[ArtifactRef]):
+    """Return the metadata cache dict for an accession code, or None."""
+    artifact = _find_artifact_by_kind(accession_code, "metadata_cache", artifacts)
+    if artifact is not None:
+        with open(artifact.path, "r") as f:
+            return json.load(f)
     return None
 
 def _get_sample_metadata(accession_code: str, artifacts: List[ArtifactRef]) -> Optional[pd.DataFrame]:
-    """
-    Gets the sample metadata for a given accession code from the list of artifacts. The sample metadata is expected to be a CSV file that contains metadata information for the dataset corresponding to the accession code. If no such artifact is found, the function returns None.
-
-    Args:
-        accession_code (str): The accession code for which to retrieve the sample metadata.
-        artifacts (List[ArtifactRef]): A list of ArtifactRef objects representing the available artifacts.
-
-    Returns:
-        pd.DataFrame: The sample metadata for the given accession code, or None if not found.
-    """
-    for artifact in artifacts:
-        if artifact.accession_code == accession_code and artifact.kind == "dataset_metadata":
-            return pd.read_csv(artifact.path, index_col=0)
+    """Return sample metadata DataFrame for an accession code, or None."""
+    artifact = _find_artifact_by_kind(accession_code, "dataset_metadata", artifacts)
+    if artifact is not None:
+        return pd.read_csv(artifact.path, index_col=0)
     return None
 
 def _get_extraction_protocol(accession_code: str, artifacts: List[ArtifactRef]):
-    """
-    Gets the extraction protocol for a given accession code from the list of artifacts. The extraction protocol is expected to be a JSON file that contains the extraction protocol information for the dataset corresponding to the accession code. If no such artifact is found, the function returns None.
-
-    Args:
-        accession_code (str): The accession code for which to retrieve the extraction protocol.
-        artifacts (List[ArtifactRef]): A list of ArtifactRef objects representing the available artifacts.
-
-    Returns:
-        dict: The extraction protocol for the given accession code, or None if not found.
-    """
-    for artifact in artifacts:
-        if artifact.accession_code == accession_code and artifact.kind == "metadata_extraction_protocol":
-            with open(artifact.path, 'r') as f:
-                return json.load(f)
+    """Return the extraction protocol dict for an accession code, or None."""
+    artifact = _find_artifact_by_kind(accession_code, "metadata_extraction_protocol", artifacts)
+    if artifact is not None:
+        with open(artifact.path, "r") as f:
+            return json.load(f)
     return None
 
-def _get_guess_results(target_type:str, accession_code: str, artifacts: List[ArtifactRef]) -> LabelMappingSet:
-    """
-    Gets the label guessing results for a given target type and accession code from the list of artifacts. The label guessing results are expected to be a JSON file that contains the label guessing information for the dataset corresponding to the accession code. If no such artifact is found, the function raises a ValueError.
-
-    Args:
-        target_type (str): The target type for which to retrieve the label guessing results.
-        accession_code (str): The accession code for which to retrieve the label guessing results.
-        artifacts (List[ArtifactRef]): A list of ArtifactRef objects representing the available artifacts.
-
-    Returns:
-        LabelMappingSet: The label guessing results for the given target type and accession code.
-
-    Raises:
-        ValueError: If no label guessing results are found for the given target type and accession code.
-    """
-    for artifact in artifacts:
-        if artifact.accession_code == accession_code and artifact.kind == f"{target_type}_label_guessing":
-            return LabelMappingSet.model_validate(json.load(open(artifact.path, 'r')))
+def _get_guess_results(target_type: str, accession_code: str, artifacts: List[ArtifactRef]) -> LabelMappingSet:
+    """Return the label guessing LabelMappingSet, or raise ValueError if absent."""
+    artifact = _find_artifact_by_kind(accession_code, f"{target_type}_label_guessing", artifacts)
+    if artifact is not None:
+        return LabelMappingSet.model_validate(json.load(open(artifact.path, "r")))
     raise ValueError(f"No harmonization results found for {target_type} and accession code {accession_code}")
 
-def _get_harmonization_results(target_type:str, accession_code: str, artifacts: List[ArtifactRef]) -> LabelMappingSet:
-    """
-    Gets the label harmonization results for a given target type and accession code from the list of artifacts. The label harmonization results are expected to be a JSON file that contains the label harmonization information for the dataset corresponding to the accession code. If no such artifact is found, the function raises a ValueError.
-
-    Args:
-        target_type (str): The target type for which to retrieve the label harmonization results.
-        accession_code (str): The accession code for which to retrieve the label harmonization results.
-        artifacts (List[ArtifactRef]): A list of ArtifactRef objects representing the available artifacts.
-
-    Returns:
-        LabelMappingSet: The label harmonization results for the given target type and accession code.
-
-    Raises:
-        ValueError: If no label harmonization results are found for the given target type and accession code.
-    """
-    for artifact in artifacts:
-        if artifact.accession_code == accession_code and artifact.kind == f"{target_type}_label_harmonization":
-            return LabelMappingSet.model_validate(json.load(open(artifact.path, 'r')))
+def _get_harmonization_results(target_type: str, accession_code: str, artifacts: List[ArtifactRef]) -> LabelMappingSet:
+    """Return the label harmonization LabelMappingSet, or raise ValueError if absent."""
+    artifact = _find_artifact_by_kind(accession_code, f"{target_type}_label_harmonization", artifacts)
+    if artifact is not None:
+        return LabelMappingSet.model_validate(json.load(open(artifact.path, "r")))
     raise ValueError(f"No harmonization results found for {target_type} and accession code {accession_code}")
 
 async def disease_harmonization_node(state: HarmonizationSubgraphState, *, config: RunnableConfig):
@@ -165,33 +176,11 @@ async def disease_harmonization_node(state: HarmonizationSubgraphState, *, confi
     
     guessed_disease_labels, _, harmonized_disease_labels = await _harmonize_ontology_labels(
         metadata_cache, extraction_protocol, sample_metadata, config, ontology = "mondo", column_name = "Disease_Status")
-    guessed_disease_labels_path = os.path.join(harmonization_dir, "guessed_disease_labels.json")
-    harmonized_disease_labels_path = os.path.join(harmonization_dir, "harmonized_disease_labels.json")
-    artifacts = []
-    with open(guessed_disease_labels_path, "w") as f:
-        json.dump(guessed_disease_labels.model_dump(), f, indent=2)
-    with open(harmonized_disease_labels_path, "w") as f:
-        json.dump(harmonized_disease_labels.model_dump(), f, indent=2)
-    artifacts.extend([
-        ArtifactRef.model_validate({
-            "accession_code": accession_code,
-            "path": guessed_disease_labels_path,
-            "kind": "disease_label_guessing",
-            "sha256": compute_sha256(guessed_disease_labels_path, is_path=True),
-            "bytes": os.path.getsize(guessed_disease_labels_path),
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }),
-        ArtifactRef.model_validate({
-            "accession_code": accession_code,
-            "path": harmonized_disease_labels_path,
-            "kind": "disease_label_harmonization",
-            "sha256": compute_sha256(harmonized_disease_labels_path, is_path=True),
-            "bytes": os.path.getsize(harmonized_disease_labels_path),
-            "created_at": datetime.now(timezone.utc).isoformat()
-        })])
-    return_dict["config"]["artifacts"] = consolidate_artifacts(
-        [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]],
-        artifacts)
+    _save_artifact_pair(
+        return_dict, accession_code, guessed_disease_labels,
+        harmonized_disease_labels, "disease",
+        state.datasets[accession_code].output_dir,
+    )
     return_dict["datasets"][accession_code]["steps"]["map_disease_labels_to_ontology"]["status"] = "completed"
     return_dict["datasets"][accession_code]["steps"]["group_disease_labels"]["status"] = "running"
     return_dict["messages"] = [update_harmonization_progress_tracker(state)]
@@ -311,33 +300,11 @@ async def tissue_harmonization_node(state: HarmonizationSubgraphState, *, config
     
     guessed_tissue_labels, _, harmonized_tissue_labels = await _harmonize_ontology_labels(
         metadata_cache, extraction_protocol, sample_metadata, config, ontology = "uberon", column_name = "Tissue")
-    guessed_tissue_labels_path = os.path.join(harmonization_dir, "guessed_tissue_labels.json")
-    harmonized_tissue_labels_path = os.path.join(harmonization_dir, "harmonized_tissue_labels.json")
-    artifacts = []
-    with open(guessed_tissue_labels_path, "w") as f:
-        json.dump(guessed_tissue_labels.model_dump(), f, indent=2)
-    with open(harmonized_tissue_labels_path, "w") as f:
-        json.dump(harmonized_tissue_labels.model_dump(), f, indent=2)
-    artifacts.extend([
-        ArtifactRef.model_validate({
-            "accession_code": accession_code,
-            "path": guessed_tissue_labels_path,
-            "kind": "tissue_label_guessing",
-            "sha256": compute_sha256(guessed_tissue_labels_path, is_path=True),
-            "bytes": os.path.getsize(guessed_tissue_labels_path),
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }),
-        ArtifactRef.model_validate({
-            "accession_code": accession_code,
-            "path": harmonized_tissue_labels_path,
-            "kind": "tissue_label_harmonization",
-            "sha256": compute_sha256(harmonized_tissue_labels_path, is_path=True),
-            "bytes": os.path.getsize(harmonized_tissue_labels_path),
-            "created_at": datetime.now(timezone.utc).isoformat()
-        })])
-    return_dict["config"]["artifacts"] = consolidate_artifacts(
-        [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]],
-        artifacts)
+    _save_artifact_pair(
+        return_dict, accession_code, guessed_tissue_labels,
+        harmonized_tissue_labels, "tissue",
+        state.datasets[accession_code].output_dir,
+    )
     
     return_dict["datasets"][accession_code]["steps"]["map_tissue_labels_to_ontology"]["status"] = "completed"
     return_dict["datasets"][accession_code]["steps"]["group_tissue_labels"]["status"] = "running"
@@ -447,33 +414,11 @@ async def cell_type_harmonization_node(state: HarmonizationSubgraphState, *, con
         return Command(update=return_dict)
     guessed_cell_type_labels, _, harmonized_cell_type_labels = await _harmonize_ontology_labels(
         metadata_cache, extraction_protocol, sample_metadata, config, ontology = "cl", column_name = "Cell_Type")
-    guessed_cell_type_labels_path = os.path.join(harmonization_dir, "guessed_cell_type_labels.json")
-    harmonized_cell_type_labels_path = os.path.join(harmonization_dir, "harmonized_cell_type_labels.json")
-    artifacts = []
-    with open(guessed_cell_type_labels_path, "w") as f:
-        json.dump(guessed_cell_type_labels.model_dump(), f, indent=2)
-    with open(harmonized_cell_type_labels_path, "w") as f:
-        json.dump(harmonized_cell_type_labels.model_dump(), f, indent=2)
-    artifacts.extend([
-        ArtifactRef.model_validate({
-            "accession_code": accession_code,
-            "path": guessed_cell_type_labels_path,
-            "kind": "cell_type_label_guessing",
-            "sha256": compute_sha256(guessed_cell_type_labels_path, is_path=True),
-            "bytes": os.path.getsize(guessed_cell_type_labels_path),
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }),
-        ArtifactRef.model_validate({
-            "accession_code": accession_code,
-            "path": harmonized_cell_type_labels_path,
-            "kind": "cell_type_label_harmonization",
-            "sha256": compute_sha256(harmonized_cell_type_labels_path, is_path=True),
-            "bytes": os.path.getsize(harmonized_cell_type_labels_path),
-            "created_at": datetime.now(timezone.utc).isoformat()
-        })])
-    return_dict["config"]["artifacts"] = consolidate_artifacts(
-        [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]],
-        artifacts)
+    _save_artifact_pair(
+        return_dict, accession_code, guessed_cell_type_labels,
+        harmonized_cell_type_labels, "cell_type",
+        state.datasets[accession_code].output_dir,
+    )
     return_dict["datasets"][accession_code]["steps"]["map_cell_type_labels_to_ontology"]["status"] = "completed"
     return_dict["datasets"][accession_code]["steps"]["harmonize_sex_labels"]["status"] = "running"
     return_dict["messages"] = [update_harmonization_progress_tracker(state)]
