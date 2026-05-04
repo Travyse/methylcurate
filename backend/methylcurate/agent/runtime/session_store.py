@@ -3,6 +3,7 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Any
 
+
 @dataclass
 class RunSession:
     """
@@ -15,6 +16,7 @@ class RunSession:
         main_state (Any): The main state of the session, which can hold any relevant data.
         pending_interrupt (Optional[dict]): A dictionary representing any pending interrupts for the session, if any.
     """
+
     run_id: str
     queue: asyncio.Queue = field(default_factory=asyncio.Queue)
     task: Optional[asyncio.Task] = None
@@ -29,6 +31,7 @@ class SessionStore:
     Attributes:
         _sessions (Dict[str, RunSession]): A dictionary mapping run IDs to their corresponding RunSession objects.
     """
+
     def __init__(self):
         self._sessions: Dict[str, RunSession] = {}
 
@@ -38,7 +41,7 @@ class SessionStore:
 
         Args:
             run_id (str): The unique identifier for the run session to be created.
-        
+
         Returns:
             RunSession: The newly created or existing run session associated with the given run ID.
         """

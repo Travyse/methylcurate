@@ -2,6 +2,7 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, List
 
+
 @dataclass
 class RunSession:
     """
@@ -12,6 +13,7 @@ class RunSession:
         queue (asyncio.Queue): The queue for managing events in the session.
         main_state (Optional[Any]): The main state of the session.
     """
+
     run_id: str
     queue: asyncio.Queue = field(default_factory=asyncio.Queue)
 
@@ -23,6 +25,7 @@ class RunSession:
     # Single active runner task per run
     task: Optional[asyncio.Task] = None
 
+
 class SessionStore:
     """
     Manages multiple run sessions.
@@ -30,6 +33,7 @@ class SessionStore:
     Attributes:
         _runs (Dict[str, RunSession]): A dictionary mapping run IDs to their corresponding RunSession objects.
     """
+
     def __init__(self):
         self._runs: Dict[str, RunSession] = {}
 
@@ -46,7 +50,7 @@ class SessionStore:
         s = RunSession(run_id=run_id)
         self._runs[run_id] = s
         return s
-    
+
     def list_runs(self) -> List[str]:
         """
         Lists all active run sessions.
@@ -89,5 +93,5 @@ class SessionStore:
 
         Returns:
             bool: True if the run session exists, False otherwise.
-        """ 
+        """
         return run_id in self._runs

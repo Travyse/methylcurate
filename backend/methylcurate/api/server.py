@@ -38,10 +38,7 @@ def sse_event(event: str, data: Any) -> bytes:
         bytes: The SSE message as bytes.
     """
     # assistant-ui parseSse() reads `event:` and `data:`
-    return (
-        f"event: {event}\n"
-        f"data: {json.dumps(data, default=str)}\n\n"
-    ).encode("utf-8")
+    return (f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n").encode("utf-8")
 
 
 def sse_keepalive() -> bytes:
@@ -64,6 +61,7 @@ class ThreadsCreateResponse(BaseModel):
     Attributes:
         thread_id (str): The unique identifier for the created thread.
     """
+
     thread_id: str
 
 
@@ -74,6 +72,7 @@ class ThreadStateResponse(BaseModel):
     Attributes:
         values (Dict[str, Any]): The state values of the thread.
     """
+
     values: Dict[str, Any]
 
 
@@ -86,11 +85,13 @@ class StreamRequest(BaseModel):
         command (Optional[Dict[str, Any]]): The command data for the stream, which may include instructions for resuming or controlling the stream.
         streamMode (Optional[List[str]]): The modes for streaming, which may specify how the stream should be
     """
+
     # assistant-ui sends:
     # { input: { messages: [...] } | null, command: ..., streamMode: ["messages","updates"] }
     input: Optional[Dict[str, Any]] = None
     command: Optional[Dict[str, Any]] = None
     streamMode: Optional[List[str]] = None
+
 
 class ThreadListItem(BaseModel):
     """
@@ -102,10 +103,12 @@ class ThreadListItem(BaseModel):
         title (Optional[str]): An optional title for the thread, which can be used for display purposes.
         updatedAt (Optional[datetime]): An optional timestamp indicating when the thread was last updated.
     """
+
     thread_id: str
     status: Literal["regular", "archived"] = "regular"
     title: Optional[str] = None
     updatedAt: Optional[datetime] = None  # or str/float if you prefer
+
 
 class ThreadListResponse(BaseModel):
     """
@@ -114,7 +117,9 @@ class ThreadListResponse(BaseModel):
     Attributes:
         threads (List[ThreadListItem]): A list of threads.
     """
+
     threads: List[ThreadListItem]
+
 
 # ----------------------------
 # App + Lifespan
@@ -157,6 +162,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # ----------------------------
 # GET /threads  (list threads)
 # ----------------------------
@@ -175,9 +181,7 @@ def list_root_threads_from_checkpoints(db_path: str) -> list[str]:
     con = sqlite3.connect(db_path)
     cur = con.cursor()
     try:
-        rows = cur.execute(
-            "SELECT DISTINCT thread_id FROM checkpoints WHERE thread_id LIKE '%:main'"
-        ).fetchall()
+        rows = cur.execute("SELECT DISTINCT thread_id FROM checkpoints WHERE thread_id LIKE '%:main'").fetchall()
     except sqlite3.OperationalError as e:
         if "no such table: checkpoints" in str(e):
             return []
@@ -185,9 +189,9 @@ def list_root_threads_from_checkpoints(db_path: str) -> list[str]:
     finally:
         con.close()
 
-
     roots = sorted({tid.split(":", 1)[0] for (tid,) in rows})
     return roots
+
 
 @app.get("/threads", response_model=ThreadListResponse)
 async def list_threads(_: Request):
@@ -204,9 +208,7 @@ async def list_threads(_: Request):
     # but this endpoint is for server-generated IDs.
     thread_ids = list_root_threads_from_checkpoints(os.path.join(app.state.output_dir, "checkpoints.db"))
     runner = _.app.state.runner
-    thread_dict = {
-        "threads": []
-    }
+    thread_dict = {"threads": []}
     for thread_id in thread_ids:
         # Your runner checkpoints the "main" graph under "{run_id}:main"
         main_thread = f"{thread_id}:main"
@@ -230,13 +232,16 @@ async def list_threads(_: Request):
         if isinstance(values, dict):
             messages = values.get("messages") or []
 
-        thread_dict["threads"].append({
-            "thread_id": thread_id,
-            "status": "regular",
-            "title": f"{messages[-1].content[:8]}..." if messages else f"Empty Thread",
-            "updatedAt": messages[-1].additional_kwargs.get("created_at") if messages else None
-        })
+        thread_dict["threads"].append(
+            {
+                "thread_id": thread_id,
+                "status": "regular",
+                "title": f"{messages[-1].content[:8]}..." if messages else f"Empty Thread",
+                "updatedAt": messages[-1].additional_kwargs.get("created_at") if messages else None,
+            }
+        )
     return thread_dict
+
 
 # ----------------------------
 # POST /threads  (create thread)
@@ -255,6 +260,7 @@ async def create_thread(_: Request):
     # Assistant-UI wants a thread_id. You can accept client-provided IDs too,
     # but this endpoint is for server-generated IDs.
     return {"thread_id": uuid4().hex}
+
 
 # ----------------------------
 # DELETE /threads/{thread_id}  (delete thread)
@@ -371,6 +377,7 @@ async def stream_thread(thread_id: str, req: StreamRequest, request: Request):
 
     if session.main_state is None:
         from ..agent.state.models import MainState
+
         session.main_state = make_main_state(run_id=thread_id, default_output_root=request.app.state.output_dir)
 
     if session.task and not session.task.done():
@@ -396,10 +403,8 @@ async def stream_thread(thread_id: str, req: StreamRequest, request: Request):
 
     files_raw = (input_obj.get("files") or []) if isinstance(input_obj, dict) else []
     user_text = _append_accessions_to_text(user_text, _extract_accessions_from_files(files_raw))
-    
-    await session.queue.put(
-        type("Ev", (), {"type": "status", "payload": {"_emit_user": user_text}})
-    )
+
+    await session.queue.put(type("Ev", (), {"type": "status", "payload": {"_emit_user": user_text}}))
 
     async def run_bg():
         """
@@ -416,7 +421,7 @@ async def stream_thread(thread_id: str, req: StreamRequest, request: Request):
 
         if resume_payload is None and isinstance(req.input, dict):
             resume_payload = req.input.get("data")
-        
+
         if resume_payload is None and session.pending_interrupt is not None:
             if user_text.strip():
                 resume_payload = user_text
@@ -469,7 +474,7 @@ async def stream_thread(thread_id: str, req: StreamRequest, request: Request):
                 payload = ev.payload if isinstance(ev.payload, dict) else {}
                 yield sse_event("messages", payload)
                 continue
-            
+
             if ev.type == "final":
                 msg = ""
                 if isinstance(ev.payload, dict):
@@ -509,11 +514,7 @@ async def stream_thread(thread_id: str, req: StreamRequest, request: Request):
                 if ev.payload.get("payload", {}).get("type", None) == "tool":
                     yield sse_event(
                         "messages",
-                        {
-                            "messages": [
-                                ev.payload["payload"]
-                            ]
-                        },
+                        {"messages": [ev.payload["payload"]]},
                     )
                 else:
                     yield sse_event(
@@ -543,7 +544,7 @@ async def stream_thread(thread_id: str, req: StreamRequest, request: Request):
                 break
 
             elif ev.type == "status" and isinstance(ev.payload, dict) and "_emit_user" in ev.payload:
-                yield sse_event("messages", {"messages":[{"type":"human","content": ev.payload["_emit_user"]}]})
+                yield sse_event("messages", {"messages": [{"type": "human", "content": ev.payload["_emit_user"]}]})
                 continue
 
             # Optional: if you start emitting incremental text deltas from the runner,

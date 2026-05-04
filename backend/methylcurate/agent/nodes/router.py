@@ -20,6 +20,7 @@ from ...utils.examples import generate_router_interpretation_examples, generate_
 MAX_RETRIES = 3
 GLOBAL_TIMEOUT = 60
 
+
 async def _get_router_decision(messages: List[AnyMessage], llm: Any) -> RouterOutput:
     """
     Get a routing decision from the LLM based on the provided message history. The function attempts to call the LLM with a structured output format defined by the RouterOutput model. If the LLM call times out, it retries up to a specified limit. If the LLM output fails validation against the RouterOutput model, it raises a RuntimeError with details about the validation failure. Any other exceptions during the LLM call also result in a RuntimeError with details about the failure.'
@@ -27,7 +28,7 @@ async def _get_router_decision(messages: List[AnyMessage], llm: Any) -> RouterOu
     Args:
         messages (List[AnyMessage]): The message history to provide as context for the LLM's routing decision.
         llm (Any): The language model to call for obtaining the routing decision, which should have an acall_structured method that accepts messages and a model for structured output.
-    
+
     Returns:
         RouterOutput: An instance of the RouterOutput model containing the routing decision made by the L
     """
@@ -35,7 +36,8 @@ async def _get_router_decision(messages: List[AnyMessage], llm: Any) -> RouterOu
     while retries < MAX_RETRIES:
         try:
             router_out: RouterOutput = RouterOutput.model_validate(
-                await asyncio.wait_for(llm.acall_structured(messages, RouterOutput), timeout=GLOBAL_TIMEOUT))
+                await asyncio.wait_for(llm.acall_structured(messages, RouterOutput), timeout=GLOBAL_TIMEOUT)
+            )
             return router_out
         except asyncio.TimeoutError:
             retries += 1
@@ -45,6 +47,7 @@ async def _get_router_decision(messages: List[AnyMessage], llm: Any) -> RouterOu
         except Exception as e:
             raise RuntimeError(f"Some failure: {e}")
 
+
 async def router_node(state: MainState, *, config: RunnableConfig) -> Dict[str, Any]:
     """
     Handle the routing logic for the given state using the configured LLM. This function retrieves a routing decision from the LLM, validates the decision, and prepares the appropriate response, including handling cases where human review is required. The function first calls the LLM to get a routing decision based on the message history. If the LLM indicates that clarification is needed or if the confidence in the routing decision is below a certain threshold, it creates a HumanReviewRequest for clarification and returns it along with a hint for the next action. If the routing decision is valid but the parameters fail validation against the chosen subgraph's parameter schema, it also creates a HumanReviewRequest for parameter correction. If the routing decision and parameters are valid, it prepares a response indicating that it's ready to run the selected subgraph.
@@ -52,26 +55,24 @@ async def router_node(state: MainState, *, config: RunnableConfig) -> Dict[str, 
     Args:
         state (MainState): The current state of the main graph, which includes the message history and other relevant information for making a routing decision.
         config (RunnableConfig): The configuration for the runnable, which includes dependencies such as the LLM to use for obtaining the routing decision.
-    
+
     Returns:
         Dict[str, Any]: A dictionary containing the results of the routing logic, which may include
     """
     deps: Deps = config["configurable"]["deps"]
     llm = deps.llm
 
-    return_dict = {
-        "messages": []
-    }
-    
+    return_dict = {"messages": []}
+
     router_out = await _get_router_decision(state.messages, llm)
     return_dict["routing_history"] = [router_out]
 
     review_id_args = {
         "run_id": state.run_id,
-        "subgraph": 'router',
-        "entity_type": 'node',
-        "entity_id": 'router',
-        "step": 'routing_decision'
+        "subgraph": "router",
+        "entity_type": "node",
+        "entity_id": "router",
+        "step": "routing_decision",
     }
     # Case 1: Intent unclear OR missing required info -> HITL clarification
     if router_out.needs_clarification or router_out.confidence < 0.6:
@@ -86,7 +87,9 @@ async def router_node(state: MainState, *, config: RunnableConfig) -> Dict[str, 
         return_dict["messages"].append(
             AIMessage(
                 content=router_out.clarification_question or "I need a bit more information to proceed.",
-                additional_kwargs={"created_at": datetime.now(timezone.utc).isoformat()}))
+                additional_kwargs={"created_at": datetime.now(timezone.utc).isoformat()},
+            )
+        )
         return return_dict
 
     # Case 2: Validate the params against the chosen subgraph param schema
@@ -110,7 +113,9 @@ async def router_node(state: MainState, *, config: RunnableConfig) -> Dict[str, 
         return_dict["messages"].append(
             AIMessage(
                 content=router_out.clarification_question or "I need a bit more information to proceed.",
-                additional_kwargs={"created_at": datetime.now(timezone.utc).isoformat()}))
+                additional_kwargs={"created_at": datetime.now(timezone.utc).isoformat()},
+            )
+        )
 
         return return_dict
 
@@ -127,7 +132,7 @@ async def clarify_router_node(state: MainState, *, config: RunnableConfig) -> Di
     Args:
         state (MainState): The current state of the main graph, which includes the message history, pending reviews, and other relevant information for processing the clarification.
         config (RunnableConfig): The configuration for the runnable, which includes dependencies such as the LLM to use for obtaining the updated routing decision.
-    
+
     Returns:
         Dict[str, Any]: A dictionary containing the results of the clarification logic, which may include updated routing decisions, pending reviews, and hints for the next action based on the human's response to the clarification request.
     """
@@ -135,15 +140,18 @@ async def clarify_router_node(state: MainState, *, config: RunnableConfig) -> Di
     llm = deps.llm
     return_dict = {}
 
-    if state.pending_reviews is None or state.pending_reviews.reason not in ["routing_clarification", "invalid_route_params"]:
+    if state.pending_reviews is None or state.pending_reviews.reason not in [
+        "routing_clarification",
+        "invalid_route_params",
+    ]:
         return {}
 
     # Assume the human provided text in state.pending_review.response_text
-    human_response = interrupt({
-        "prompt": state.pending_reviews.question,
-        "context": state.pending_reviews.payload})
+    human_response = interrupt({"prompt": state.pending_reviews.question, "context": state.pending_reviews.payload})
     # Possibly have the LLM involved in this
-    human_message = HumanMessage(content=human_response, additional_kwargs={"created_at": datetime.now(timezone.utc).isoformat()})
+    human_message = HumanMessage(
+        content=human_response, additional_kwargs={"created_at": datetime.now(timezone.utc).isoformat()}
+    )
     message_history = state.messages + [human_message]
     router_out = await _get_router_decision(message_history, llm)
 
@@ -165,6 +173,7 @@ async def clarify_router_node(state: MainState, *, config: RunnableConfig) -> Di
     return_dict["selected_params"] = validated_params.model_dump()
     return_dict["router_confidence"] = router_out.confidence
     return return_dict
+
 
 def run_selected_subgraph(main: MainState, checkpointer) -> tuple[MainState, object]:
     """

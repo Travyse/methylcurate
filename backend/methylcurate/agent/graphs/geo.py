@@ -10,22 +10,18 @@ from ..nodes.geo import (
     check_downloads_succeeded,
     check_platforms_used,
     check_data_presence,
-
     extract_metadata_schema,
-
     extract_sample_metadata,
     generate_metadata_extraction_summary,
-
     check_column_extraction_rule_formatting,
     check_column_extraction_rule_accuracy,
     geo_metadata_column_extraction_approval_node,
-
     format_supplementary_data,
     merge_supplementary_file_data,
     refine_extracted_columns,
-
-    summarize_geo_findings
+    summarize_geo_findings,
 )
+
 
 def route_soft_file(state: GeoIngestionSubgraphState) -> str:
     """
@@ -44,6 +40,7 @@ def route_soft_file(state: GeoIngestionSubgraphState) -> str:
     completed = download_completion and valid_check_completion
     return "extract_metadata_column_scheme" if completed else "check_downloads_succeeded"
 
+
 def route_metadata_scheme_extraction(state: GeoIngestionSubgraphState) -> str:
     """
     Determine the next node to route to after the metadata schema extraction node.
@@ -58,6 +55,7 @@ def route_metadata_scheme_extraction(state: GeoIngestionSubgraphState) -> str:
     datasets = state.datasets
     completed = check_step_completion("extract_metadata_schema", datasets, accession_codes)
     return "extract_sample_metadata" if completed else "extract_metadata_column_scheme"
+
 
 def route_extract_sample_metadata(state: GeoIngestionSubgraphState) -> str:
     """
@@ -74,6 +72,7 @@ def route_extract_sample_metadata(state: GeoIngestionSubgraphState) -> str:
     completed = check_step_completion("extract_data", datasets, accession_codes)
     return "check_extraction_rule_formatting" if completed else "generate_metadata_extraction_summary"
 
+
 def route_check_extraction_rule_formatting(state: GeoIngestionSubgraphState) -> str:
     """
     Determine the next node to route to after the extraction rule formatting check node.
@@ -88,6 +87,7 @@ def route_check_extraction_rule_formatting(state: GeoIngestionSubgraphState) -> 
     datasets = state.datasets
     completed = check_step_completion("refine_metadata_schema", datasets, accession_codes)
     return "format_supplementary_data" if completed else "check_extraction_rule_accuracy"
+
 
 def route_format_supplementary_data(state: GeoIngestionSubgraphState) -> str:
     """
@@ -104,22 +104,43 @@ def route_format_supplementary_data(state: GeoIngestionSubgraphState) -> str:
     completed = check_step_completion("supplementary_file_check", datasets, accession_codes)
     if completed:
         return "summarize_geo_findings"
-    
-    running_accession_codes = sorted([accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["supplementary_file_check"].status == "running"])
+
+    running_accession_codes = sorted(
+        [
+            accession_code
+            for accession_code in accession_codes
+            if state.datasets[accession_code].steps["supplementary_file_check"].status == "running"
+        ]
+    )
     accession_code = running_accession_codes[0]
     supplementary_file_artifacts = sorted(
-        [artifact for artifact in state.config.artifacts if (artifact.kind == "supplementary_file_methylation_data") and (artifact.accession_code == accession_code)],
-        key=lambda artifact: artifact.path
+        [
+            artifact
+            for artifact in state.config.artifacts
+            if (artifact.kind == "supplementary_file_methylation_data") and (artifact.accession_code == accession_code)
+        ],
+        key=lambda artifact: artifact.path,
     )
     formatted_supplementary_file_artifacts = sorted(
-        [artifact for artifact in state.config.artifacts if (artifact.kind == "supplementary_file_methylation_data_formatted") and (artifact.accession_code == accession_code)],
-        key=lambda artifact: artifact.path
+        [
+            artifact
+            for artifact in state.config.artifacts
+            if (artifact.kind == "supplementary_file_methylation_data_formatted")
+            and (artifact.accession_code == accession_code)
+        ],
+        key=lambda artifact: artifact.path,
     )
-    running_supplementary_file_artifacts = [artifact for artifact in supplementary_file_artifacts if f"{os.path.splitext(artifact.path)[0]}_proc" not in [os.path.splitext(artifact.path)[0] for artifact in formatted_supplementary_file_artifacts]]
-    
+    running_supplementary_file_artifacts = [
+        artifact
+        for artifact in supplementary_file_artifacts
+        if f"{os.path.splitext(artifact.path)[0]}_proc"
+        not in [os.path.splitext(artifact.path)[0] for artifact in formatted_supplementary_file_artifacts]
+    ]
+
     supplementary_file_completion = len(running_supplementary_file_artifacts) == 0
 
     return "merge_supplementary_file_data" if supplementary_file_completion else "format_supplementary_data"
+
 
 def build_geo_retrieval_graph() -> StateGraph:
     """
@@ -164,7 +185,7 @@ def build_geo_retrieval_graph() -> StateGraph:
         {
             "extract_metadata_column_scheme": "extract_metadata_column_scheme",
             "check_downloads_succeeded": "check_downloads_succeeded",
-        }
+        },
     )
     g.add_edge("check_downloads_succeeded", "check_platforms_used")
     g.add_edge("check_platforms_used", "check_data_presence")
@@ -176,8 +197,8 @@ def build_geo_retrieval_graph() -> StateGraph:
         route_metadata_scheme_extraction,
         {
             "extract_sample_metadata": "extract_sample_metadata",
-            "extract_metadata_column_scheme": "extract_metadata_column_scheme"
-        }
+            "extract_metadata_column_scheme": "extract_metadata_column_scheme",
+        },
     )
 
     # Data Extraction
@@ -186,8 +207,8 @@ def build_geo_retrieval_graph() -> StateGraph:
         route_extract_sample_metadata,
         {
             "check_extraction_rule_formatting": "check_extraction_rule_formatting",
-            "generate_metadata_extraction_summary": "generate_metadata_extraction_summary"
-        }
+            "generate_metadata_extraction_summary": "generate_metadata_extraction_summary",
+        },
     )
     g.add_edge("generate_metadata_extraction_summary", "extract_sample_metadata")
 
@@ -198,8 +219,8 @@ def build_geo_retrieval_graph() -> StateGraph:
         route_check_extraction_rule_formatting,
         {
             "check_extraction_rule_accuracy": "check_extraction_rule_accuracy",
-            "format_supplementary_data": "format_supplementary_data"
-        }
+            "format_supplementary_data": "format_supplementary_data",
+        },
     )
     g.add_edge("check_extraction_rule_accuracy", "geo_metadata_column_extraction_approval_node")
     g.add_edge("geo_metadata_column_extraction_approval_node", "check_extraction_rule_formatting")
@@ -211,8 +232,8 @@ def build_geo_retrieval_graph() -> StateGraph:
         {
             "format_supplementary_data": "format_supplementary_data",
             "merge_supplementary_file_data": "merge_supplementary_file_data",
-            "summarize_geo_findings": "summarize_geo_findings"
-        }
+            "summarize_geo_findings": "summarize_geo_findings",
+        },
     )
     g.add_edge("merge_supplementary_file_data", "refine_extracted_columns")
     g.add_edge("refine_extracted_columns", "format_supplementary_data")

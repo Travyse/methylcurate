@@ -8,6 +8,7 @@ from ...contracts.geo import GeoSampleLevelMetadataBatch
 # Deterministic way: sample some values from each column, if I find those that satisfy regex that tests for cg##### or rs#####, I win.
 # Check for percentage cg in each column, the column that is above 90% is the CpG column. Stop at the first one.
 
+
 def _get_gpl_features(gpl_id: str, destdir: str) -> List[str]:
     """Retrieve the list of CpG probe IDs for a GEO platform record.
 
@@ -25,10 +26,12 @@ def _get_gpl_features(gpl_id: str, destdir: str) -> List[str]:
     Raises:
         RuntimeError: If no suitable CpG probe ID column is found.
     """
+
     def _percentage_cg(total_values: int, subset_count: int) -> float:
         if total_values < 1:
             return 0.0
         return subset_count / total_values
+
     gpl = GEOparse.get_GEO(geo=gpl_id, destdir=destdir)  # TODO: Update destination
 
     features = None
@@ -42,8 +45,9 @@ def _get_gpl_features(gpl_id: str, destdir: str) -> List[str]:
             break
 
     if features is None:
-        raise RuntimeError(f"Could not find CpG probe ID column in platform {gpl_id}") 
+        raise RuntimeError(f"Could not find CpG probe ID column in platform {gpl_id}")
     return features
+
 
 def find_common_cpgs(dataset_metadata: List[GeoSampleLevelMetadataBatch]) -> set:
     """Compute the intersection of CpG probes across all platforms in a dataset.

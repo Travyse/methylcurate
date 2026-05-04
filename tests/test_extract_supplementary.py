@@ -8,6 +8,7 @@ class TestProcessDetectionColumnsReturnType:
         from methylcurate.tools.geo.extract_supplementary_data import (
             _process_detection_columns,
         )
+
         sig = inspect.signature(_process_detection_columns)
         annotation = str(sig.return_annotation)
         assert "Tuple" in annotation
@@ -18,6 +19,7 @@ class TestProcessDetectionColumnsReturnType:
         from methylcurate.tools.geo.extract_supplementary_data import (
             _process_detection_columns_alt,
         )
+
         sig = inspect.signature(_process_detection_columns_alt)
         annotation = str(sig.return_annotation)
         assert "Tuple" in annotation
@@ -30,6 +32,7 @@ class TestGetColumnSchemeReturnType:
         from methylcurate.tools.geo.extract_supplementary_data import (
             _get_column_scheme,
         )
+
         sig = inspect.signature(_get_column_scheme)
         annotation = str(sig.return_annotation)
         assert "Tuple" in annotation
@@ -42,6 +45,7 @@ class TestGenerateDataSamplesReturnType:
         from methylcurate.tools.geo.extract_supplementary_data import (
             _generate_data_samples,
         )
+
         sig = inspect.signature(_generate_data_samples)
         annotation = str(sig.return_annotation)
         assert "Tuple" in annotation
@@ -54,6 +58,7 @@ class TestCheckForCpgProbesReturnType:
         from methylcurate.tools.geo.extract_supplementary_data import (
             _check_for_cpg_probes,
         )
+
         sig = inspect.signature(_check_for_cpg_probes)
         annotation = str(sig.return_annotation)
         assert "Dict" in annotation
@@ -66,6 +71,7 @@ class TestCreateSubjectIdMappingReturnType:
         from methylcurate.tools.geo.extract_supplementary_data import (
             _create_subject_id_mapping,
         )
+
         sig = inspect.signature(_create_subject_id_mapping)
         annotation = str(sig.return_annotation)
         assert "DataFrame" in annotation

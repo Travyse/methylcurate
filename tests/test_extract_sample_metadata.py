@@ -9,6 +9,7 @@ class TestGetFieldValueReturnsTuple:
     def test_return_type_is_three_tuple(self):
         """Verify get_field_value returns Tuple[Optional[str], Optional[str], bool]."""
         from methylcurate.tools.geo.extract_sample_level_metadata import get_field_value
+
         sig = inspect.signature(get_field_value)
         annotation = str(sig.return_annotation)
         assert "Tuple" in annotation
@@ -33,11 +34,13 @@ class TestGetFieldValueReturnsTuple:
 class TestFieldCoverageNaming:
     def test_get_field_coverage_name_is_pep8(self):
         from methylcurate.tools.geo import extract_sample_level_metadata as m
+
         assert hasattr(m, "get_field_coverage")
         assert not hasattr(m, "get_field_Coverage")
 
     def test_get_df_field_coverage_name_is_pep8(self):
         from methylcurate.tools.geo import extract_sample_level_metadata as m
+
         assert hasattr(m, "get_df_field_coverage")
         assert not hasattr(m, "get_df_field_Coverage")
 

@@ -6,11 +6,35 @@ from datetime import datetime
 from ..utils.helper import NonEmptyStr
 
 Kind = Literal[
-    "soft_file", "metadata_cache", "metadata_extraction_protocol", "preqc_methylation_data", "postqc_methylation_data", "dataset_metadata", "harmonization_json",
-    "clock_predictions_csv", "visualization", "supplementary_file_methylation_data", "supplementary_file_methylation_data_column_scheme",
-    "supplementary_file_methylation_data_formatted", "subject_column_mapping", "benchmark_summary", "dataset_benchmark", "clock",
-    "disease_harmonization_mapping", "tissue_harmonization_mapping", "sex_harmonization_mapping", "cell_type_harmonization_mapping",
-    "disease_label_guessing", "disease_label_harmonization", "tissue_label_guessing", "tissue_label_harmonization",  "sex_label_harmonization", "cell_type_label_guessing", "cell_type_label_harmonization"]
+    "soft_file",
+    "metadata_cache",
+    "metadata_extraction_protocol",
+    "preqc_methylation_data",
+    "postqc_methylation_data",
+    "dataset_metadata",
+    "harmonization_json",
+    "clock_predictions_csv",
+    "visualization",
+    "supplementary_file_methylation_data",
+    "supplementary_file_methylation_data_column_scheme",
+    "supplementary_file_methylation_data_formatted",
+    "subject_column_mapping",
+    "benchmark_summary",
+    "dataset_benchmark",
+    "clock",
+    "disease_harmonization_mapping",
+    "tissue_harmonization_mapping",
+    "sex_harmonization_mapping",
+    "cell_type_harmonization_mapping",
+    "disease_label_guessing",
+    "disease_label_harmonization",
+    "tissue_label_guessing",
+    "tissue_label_harmonization",
+    "sex_label_harmonization",
+    "cell_type_label_guessing",
+    "cell_type_label_harmonization",
+]
+
 
 class ArtifactRef(BaseModel):
     """
@@ -24,24 +48,26 @@ class ArtifactRef(BaseModel):
         bytes (Optional[int]): The size of the artifact in bytes, if known.
         created_at (Optional[NonEmptyStr]): The creation timestamp of the artifact in ISO8601 format.
     """
+
     path: NonEmptyStr
-    kind: Kind                          # e.g., "soft_family", "sample_metadata_csv", "beta_matrix_csv"
+    kind: Kind  # e.g., "soft_family", "sample_metadata_csv", "beta_matrix_csv"
     accession_code: Optional[NonEmptyStr] = None
     sha256: Optional[NonEmptyStr] = None
     bytes: Optional[int] = None
-    created_at: Optional[NonEmptyStr] = None   # ISO8601
+    created_at: Optional[NonEmptyStr] = None  # ISO8601
 
-    @field_validator('path', mode="before")
+    @field_validator("path", mode="before")
     def validate_path(cls, v):
         if not v or not isinstance(v, str) or not os.path.exists(v):
             raise ValueError("path must be a non-empty string and must exist")
         return v
-    
-    @field_validator('kind', mode="before")
+
+    @field_validator("kind", mode="before")
     def validate_kind(cls, v):
         if not v or not isinstance(v, str):
             raise ValueError("kind must be a non-empty string")
         return v
+
 
 class StepStatus(BaseModel):
     """
@@ -54,11 +80,13 @@ class StepStatus(BaseModel):
         error (Optional[NonEmptyStr]): Any error message associated with the step, if applicable.
         warnings (List[NonEmptyStr]): A list of warning messages associated with the step, if any.
     """
+
     status: Literal["not_started", "running", "completed", "failed", "paused_for_review", "canceled"] = "not_started"
     started_at: Optional[NonEmptyStr] = None
     finished_at: Optional[NonEmptyStr] = None
     error: Optional[NonEmptyStr] = None
     warnings: List[NonEmptyStr] = Field(default_factory=list)
+
 
 class HumanReviewRequest(BaseModel):
     """
@@ -71,11 +99,13 @@ class HumanReviewRequest(BaseModel):
         payload (Dict): A dictionary containing any relevant facts or exemplars that may assist the human reviewer in making their decision.
         created_at (NonEmptyStr): The timestamp when the review request was created, in ISO8601 format.
     """
+
     review_id: NonEmptyStr
     reason: NonEmptyStr
     question: NonEmptyStr
     payload: Dict = Field(default_factory=dict)  # small, user-facing facts + exemplars
     created_at: NonEmptyStr
+
 
 class HumanReviewDecision(BaseModel):
     """
@@ -88,8 +118,9 @@ class HumanReviewDecision(BaseModel):
         edits (Dict): A dictionary containing any edits made by the human reviewer, e.g., {"subject_id_rule": {...}}.
         decided_at (NonEmptyStr): The timestamp when the decision was made, in ISO8601 format.
     """
+
     review_id: NonEmptyStr
-    decision: Literal["approve","reject","edit"]   # edit = user supplies corrected params/rules
+    decision: Literal["approve", "reject", "edit"]  # edit = user supplies corrected params/rules
     notes: Optional[NonEmptyStr] = None
-    edits: Dict = Field(default_factory=dict)      # e.g. {"subject_id_rule": {...}}
+    edits: Dict = Field(default_factory=dict)  # e.g. {"subject_id_rule": {...}}
     decided_at: NonEmptyStr

@@ -21,6 +21,7 @@ from .extract_sample_level_metadata import _merge_to_dataframe
 from ...utils.exception_handling import classify_geo_error
 from ...utils.helper import compute_sha256, write_feather
 
+
 def _family_soft_path(output_dir: str, accession: str) -> str:
     """Build the expected path for a GEO family SOFT file.
 
@@ -32,6 +33,7 @@ def _family_soft_path(output_dir: str, accession: str) -> str:
         Full path to the expected family SOFT (.soft.gz) file.
     """
     return os.path.join(output_dir, f"{accession}_family.soft.gz")
+
 
 def _cache_metadata(gse: Any) -> Dict[str, Any]:
     """Extract and cache per-sample and dataset-level metadata from a GEOparse GSE object.
@@ -51,12 +53,13 @@ def _cache_metadata(gse: Any) -> Dict[str, Any]:
         "dataset_metadata": {
             "title": gse.metadata.get("title", [""])[0],
             "summary": gse.metadata.get("summary", [""])[0],
-            "overall_design": gse.metadata.get("overall_design", [""])[0]
-        }
+            "overall_design": gse.metadata.get("overall_design", [""])[0],
+        },
     }
     for k in [k for k in gse.metadata.keys() if "supplement" in k.lower()]:
         metadata["dataset_metadata"][k] = gse.metadata.get(k, None)
     return metadata
+
 
 def _cache_methylation_data(gse: Any, output_dir: str) -> pd.DataFrame:
     """Extract and cache methylation data from a GEOparse GSE object.
@@ -75,12 +78,12 @@ def _cache_methylation_data(gse: Any, output_dir: str) -> pd.DataFrame:
     """
     methylation_rows = []
     methylation_col_names = []
-    
+
     for gsm_name, gsm in gse.gsms.items():
         sample_data = gsm.table
         if sample_data is None or len(sample_data.columns.tolist()) < 1:
             continue
-        
+
         detection_cols = [x for x in sample_data.columns if "detection" in x.lower()]
         if len(detection_cols) > 0:
             sample_data = sample_data[sample_data[detection_cols[0]] <= 0.05]
@@ -91,12 +94,13 @@ def _cache_methylation_data(gse: Any, output_dir: str) -> pd.DataFrame:
             continue
 
         methylation_rows.append([gsm_name] + sample_data["VALUE"].tolist())
-        methylation_col_names.append(['Sample'] + sample_data["ID_REF"].tolist())
-    
+        methylation_col_names.append(["Sample"] + sample_data["ID_REF"].tolist())
+
     if len(methylation_rows) == 0:
         return pd.DataFrame()  # Return empty DataFrame if no valid methylation data found
-        
-    return _merge_to_dataframe(methylation_rows, methylation_col_names, index_col="Sample") 
+
+    return _merge_to_dataframe(methylation_rows, methylation_col_names, index_col="Sample")
+
 
 def _download_geo_dataset(accession: str, output_dir: str):
     """Download a single GEO dataset and extract metadata and methylation data.
@@ -142,14 +146,18 @@ def _download_geo_dataset(accession: str, output_dir: str):
     if os.path.exists(cached_soft_path):
         print(f"Soft file already exists for {accession} at {cached_soft_path}, skipping download.")
         # shutil.copy(cached_soft_path, soft_path) TODO: Maybe Remove
-        artifacts.append(ArtifactRef.model_validate({
-            "path": cached_soft_path,
-            "kind": "soft_file",
-            "accession_code": accession,
-            "sha256": compute_sha256(cached_soft_path, is_path=True),
-            "bytes": os.path.getsize(cached_soft_path),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }))
+        artifacts.append(
+            ArtifactRef.model_validate(
+                {
+                    "path": cached_soft_path,
+                    "kind": "soft_file",
+                    "accession_code": accession,
+                    "sha256": compute_sha256(cached_soft_path, is_path=True),
+                    "bytes": os.path.getsize(cached_soft_path),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+        )
         metadata_path = os.path.join(cache_output_dir, f"{accession}_metadata.json")
         methylation_data_path = os.path.join(cache_output_dir, f"{accession}_preqc_methylation_matrix.feather")
         if any([not os.path.exists(p) for p in [metadata_path, methylation_data_path]]):
@@ -158,9 +166,9 @@ def _download_geo_dataset(accession: str, output_dir: str):
             methylation_data = _cache_methylation_data(g, cache_output_dir)
             with open(metadata_path, "w") as f:
                 json.dump(metadata, f, indent=4)
-            
+
             write_feather(methylation_data, methylation_data_path, index_name="subject_id")
-            supplementary_files = { accession: _check_supplementary_files(g) }
+            supplementary_files = {accession: _check_supplementary_files(g)}
         else:
             metadata = json.load(open(metadata_path, "r"))
             possible_supplementary_keys = [k for k in metadata["dataset_metadata"].keys() if "supplement" in k.lower()]
@@ -170,34 +178,44 @@ def _download_geo_dataset(accession: str, output_dir: str):
                     supplementary_files.update(set(metadata["dataset_metadata"][supplementary_key]))
                 else:
                     supplementary_files.add(metadata["dataset_metadata"][supplementary_key])
-            supplementary_files = { accession: sorted(list(supplementary_files)) }
+            supplementary_files = {accession: sorted(list(supplementary_files))}
 
-        artifacts.extend([
-            ArtifactRef.model_validate({
-                "path": metadata_path,
-                "kind": "metadata_cache",
-                "accession_code": accession,
-                "sha256": compute_sha256(metadata_path, is_path=True),
-                "bytes": os.path.getsize(metadata_path),
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }),
-            ArtifactRef.model_validate({
-                "path": methylation_data_path,
-                "kind": "preqc_methylation_data",
-                "accession_code": accession,
-                "sha256": compute_sha256(methylation_data_path, is_path=True),
-                "bytes": os.path.getsize(methylation_data_path),
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }),
-        ])
+        artifacts.extend(
+            [
+                ArtifactRef.model_validate(
+                    {
+                        "path": metadata_path,
+                        "kind": "metadata_cache",
+                        "accession_code": accession,
+                        "sha256": compute_sha256(metadata_path, is_path=True),
+                        "bytes": os.path.getsize(metadata_path),
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                ),
+                ArtifactRef.model_validate(
+                    {
+                        "path": methylation_data_path,
+                        "kind": "preqc_methylation_data",
+                        "accession_code": accession,
+                        "sha256": compute_sha256(methylation_data_path, is_path=True),
+                        "bytes": os.path.getsize(methylation_data_path),
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                ),
+            ]
+        )
 
-        return artifacts, supplementary_files, GEODownloadResult(
+        return (
+            artifacts,
+            supplementary_files,
+            GEODownloadResult(
                 accession=accession,
                 artifact=artifacts[0],
                 status="success",
                 error=None,
                 warnings=[f"Soft file already existed at {cached_soft_path}, skipping download."],
-            )
+            ),
+        )
 
     # Download
     for _ in range(3):
@@ -206,50 +224,60 @@ def _download_geo_dataset(accession: str, output_dir: str):
 
             # Verify expected output (best-effort; GEOparse may still succeed with a different artifact set)
             if os.path.exists(cached_soft_path):
-                artifacts.append(ArtifactRef.model_validate({
-                    "path": cached_soft_path,
-                    "kind": "soft_file",
-                    "accession_code": accession,
-                    "sha256": compute_sha256(cached_soft_path, is_path=True),
-                    "bytes": os.path.getsize(cached_soft_path),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                }))
+                artifacts.append(
+                    ArtifactRef.model_validate(
+                        {
+                            "path": cached_soft_path,
+                            "kind": "soft_file",
+                            "accession_code": accession,
+                            "sha256": compute_sha256(cached_soft_path, is_path=True),
+                            "bytes": os.path.getsize(cached_soft_path),
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                        }
+                    )
+                )
                 metadata = _cache_metadata(gse)
                 methylation_data = _cache_methylation_data(gse, cache_output_dir)
                 metadata_path = os.path.join(cache_output_dir, f"{accession}_metadata.json")
                 methylation_data_path = os.path.join(cache_output_dir, f"{accession}_preqc_methylation_matrix.feather")
                 with open(metadata_path, "w") as f:
                     json.dump(metadata, f, indent=4)
-                
+
                 write_feather(methylation_data, methylation_data_path, index_name="subject_id")
-                supplementary_files = { accession: _check_supplementary_files(gse) }
+                supplementary_files = {accession: _check_supplementary_files(gse)}
 
-                artifacts.extend([
-                    ArtifactRef.model_validate({
-                        "path": metadata_path,
-                        "kind": "metadata_cache",
-                        "accession_code": accession,
-                        "sha256": compute_sha256(metadata_path, is_path=True),
-                        "bytes": os.path.getsize(metadata_path),
-                        "created_at": datetime.now(timezone.utc).isoformat(),
-                    }),
-                    ArtifactRef.model_validate({
-                        "path": methylation_data_path,
-                        "kind": "preqc_methylation_data",
-                        "accession_code": accession,
-                        "sha256": compute_sha256(methylation_data_path, is_path=True),
-                        "bytes": os.path.getsize(methylation_data_path),
-                        "created_at": datetime.now(timezone.utc).isoformat(),
-                    }),
-                ])
+                artifacts.extend(
+                    [
+                        ArtifactRef.model_validate(
+                            {
+                                "path": metadata_path,
+                                "kind": "metadata_cache",
+                                "accession_code": accession,
+                                "sha256": compute_sha256(metadata_path, is_path=True),
+                                "bytes": os.path.getsize(metadata_path),
+                                "created_at": datetime.now(timezone.utc).isoformat(),
+                            }
+                        ),
+                        ArtifactRef.model_validate(
+                            {
+                                "path": methylation_data_path,
+                                "kind": "preqc_methylation_data",
+                                "accession_code": accession,
+                                "sha256": compute_sha256(methylation_data_path, is_path=True),
+                                "bytes": os.path.getsize(methylation_data_path),
+                                "created_at": datetime.now(timezone.utc).isoformat(),
+                            }
+                        ),
+                    ]
+                )
 
-                return artifacts, supplementary_files, GEODownloadResult(
-                        accession=accession,
-                        artifact=artifacts[0],
-                        status="success",
-                        error=None,
-                        warnings=[])
-
+                return (
+                    artifacts,
+                    supplementary_files,
+                    GEODownloadResult(
+                        accession=accession, artifact=artifacts[0], status="success", error=None, warnings=[]
+                    ),
+                )
 
         except Exception as e:
             error_msg = classify_geo_error(e)[1]
@@ -258,13 +286,18 @@ def _download_geo_dataset(accession: str, output_dir: str):
             continue
     else:
         error_msg = "Download failed after all retries"
-    return artifacts, {}, GEODownloadResult(
+    return (
+        artifacts,
+        {},
+        GEODownloadResult(
             accession=accession,
             artifact=None,
             status="failed",
             error=error_msg,
             warnings=[],
-        )
+        ),
+    )
+
 
 def download_geo_datasets(config: GEOIngestionConfig, batch: GEODownloadBatchInput) -> GEODownloadBatchResult:
     """
@@ -278,11 +311,10 @@ def download_geo_datasets(config: GEOIngestionConfig, batch: GEODownloadBatchInp
     artifacts: List[ArtifactRef] = [x.model_dump() for x in config.artifacts]
 
     results: List[Any] = Parallel(n_jobs=-1)(
-        delayed(_download_geo_dataset)(
-            item.accession,
-            os.path.join(config.output_root, item.accession)
-        ) for item in batch.geo_downloads)
-    
+        delayed(_download_geo_dataset)(item.accession, os.path.join(config.output_root, item.accession))
+        for item in batch.geo_downloads
+    )
+
     download_results = [x[2] for x in results]
     supplementary_files = [x[1] for x in results]
     artifact_results = [item for x in results for item in x[0]]
@@ -308,11 +340,16 @@ def download_geo_datasets(config: GEOIngestionConfig, batch: GEODownloadBatchInp
     if batch_status == "partial":
         warnings.append("Some accessions failed; inspect per-accession results.")
 
-    return artifact_results, supplementary_files, GEODownloadBatchResult(
-        results=download_results,
-        batch_status=batch_status,
-        warnings=warnings,
+    return (
+        artifact_results,
+        supplementary_files,
+        GEODownloadBatchResult(
+            results=download_results,
+            batch_status=batch_status,
+            warnings=warnings,
+        ),
     )
+
 
 def _check_supplementary_files(gse: Any):
     """Collect supplementary file URLs from a GEO dataset's metadata.
@@ -336,6 +373,7 @@ def _check_supplementary_files(gse: Any):
             supplementary_files.add(gse.metadata[supplementary_key])
     return sorted(list(supplementary_files))
 
+
 def ftp_to_https(url: str) -> str:
     """Convert an FTP URL to its HTTPS equivalent.
 
@@ -355,9 +393,10 @@ def ftp_to_https(url: str) -> str:
     # NCBI supports same path over https
     return urlunparse(("https", u.netloc, u.path, "", "", ""))
 
+
 def download(
-        accession_code: str, url: str, destdir: str | Path = ".", chunk_size: int = 1024 * 1024,
-        max_retries: int = 3) -> ArtifactRef:
+    accession_code: str, url: str, destdir: str | Path = ".", chunk_size: int = 1024 * 1024, max_retries: int = 3
+) -> ArtifactRef:
     """Download a single supplementary file with caching and retry logic.
 
     Checks a shared cache directory first, returning the existing artifact
@@ -396,15 +435,17 @@ def download(
     print(f"Checking cache for {accession_code} at {cache_download_path}...")
     if os.path.exists(cache_download_path):
         print(f"File already exists for {accession_code} at {cache_download_path}, skipping download.")
-        #shutil.copy(cache_download_path, str(cache_download_path))
-        return ArtifactRef.model_validate({
-            "path": str(cache_download_path),
-            "kind": "supplementary_file_methylation_data",
-            "accession_code": accession_code,
-            "sha256": compute_sha256(cache_download_path, is_path=True),
-            "bytes": os.path.getsize(cache_download_path),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        })
+        # shutil.copy(cache_download_path, str(cache_download_path))
+        return ArtifactRef.model_validate(
+            {
+                "path": str(cache_download_path),
+                "kind": "supplementary_file_methylation_data",
+                "accession_code": accession_code,
+                "sha256": compute_sha256(cache_download_path, is_path=True),
+                "bytes": os.path.getsize(cache_download_path),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
     for attempt in range(1, max_retries + 1):
         try:
@@ -412,29 +453,34 @@ def download(
                 r.raise_for_status()
                 total = int(r.headers.get("Content-Length") or 0)
 
-                with open(cache_download_path, "wb") as f, tqdm(
-                    total=total,
-                    unit="B",
-                    unit_scale=True,
-                    desc=f"{accession_code}:{filename}",
-                    leave=True,
-                ) as bar:
+                with (
+                    open(cache_download_path, "wb") as f,
+                    tqdm(
+                        total=total,
+                        unit="B",
+                        unit_scale=True,
+                        desc=f"{accession_code}:{filename}",
+                        leave=True,
+                    ) as bar,
+                ):
                     for chunk in r.iter_content(chunk_size=chunk_size):
                         if not chunk:
                             continue
                         f.write(chunk)
                         bar.update(len(chunk))
-            
+
                 print(f"Download completed: {cache_download_path}")
 
-                artifact = ArtifactRef.model_validate({
-                    "path": str(cache_download_path),
-                    "kind": "supplementary_file_methylation_data",
-                    "accession_code": accession_code,
-                    "sha256": compute_sha256(cache_download_path, is_path=True),
-                    "bytes": os.path.getsize(cache_download_path),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                })
+                artifact = ArtifactRef.model_validate(
+                    {
+                        "path": str(cache_download_path),
+                        "kind": "supplementary_file_methylation_data",
+                        "accession_code": accession_code,
+                        "sha256": compute_sha256(cache_download_path, is_path=True),
+                        "bytes": os.path.getsize(cache_download_path),
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
                 return artifact
         except Exception as e:
             print(f"[{accession_code}] Non-retryable error for {filename}: {type(e).__name__}: {e}")
@@ -447,7 +493,10 @@ def download(
 
     raise RuntimeError(f"Failed to download {filename} for {accession_code} after {max_retries} attempts.")
 
-def parallel_downloads(accession_code: str, urls: List[str], destdir: str, chunk_size: int = 1024 * 1024) -> Dict[str, List[ArtifactRef]]:
+
+def parallel_downloads(
+    accession_code: str, urls: List[str], destdir: str, chunk_size: int = 1024 * 1024
+) -> Dict[str, List[ArtifactRef]]:
     """Download multiple supplementary files in parallel for a single accession.
 
     Dispatches each URL to :func:`download` using ``joblib.Parallel`` with
@@ -469,6 +518,5 @@ def parallel_downloads(accession_code: str, urls: List[str], destdir: str, chunk
         RuntimeError: If any individual download fails after all retries.
     """
     print(f"Starting parallel downloads for {accession_code} from URLs: {urls}")
-    artifacts = Parallel(n_jobs=-1)(
-        delayed(download)(accession_code, url, destdir, chunk_size) for url in urls)
-    return {"artifacts": artifacts }
+    artifacts = Parallel(n_jobs=-1)(delayed(download)(accession_code, url, destdir, chunk_size) for url in urls)
+    return {"artifacts": artifacts}

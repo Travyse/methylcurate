@@ -6,6 +6,7 @@ from ..graphs.router import build_main_graph
 from ..graphs.subgraphs import build_subgraphs
 from ..graphs.deps import Deps
 
+
 def build_services_with_checkpointer(checkpointer) -> tuple[StreamingRunner, Deps]:
     """
     Builds the services with the provided checkpointer instance. This ensures that all graphs and subgraphs share the same checkpointer, allowing for consistent state management across the entire system.
@@ -36,15 +37,8 @@ def build_services_with_checkpointer(checkpointer) -> tuple[StreamingRunner, Dep
 
     # Compile with SAME checkpointer instance
     main_graph = main_builder.compile(checkpointer=checkpointer)
-    subgraphs = {
-        name: builder.compile(checkpointer=checkpointer)
-        for name, builder in subgraph_builders.items()
-    }
+    subgraphs = {name: builder.compile(checkpointer=checkpointer) for name, builder in subgraph_builders.items()}
 
-    runner = StreamingRunner(
-        main_graph=main_graph,
-        subgraphs=subgraphs,
-        checkpointer=checkpointer,
-        deps=deps)
+    runner = StreamingRunner(main_graph=main_graph, subgraphs=subgraphs, checkpointer=checkpointer, deps=deps)
 
     return runner, deps

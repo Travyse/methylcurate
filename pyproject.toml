@@ -55,6 +55,9 @@ homepage = "https://github.com/travyse/methylcurate"
 [project.scripts]
 methylcurate = "methylcurate.cli:app"
 
+[tool.hatch.build.targets.wheel]
+packages = ["backend/methylcurate"]
+
 [tool.ty]
 # All rules are enabled as "error" by default; no need to specify unless overriding.
 # Example override: relax a rule for the entire project (uncomment if needed).

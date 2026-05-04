@@ -23,10 +23,12 @@ def _make_file_dict(name: str, content: str, *, gzip_compress: bool = False) -> 
 # _extract_accessions_from_files
 # ----------------------------------------------------------------
 
+
 class TestExtractAccessionsFromFiles:
     @pytest.fixture(autouse=True)
     def _setup(self):
         from methylcurate.api.file_parser import _extract_accessions_from_files
+
         self._sut = _extract_accessions_from_files
 
     def test_extracts_from_csv_with_accession_code_column(self):
@@ -80,10 +82,12 @@ class TestExtractAccessionsFromFiles:
     def test_deduplicates_across_files(self):
         csv1 = _make_csv_data([("GSE11111",), ("GSE22222",)], ["accession_code"])
         csv2 = _make_csv_data([("GSE22222",), ("GSE33333",)], ["accession_code"])
-        result = self._sut([
-            _make_file_dict("a.csv", csv1),
-            _make_file_dict("b.csv", csv2),
-        ])
+        result = self._sut(
+            [
+                _make_file_dict("a.csv", csv1),
+                _make_file_dict("b.csv", csv2),
+            ]
+        )
         assert result == ["GSE11111", "GSE22222", "GSE33333"]
 
     def test_case_insensitive_column_name(self):
@@ -143,9 +147,11 @@ class TestExtractAccessionsFromFiles:
 
     def test_handles_encoding_variants(self):
         content = "accession_code\nGSE12345\nGSE67890\n"
-        result = self._sut([
-            _make_file_dict("utf8.csv", content),
-        ])
+        result = self._sut(
+            [
+                _make_file_dict("utf8.csv", content),
+            ]
+        )
         assert result == ["GSE12345", "GSE67890"]
 
     def test_skips_invalid_file_payload_keys(self):
@@ -157,10 +163,12 @@ class TestExtractAccessionsFromFiles:
 # _append_accessions_to_text
 # ----------------------------------------------------------------
 
+
 class TestAppendAccessionsToText:
     @pytest.fixture(autouse=True)
     def _setup(self):
         from methylcurate.api.file_parser import _append_accessions_to_text
+
         self._sut = _append_accessions_to_text
 
     def test_appends_datasets_of_interest_line(self):

@@ -6,14 +6,41 @@ from typing import Literal, Optional, List
 # Call pyaging here to get the clock names. Filter by metadata for humans and methylation. Then remove any mention of CpGPT
 
 MethylationClocks = Literal[
-        "altumage", "dunedinpace", "dnamic", "dnamphenoage", "grimage", "grimage2", "horvath2013",
-        "hannum", "intrinclock", "pcgrimage", "pchannum", "pchorvath2013", "pcphenoage",
-        "pcskinandblood", "skinandblood", "systemsage", "systemsageblood", "corticalage", "pcbrainage",
-        "systemsagebrain", "systemsageheart", "systemsagehormone", "systemsageimmune",
-        "systemsageinflammation", "systemsagekidney", "systemsagekidney",
-        "systemsageliver", "systemsagelung", "systemsagemetabolic",
-        "systemsagemusculoskeletal", "zhangblup", "zhangen", "zhangmortality"
-    ]
+    "altumage",
+    "dunedinpace",
+    "dnamic",
+    "dnamphenoage",
+    "grimage",
+    "grimage2",
+    "horvath2013",
+    "hannum",
+    "intrinclock",
+    "pcgrimage",
+    "pchannum",
+    "pchorvath2013",
+    "pcphenoage",
+    "pcskinandblood",
+    "skinandblood",
+    "systemsage",
+    "systemsageblood",
+    "corticalage",
+    "pcbrainage",
+    "systemsagebrain",
+    "systemsageheart",
+    "systemsagehormone",
+    "systemsageimmune",
+    "systemsageinflammation",
+    "systemsagekidney",
+    "systemsagekidney",
+    "systemsageliver",
+    "systemsagelung",
+    "systemsagemetabolic",
+    "systemsagemusculoskeletal",
+    "zhangblup",
+    "zhangen",
+    "zhangmortality",
+]
+
 
 class MethylationAgingClock(BaseModel):
     """
@@ -22,7 +49,9 @@ class MethylationAgingClock(BaseModel):
     Attributes:
         clock_name (MethylationClocks): The name of the methylation aging clock.
     """
+
     clock_name: MethylationClocks
+
 
 class PredictionInput(BaseModel):
     """
@@ -32,8 +61,10 @@ class PredictionInput(BaseModel):
         clock_list (List[MethylationAgingClock]): A list of methylation aging clocks to predict.
         imputer_strategy (Literal["mean", "median", "constant", "knn"]): The strategy to use for imputing missing data, with a default value of "knn".
     """
+
     clock_list: List[MethylationAgingClock]
     imputer_strategy: Literal["mean", "median", "constant", "knn"] = "knn"
+
 
 class ClockPredictionResult(BaseModel):
     """
@@ -46,11 +77,13 @@ class ClockPredictionResult(BaseModel):
         mean_absolute_error (float): The mean absolute error of the predictions for this clock.
         r_squared (float): The R-squared value of the predictions for this clock.
     """
+
     clock_name: MethylationClocks
     mean_squared_error: float
     median_absolute_error: float
     mean_absolute_error: float
     r_squared: float
+
 
 class PredictionResult(BaseModel):
     """
@@ -59,4 +92,5 @@ class PredictionResult(BaseModel):
     Attributes:
         clock_results (List[ClockPredictionResult]): A list of prediction results for each methylation aging clock.
     """
+
     clock_results: List[ClockPredictionResult]

@@ -1,8 +1,24 @@
 __all__ = [
-    "sample_values", "json_extraction", "compute_sha256", "NonEmptyStr", "set_step_status", "_get_status_id", "retrieve_status_counts",
-    "populate_todos", "_get_supplementary_file_id", "check_step_completion", "write_feather", "read_feather", "update_small_progress_tracker",
-    "load_metadata_aligned_methylation_data", "benchmarking_progress", "qc_progress", "PROJECT_ROOT", "update_harmonization_progress_tracker",
-    "get_correct_methylation_data"]
+    "sample_values",
+    "json_extraction",
+    "compute_sha256",
+    "NonEmptyStr",
+    "set_step_status",
+    "_get_status_id",
+    "retrieve_status_counts",
+    "populate_todos",
+    "_get_supplementary_file_id",
+    "check_step_completion",
+    "write_feather",
+    "read_feather",
+    "update_small_progress_tracker",
+    "load_metadata_aligned_methylation_data",
+    "benchmarking_progress",
+    "qc_progress",
+    "PROJECT_ROOT",
+    "update_harmonization_progress_tracker",
+    "get_correct_methylation_data",
+]
 import re
 import json
 from pathlib import Path
@@ -20,6 +36,7 @@ from pydantic import Field
 # Seed everything
 COMPLETION_LIST = {"completed", "failed", "canceled"}
 
+
 def check_step_completion(step: str, datasets: Dict[str, Any], accession_codes: List[str]):
     """
     Checks if a specific step is completed for all given accession codes.
@@ -34,6 +51,7 @@ def check_step_completion(step: str, datasets: Dict[str, Any], accession_codes: 
     """
     statuses = [datasets[x].steps[step].status for x in accession_codes]
     return all(status in COMPLETION_LIST for status in statuses)
+
 
 def sample_values(values: List[str], max_examples: int = 12) -> List[str]:
     """
@@ -51,6 +69,7 @@ def sample_values(values: List[str], max_examples: int = 12) -> List[str]:
         return [str(v) for v in values]
     values_subset = random.sample(values, k=max_examples)
     return [str(v) for v in values_subset]
+
 
 def json_extraction(raw: str, default_response: Dict) -> dict:
     """
@@ -72,6 +91,7 @@ def json_extraction(raw: str, default_response: Dict) -> dict:
         parsed = json.loads(m.group(0))
     return parsed
 
+
 def _compute_sha256_from_path(path: str) -> str:
     """
     Computes the SHA-256 hash of a file at the given path.
@@ -91,6 +111,7 @@ def _compute_sha256_from_path(path: str) -> str:
             h.update(chunk)
     return h.hexdigest()
 
+
 def _compute_sha256_from_content(content: str) -> str:
     """
     Computes the SHA-256 hash of a string content.
@@ -102,8 +123,9 @@ def _compute_sha256_from_content(content: str) -> str:
         str: The SHA-256 hash of the content.
     """
     h = hashlib.sha256()
-    h.update(content.encode('utf-8'))
+    h.update(content.encode("utf-8"))
     return h.hexdigest()
+
 
 def compute_sha256(content: str, is_path: bool = False) -> str:
     """
@@ -118,7 +140,10 @@ def compute_sha256(content: str, is_path: bool = False) -> str:
     """
     return _compute_sha256_from_path(content) if is_path else _compute_sha256_from_content(content)
 
-def get_correct_methylation_data(artifacts: List[Any], accession_code: str, artifact_kind: str = "preqc_methylation_data") -> Any:
+
+def get_correct_methylation_data(
+    artifacts: List[Any], accession_code: str, artifact_kind: str = "preqc_methylation_data"
+) -> Any:
     """
     Retrieves the correct methylation data artifact for a given accession code.
 
@@ -130,13 +155,25 @@ def get_correct_methylation_data(artifacts: List[Any], accession_code: str, arti
     Returns:
         Any: The matching artifact, or None if not found.
     """
-    target_artifacts = [artifact for artifact in artifacts if (artifact.kind == artifact_kind) and (artifact.accession_code == accession_code)]
+    target_artifacts = [
+        artifact
+        for artifact in artifacts
+        if (artifact.kind == artifact_kind) and (artifact.accession_code == accession_code)
+    ]
     if len(target_artifacts) == 0:
         return None
     elif len(target_artifacts) == 1:
         return target_artifacts[0]
     else:
-        return next((artifact for artifact in target_artifacts if f"{accession_code}_preqc_methylation_matrix" not in artifact.path), None)
+        return next(
+            (
+                artifact
+                for artifact in target_artifacts
+                if f"{accession_code}_preqc_methylation_matrix" not in artifact.path
+            ),
+            None,
+        )
+
 
 def get_accession_codes(state: Any) -> List[str]:
     """
@@ -151,6 +188,7 @@ def get_accession_codes(state: Any) -> List[str]:
     return sorted(
         [x.upper() for x in state.config.accessions if state.datasets[x.upper()].status not in ("failed", "resolved")]
     )
+
 
 def set_step_status(status="running", step=None, error=None, warnings=None) -> Dict[str, Any]:
     """
@@ -167,15 +205,20 @@ def set_step_status(status="running", step=None, error=None, warnings=None) -> D
     """
     if step is not None:
         step["status"] = status
-        step["finished_at"] = datetime.now(timezone.utc).isoformat() if status in ("completed", "failed", "canceled") else None
+        step["finished_at"] = (
+            datetime.now(timezone.utc).isoformat() if status in ("completed", "failed", "canceled") else None
+        )
         return step
     return {
         "status": status,
         "started_at": datetime.now(timezone.utc).isoformat(),
-        "finished_at": datetime.now(timezone.utc).isoformat() if status in ("completed", "failed", "canceled") else None,
+        "finished_at": datetime.now(timezone.utc).isoformat()
+        if status in ("completed", "failed", "canceled")
+        else None,
         "error": error,
-        "warnings": warnings or []
+        "warnings": warnings or [],
     }
+
 
 def retrieve_status_counts(accession_codes: List[str], datasets: Dict[str, Any], step: str) -> Dict[str, int]:
     """
@@ -190,12 +233,43 @@ def retrieve_status_counts(accession_codes: List[str], datasets: Dict[str, Any],
         Dict[str, int]: A dictionary containing the count of datasets in each status category.
     """
     return {
-        "completed": len([accession_code for accession_code in accession_codes if datasets[accession_code].steps[step].status == "completed"]),
-        "not_started": len([accession_code for accession_code in accession_codes if datasets[accession_code].steps[step].status == "not_started"]),
-        "in_progress": len([accession_code for accession_code in accession_codes if datasets[accession_code].steps[step].status in ["not_started", "running"]]),
-        "failed": len([accession_code for accession_code in accession_codes if datasets[accession_code].steps[step].status == "failed"]),
-        "canceled": len([accession_code for accession_code in accession_codes if datasets[accession_code].steps[step].status == "canceled"]),
+        "completed": len(
+            [
+                accession_code
+                for accession_code in accession_codes
+                if datasets[accession_code].steps[step].status == "completed"
+            ]
+        ),
+        "not_started": len(
+            [
+                accession_code
+                for accession_code in accession_codes
+                if datasets[accession_code].steps[step].status == "not_started"
+            ]
+        ),
+        "in_progress": len(
+            [
+                accession_code
+                for accession_code in accession_codes
+                if datasets[accession_code].steps[step].status in ["not_started", "running"]
+            ]
+        ),
+        "failed": len(
+            [
+                accession_code
+                for accession_code in accession_codes
+                if datasets[accession_code].steps[step].status == "failed"
+            ]
+        ),
+        "canceled": len(
+            [
+                accession_code
+                for accession_code in accession_codes
+                if datasets[accession_code].steps[step].status == "canceled"
+            ]
+        ),
     }
+
 
 def _generate_todo_description(status: str, status_counts: Dict[str, int], description_default: str = None) -> str:
     """
@@ -212,6 +286,7 @@ def _generate_todo_description(status: str, status_counts: Dict[str, int], descr
     if status == "completed":
         return f"{status_counts['completed']} succeeded, {status_counts['failed']} failed, {status_counts['canceled']} canceled."
     return description_default
+
 
 def _generate_todo_id(step: str):
     """
@@ -234,6 +309,7 @@ def _generate_todo_id(step: str):
     elif step == "supplementary_file_check":
         return "5"
 
+
 def _generate_step_actions(step: str):
     """
     Generates the actions for a todo item based on the step.
@@ -245,23 +321,11 @@ def _generate_step_actions(step: str):
         List[str]: A list containing the actions for the todo item.
     """
     if step == "download_soft":
-        return [
-            "Downloading",
-            "Downloaded",
-            "Download GEO datasets..."
-        ]
+        return ["Downloading", "Downloaded", "Download GEO datasets..."]
     elif step == "check_valid_dataset":
-        return [
-            "Downloading",
-            "Downloaded",
-            "Download GEO datasets..."
-        ]
+        return ["Downloading", "Downloaded", "Download GEO datasets..."]
     elif step == "extract_metadata_schema":
-        return [
-            "Learning metadata schema",
-            "Learned metadata schema",
-            "Learning Metadata Schema Per Dataset"
-        ]
+        return ["Learning metadata schema", "Learned metadata schema", "Learning Metadata Schema Per Dataset"]
     elif step == "refine_metadata_schema":
         return [
             "Refining Learned Metadata Schema",
@@ -280,6 +344,7 @@ def _generate_step_actions(step: str):
             "Formatted GEO Supplementary File Data",
             "Formatting GEO Supplementary File Data",
         ]
+
 
 def _generate_description_default(step: str, status: str, counts: Dict[str, int]) -> str:
     """
@@ -309,7 +374,15 @@ def _generate_description_default(step: str, status: str, counts: Dict[str, int]
     else:
         return f"{counts['completed']} succeeded, {counts['failed']} failed, {counts['canceled']} canceled."
 
-def _generate_todo_label(status: str, past_tense: str, present_tense: str, num_datasets: int, counts: Dict[str, int], default_message: str = None) -> str:
+
+def _generate_todo_label(
+    status: str,
+    past_tense: str,
+    present_tense: str,
+    num_datasets: int,
+    counts: Dict[str, int],
+    default_message: str = None,
+) -> str:
     """
     Generates the label for a todo item based on the status and counts.
 
@@ -332,6 +405,7 @@ def _generate_todo_label(status: str, past_tense: str, present_tense: str, num_d
     else:
         return f"{default_message}"
 
+
 def _generate_todo_status(counts: Dict[str, int], num_datasets: int) -> str:
     """
     Generates the status for a todo item based on the counts and total number of datasets.
@@ -350,7 +424,10 @@ def _generate_todo_status(counts: Dict[str, int], num_datasets: int) -> str:
     else:
         return "in_progress"
 
-def generate_todo_entry(step: str, counts: Dict[str, int], num_datasets: int, other_counts: Dict[str, Dict[str, int]]) -> Dict[str, Any]:
+
+def generate_todo_entry(
+    step: str, counts: Dict[str, int], num_datasets: int, other_counts: Dict[str, Dict[str, int]]
+) -> Dict[str, Any]:
     """
     Generates a todo entry for a specific step based on the counts and total number of datasets.
 
@@ -359,7 +436,7 @@ def generate_todo_entry(step: str, counts: Dict[str, int], num_datasets: int, ot
         counts (Dict[str, int]): A dictionary containing the count of datasets in each status category for the current step.
         num_datasets (int): The total number of datasets.
         other_counts (Dict[str, Dict[str, int]]): A dictionary containing the count of datasets in each status category for all steps.
-    
+
     Returns:
         Dict[str, Any]: A dictionary representing the todo entry, including its ID, label, status, and description.
     """
@@ -370,23 +447,31 @@ def generate_todo_entry(step: str, counts: Dict[str, int], num_datasets: int, ot
         "extract_metadata_schema": "2",
         "extract_data": "3",
         "refine_metadata_schema": "4",
-        "supplementary_file_check": "5"
+        "supplementary_file_check": "5",
     }
     past_tense, present_tense, default_message = _generate_step_actions(step)
     description_default = _generate_description_default(step, status, counts)
     id = _generate_todo_id(step)
     previous_ids = range(1, int(id))
     previous_steps = [k for k, v in id_mapper.items() if int(v) in previous_ids]
-    if any(_generate_todo_status(other_counts[previous_step], num_datasets) == "in_progress" for previous_step in previous_steps):
+    if any(
+        _generate_todo_status(other_counts[previous_step], num_datasets) == "in_progress"
+        for previous_step in previous_steps
+    ):
         status = "pending"
-    elif any(_generate_todo_status(other_counts[previous_step], num_datasets) == "failed" for previous_step in previous_steps):
+    elif any(
+        _generate_todo_status(other_counts[previous_step], num_datasets) == "failed" for previous_step in previous_steps
+    ):
         status = "canceled"
     return {
         "id": id,
-        "label": _generate_todo_label(status, past_tense, present_tense, num_datasets, counts, default_message=default_message),
+        "label": _generate_todo_label(
+            status, past_tense, present_tense, num_datasets, counts, default_message=default_message
+        ),
         "status": status,
-        "description": _generate_todo_description(status, counts, description_default=description_default)
+        "description": _generate_todo_description(status, counts, description_default=description_default),
     }
+
 
 def populate_todos(state: Any):
     """
@@ -404,26 +489,41 @@ def populate_todos(state: Any):
         provided_status = "failed"
     accession_codes = get_accession_codes(state)
     download_soft_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "download_soft")
-    check_valid_dataset_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "check_valid_dataset")
-    extract_metadata_schema_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "extract_metadata_schema")
-    refine_metadata_schema_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "refine_metadata_schema")
+    check_valid_dataset_counts = retrieve_status_counts(
+        get_accession_codes(state), state.datasets, "check_valid_dataset"
+    )
+    extract_metadata_schema_counts = retrieve_status_counts(
+        get_accession_codes(state), state.datasets, "extract_metadata_schema"
+    )
+    refine_metadata_schema_counts = retrieve_status_counts(
+        get_accession_codes(state), state.datasets, "refine_metadata_schema"
+    )
     extract_data_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "extract_data")
-    supplementary_file_check_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "supplementary_file_check")
+    supplementary_file_check_counts = retrieve_status_counts(
+        get_accession_codes(state), state.datasets, "supplementary_file_check"
+    )
     all_count_dicts = {
         "download_soft": download_soft_counts,
         "check_valid_dataset": check_valid_dataset_counts,
         "extract_metadata_schema": extract_metadata_schema_counts,
         "refine_metadata_schema": refine_metadata_schema_counts,
         "extract_data": extract_data_counts,
-        "supplementary_file_check": supplementary_file_check_counts
+        "supplementary_file_check": supplementary_file_check_counts,
     }
     first_todo = None
     if download_soft_counts["not_started"] == len(accession_codes):
         first_todo = generate_todo_entry("download_soft", download_soft_counts, len(accession_codes), all_count_dicts)
-    elif check_valid_dataset_counts["not_started"] == len(accession_codes) and (download_soft_counts["completed"] + download_soft_counts["failed"] + download_soft_counts["canceled"] == len(accession_codes)):
-        first_todo = generate_todo_entry("check_valid_dataset", check_valid_dataset_counts, len(accession_codes), all_count_dicts)
+    elif check_valid_dataset_counts["not_started"] == len(accession_codes) and (
+        download_soft_counts["completed"] + download_soft_counts["failed"] + download_soft_counts["canceled"]
+        == len(accession_codes)
+    ):
+        first_todo = generate_todo_entry(
+            "check_valid_dataset", check_valid_dataset_counts, len(accession_codes), all_count_dicts
+        )
     else:
-        first_todo = generate_todo_entry("check_valid_dataset", check_valid_dataset_counts, len(accession_codes), all_count_dicts)
+        first_todo = generate_todo_entry(
+            "check_valid_dataset", check_valid_dataset_counts, len(accession_codes), all_count_dicts
+        )
     num_datasets = len(accession_codes)
     todos = [
         first_todo,
@@ -435,29 +535,31 @@ def populate_todos(state: Any):
 
     return todos
 
+
 def _get_status_id(messages: List[Any], retrieval: str) -> str:
     """
     Generates a unique status ID based on the user query and retrieval type.
     Args:
         messages (List[Any]): The list of messages in the workflow.
         retrieval (str): The type of retrieval (e.g., "geo_retrieval", "quality_control", "benchmarking").
-    
+
     Returns:
         str: A unique status ID based on the user query and retrieval type.
     """
     # Get the user query that triggered the workflow to run
     user_query = [x for x in messages if x.type == "human"][-1]
-    #print(f"\n\nUser query content: {user_query}")
+    # print(f"\n\nUser query content: {user_query}")
 
     # Generate deterministic hash
     m = hashlib.sha256()
     m.update(user_query.id.encode("utf-8"))
     m.update(user_query.content.encode("utf-8"))
-    m.update(str(user_query.additional_kwargs['created_at']).encode("utf-8"))
+    m.update(str(user_query.additional_kwargs["created_at"]).encode("utf-8"))
     m.update(retrieval.encode("utf-8"))
     hash = m.hexdigest()
-    
+
     return hash
+
 
 def update_progress_tracker(state: Any) -> ToolMessage:
     """
@@ -465,11 +567,11 @@ def update_progress_tracker(state: Any) -> ToolMessage:
 
     Args:
         state (Any): The current state containing the datasets and their statuses.
-    
+
     Returns:
         ToolMessage: A message object representing the updated progress tracker.
     """
-    
+
     hash = _get_status_id(state.messages, "geo_retrieval")
 
     # Hash from accession codes + user message + user message time
@@ -481,14 +583,15 @@ def update_progress_tracker(state: Any) -> ToolMessage:
             "id": hash,
             "title": "GEO Dataset Retrieval",
             "description": "Tracking the progress of retrieving and formatting GEO datasets",
-            "todos": populate_todos(state)
+            "todos": populate_todos(state),
         },
         additional_kwargs={
             "name": "geoRetrievalProgress",
-            'created_at': datetime.now(timezone.utc).isoformat(),
-        }
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        },
     )
     return message
+
 
 def update_small_progress_tracker(state: Any, retrieval: str) -> ToolMessage:
     """
@@ -497,7 +600,7 @@ def update_small_progress_tracker(state: Any, retrieval: str) -> ToolMessage:
     Args:
         state (Any): The current state containing the datasets and their statuses.
         retrieval (str): The type of retrieval (e.g., "geo_retrieval", "quality_control", "benchmarking").
-    
+
     Returns:
         ToolMessage: A message object representing the updated progress tracker.
     """
@@ -505,8 +608,9 @@ def update_small_progress_tracker(state: Any, retrieval: str) -> ToolMessage:
     hash = _get_status_id(state.messages, retrieval)
 
     num_completed = sum(1 for x in accession_codes if state.datasets[x].steps["quality_control"].status == "completed")
-    all_completed = all(state.datasets[x].steps["quality_control"].status in {'completed', 'failed', 'skipped'} for x in accession_codes)
-
+    all_completed = all(
+        state.datasets[x].steps["quality_control"].status in {"completed", "failed", "skipped"} for x in accession_codes
+    )
 
     # Hash from accession codes + user message + user message time
     message = ToolMessage(
@@ -515,21 +619,22 @@ def update_small_progress_tracker(state: Any, retrieval: str) -> ToolMessage:
         tool_call_id=hash,
         artifact={
             "id": hash,
-            "steps":[
+            "steps": [
                 {
                     "id": "quality_control_steps",
                     "label": "Running quality control steps",
                     "description": "Completed quality control for {num_completed} datasets",
-                    "status": "completed" if all_completed else "pending"
+                    "status": "completed" if all_completed else "pending",
                 }
-            ]
+            ],
         },
         additional_kwargs={
             "name": "qcProgress",
-            'created_at': datetime.now(timezone.utc).isoformat(),
-        }
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        },
     )
     return message
+
 
 def benchmarking_progress(state: Any) -> ToolMessage:
     """
@@ -545,13 +650,32 @@ def benchmarking_progress(state: Any) -> ToolMessage:
     hash = _get_status_id(state.messages, "benchmarking")
     current_time = datetime.now(timezone.utc).isoformat()
     previous_message = next((m for m in state.main_messages if m.tool_call_id == hash), None)
-    previous_time = previous_message.additional_kwargs['created_at'] if previous_message else current_time
-    num_clocks_retrieved = sum(1 for clock in state.config.clock_list if any(a for a in state.config.artifacts if a.kind == "clock" and (a.path.endswith(f"{clock.lower()}.pt") or a.path.endswith(f"{clock.lower()}_model.pkl"))))
+    previous_time = previous_message.additional_kwargs["created_at"] if previous_message else current_time
+    num_clocks_retrieved = sum(
+        1
+        for clock in state.config.clock_list
+        if any(
+            a
+            for a in state.config.artifacts
+            if a.kind == "clock"
+            and (a.path.endswith(f"{clock.lower()}.pt") or a.path.endswith(f"{clock.lower()}_model.pkl"))
+        )
+    )
     all_clocks_retrieved = num_clocks_retrieved == len(state.config.clock_list)
-    num_predictions_completed = sum(1 for x in accession_codes if state.datasets[x].steps["make_predictions"].status == "completed")
-    all_predictions_completed = all(state.datasets[x].steps["make_predictions"].status in {'completed', 'failed', 'skipped'} for x in accession_codes)
-    num_computations_completed = sum(1 for x in accession_codes if state.datasets[x].steps["make_computations"].status == "completed")
-    all_computations_completed = all(state.datasets[x].steps["make_computations"].status in {'completed', 'failed', 'skipped'} for x in accession_codes)
+    num_predictions_completed = sum(
+        1 for x in accession_codes if state.datasets[x].steps["make_predictions"].status == "completed"
+    )
+    all_predictions_completed = all(
+        state.datasets[x].steps["make_predictions"].status in {"completed", "failed", "skipped"}
+        for x in accession_codes
+    )
+    num_computations_completed = sum(
+        1 for x in accession_codes if state.datasets[x].steps["make_computations"].status == "completed"
+    )
+    all_computations_completed = all(
+        state.datasets[x].steps["make_computations"].status in {"completed", "failed", "skipped"}
+        for x in accession_codes
+    )
 
     # Hash from accession codes + user message + user message time
     message = ToolMessage(
@@ -560,34 +684,45 @@ def benchmarking_progress(state: Any) -> ToolMessage:
         tool_call_id=hash,
         artifact={
             "id": hash,
-            "steps":[
+            "steps": [
                 {
                     "id": "retrieve_models",
                     "label": "Retrieving Aging Clock Models",
                     "description": f"Retrieved {num_clocks_retrieved} clocks",
-                    "status": "completed" if all_clocks_retrieved else "in-progress"
+                    "status": "completed" if all_clocks_retrieved else "in-progress",
                 },
                 {
                     "id": "benchmark_models",
                     "label": "Running Benchmark Models",
                     "description": f"Completed benchmarking for {num_predictions_completed} datasets",
-                    "status": "completed" if all_predictions_completed else "in-progress" if num_predictions_completed > 0 else "pending"
+                    "status": "completed"
+                    if all_predictions_completed
+                    else "in-progress"
+                    if num_predictions_completed > 0
+                    else "pending",
                 },
                 {
                     "id": "make_computations",
                     "label": "Computing Benchmark Tasks",
                     "description": f"Completed benchmarking for {num_computations_completed} datasets",
-                    "status": "completed" if all_computations_completed else "in-progress" if num_computations_completed > 0 else "pending"
-                }
+                    "status": "completed"
+                    if all_computations_completed
+                    else "in-progress"
+                    if num_computations_completed > 0
+                    else "pending",
+                },
             ],
-            "elapsedTime": round((datetime.fromisoformat(current_time) - datetime.fromisoformat(previous_time)).total_seconds())
+            "elapsedTime": round(
+                (datetime.fromisoformat(current_time) - datetime.fromisoformat(previous_time)).total_seconds()
+            ),
         },
         additional_kwargs={
             "name": "benchmarkProgress",
-            'created_at': previous_time,
-        }
+            "created_at": previous_time,
+        },
     )
     return message
+
 
 def qc_progress(state: Any) -> ToolMessage:
     """
@@ -603,11 +738,15 @@ def qc_progress(state: Any) -> ToolMessage:
     hash = _get_status_id(state.messages, "quality_control")
     current_time = datetime.now(timezone.utc).isoformat()
     previous_message = next((m for m in state.main_messages if m.tool_call_id == hash), None)
-    previous_time = previous_message.additional_kwargs['created_at'] if previous_message else current_time
-    num_datasets_qcd = sum(1 for x in state.datasets.keys() if state.datasets[x].steps["quality_control"].status in {"completed", "failed", "canceled"})
+    previous_time = previous_message.additional_kwargs["created_at"] if previous_message else current_time
+    num_datasets_qcd = sum(
+        1
+        for x in state.datasets.keys()
+        if state.datasets[x].steps["quality_control"].status in {"completed", "failed", "canceled"}
+    )
     all_datasets_qcd = num_datasets_qcd == len(state.datasets.keys())
 
-    #print(f"Dataset states: {state.datasets}")
+    # print(f"Dataset states: {state.datasets}")
     # Hash from accession codes + user message + user message time
     message = ToolMessage(
         id=hash,
@@ -615,22 +754,25 @@ def qc_progress(state: Any) -> ToolMessage:
         tool_call_id=hash,
         artifact={
             "id": hash,
-            "steps":[
+            "steps": [
                 {
                     "id": "quality_control",
                     "label": "Performing Quality Control on Datasets",
                     "description": f"QC'd {num_datasets_qcd} datasets",
-                    "status": "completed" if all_datasets_qcd else "in-progress"
+                    "status": "completed" if all_datasets_qcd else "in-progress",
                 },
             ],
-            "elapsedTime": round((datetime.fromisoformat(current_time) - datetime.fromisoformat(previous_time)).total_seconds())
+            "elapsedTime": round(
+                (datetime.fromisoformat(current_time) - datetime.fromisoformat(previous_time)).total_seconds()
+            ),
         },
         additional_kwargs={
             "name": "benchmarkProgress",
-            'created_at': previous_time,
-        }
+            "created_at": previous_time,
+        },
     )
     return message
+
 
 def _get_supplementary_file_id(supplementary_files: List[str], accession_code: Any) -> str:
     """
@@ -650,6 +792,7 @@ def _get_supplementary_file_id(supplementary_files: List[str], accession_code: A
     hash = m.hexdigest()
     return hash
 
+
 def make_review_id(
     *,
     run_id: str,
@@ -667,7 +810,9 @@ def make_review_id(
     short = uuid.uuid4().hex[:6]
     return f"review:{run_id}:{subgraph}:{entity_type}:{entity_id}:{step}:{short}"
 
+
 NonEmptyStr = Annotated[str, Field(min_length=1)]
+
 
 def generate_run_id() -> str:
     """
@@ -677,6 +822,7 @@ def generate_run_id() -> str:
     ts = time.strftime("%Y%m%dT%H%M%S", time.gmtime())  # use UTC for determinism
     rnd = uuid.uuid4().hex[:8]
     return f"{ts}-{rnd}"
+
 
 def consolidate_artifacts(original_artifacts: List[Any], new_artifacts: List[Any]) -> List[Any]:
     """
@@ -692,9 +838,10 @@ def consolidate_artifacts(original_artifacts: List[Any], new_artifacts: List[Any
     """
     artifact_map: Dict[tuple[str, str], Any] = {}
     for artifact in original_artifacts + new_artifacts:
-        key = (artifact.path, artifact.kind) # Formerly sha256
+        key = (artifact.path, artifact.kind)  # Formerly sha256
         artifact_map[key] = artifact
     return list(artifact_map.values())
+
 
 def write_feather(df: pd.DataFrame, path: str, index_name: str = "subject_id"):
     """
@@ -705,8 +852,9 @@ def write_feather(df: pd.DataFrame, path: str, index_name: str = "subject_id"):
         path (str): The file path to write the Feather file to.
         index_name (str): The name of the index column. Defaults to "subject_id".
     """
-    df2 = df.reset_index(names=index_name)   # index -> column
+    df2 = df.reset_index(names=index_name)  # index -> column
     feather.write_feather(df2, path, compression="zstd")
+
 
 def read_feather(path: str, index_name: str = "subject_id") -> pd.DataFrame:
     """
@@ -720,11 +868,13 @@ def read_feather(path: str, index_name: str = "subject_id") -> pd.DataFrame:
         pd.DataFrame: The DataFrame read from the Feather file.
     """
     df = pd.read_feather(path)
-    df.set_index(index_name, inplace=True)   # column -> index
+    df.set_index(index_name, inplace=True)  # column -> index
     return df
 
+
 def load_metadata_aligned_methylation_data(
-        accession_code: str, artifacts: List[Any], methylation_data_type: str = "preqc_methylation_data") -> pd.DataFrame:
+    accession_code: str, artifacts: List[Any], methylation_data_type: str = "preqc_methylation_data"
+) -> pd.DataFrame:
     """
     Load metadata-aligned methylation data for a given accession code.
 
@@ -736,10 +886,14 @@ def load_metadata_aligned_methylation_data(
     Returns:
         pd.DataFrame: The loaded and aligned methylation data.
     """
-    subject_mapper = next((a for a in artifacts if a.kind == "subject_column_mapping" and a.accession_code == accession_code), None)
+    subject_mapper = next(
+        (a for a in artifacts if a.kind == "subject_column_mapping" and a.accession_code == accession_code), None
+    )
     methylation_data = get_correct_methylation_data(artifacts, accession_code, artifact_kind=methylation_data_type)
     if methylation_data_type == "postqc_methylation_data" and not methylation_data:
-        return load_metadata_aligned_methylation_data(accession_code, artifacts, methylation_data_type="preqc_methylation_data")
+        return load_metadata_aligned_methylation_data(
+            accession_code, artifacts, methylation_data_type="preqc_methylation_data"
+        )
     methylation_df = read_feather(methylation_data.path, index_name="subject_id")
     if not subject_mapper:
         return methylation_df
@@ -748,6 +902,7 @@ def load_metadata_aligned_methylation_data(
     methylation_df = methylation_df.merge(subject_mapper_df, left_index=True, right_index=True, how="inner")
     methylation_df.set_index("Sample", inplace=True)
     return methylation_df
+
 
 def _generate_harmonization_todo_id(step: str) -> str:
     """
@@ -772,6 +927,7 @@ def _generate_harmonization_todo_id(step: str) -> str:
     elif step == "harmonize_sex_labels":
         return "6"
 
+
 def _generate_harmonization_step_actions(step: str) -> List[str]:
     """
     Generate the actions for a harmonization step.
@@ -783,41 +939,18 @@ def _generate_harmonization_step_actions(step: str) -> List[str]:
         List[str]: A list containing the past tense, present tense, and default message for the step.
     """
     if step == "harmonize_disease_labels":
-        return [
-            "Harmonizing",
-            "Harmonized",
-            "Harmonizing disease labels..."
-        ]
+        return ["Harmonizing", "Harmonized", "Harmonizing disease labels..."]
     elif step == "harmonize_disease_group_labels":
-        return [
-            "Harmonizing",
-            "Harmonized",
-            "Harmonizing disease group labels..."
-        ]
+        return ["Harmonizing", "Harmonized", "Harmonizing disease group labels..."]
     elif step == "harmonize_tissue_labels":
-        return [
-            "Harmonizing",
-            "Harmonized",
-            "Harmonizing tissue labels..."
-        ]
+        return ["Harmonizing", "Harmonized", "Harmonizing tissue labels..."]
     elif step == "harmonize_tissue_group_labels":
-        return [
-            "Harmonizing",
-            "Harmonized",
-            "Harmonizing tissue group labels..."
-        ]
+        return ["Harmonizing", "Harmonized", "Harmonizing tissue group labels..."]
     elif step == "harmonize_cell_type_labels":
-        return [
-            "Harmonizing",
-            "Harmonized",
-            "Harmonizing cell type labels..."
-        ]
+        return ["Harmonizing", "Harmonized", "Harmonizing cell type labels..."]
     elif step == "harmonize_sex_labels":
-        return [
-            "Harmonizing",
-            "Harmonized",
-            "Harmonizing sex labels..."
-        ]
+        return ["Harmonizing", "Harmonized", "Harmonizing sex labels..."]
+
 
 def _generate_harmonization_description_default(step: str, status: str, counts: Dict[str, int]) -> str:
     """
@@ -847,7 +980,10 @@ def _generate_harmonization_description_default(step: str, status: str, counts: 
     else:
         return f"{counts['completed']} succeeded, {counts['failed']} failed, {counts['canceled']} canceled."
 
-def generate_harmonization_todo_entry(step: str, counts: Dict[str, int], num_datasets: int, other_counts: Dict[str, Dict[str, int]]) -> Dict[str, Any]:
+
+def generate_harmonization_todo_entry(
+    step: str, counts: Dict[str, int], num_datasets: int, other_counts: Dict[str, Dict[str, int]]
+) -> Dict[str, Any]:
     """
     Generate a harmonization todo entry based on the given step, counts, and other counts.
 
@@ -867,23 +1003,31 @@ def generate_harmonization_todo_entry(step: str, counts: Dict[str, int], num_dat
         "harmonize_tissue_labels": "3",
         "harmonize_tissue_group_labels": "4",
         "harmonize_cell_type_labels": "5",
-        "harmonize_sex_labels": "6"
+        "harmonize_sex_labels": "6",
     }
     past_tense, present_tense, default_message = _generate_harmonization_step_actions(step)
     description_default = _generate_harmonization_description_default(step, status, counts)
     id = _generate_harmonization_todo_id(step)
     previous_ids = range(1, int(id))
     previous_steps = [k for k, v in id_mapper.items() if int(v) in previous_ids]
-    if any(_generate_todo_status(other_counts[previous_step], num_datasets) == "in_progress" for previous_step in previous_steps):
+    if any(
+        _generate_todo_status(other_counts[previous_step], num_datasets) == "in_progress"
+        for previous_step in previous_steps
+    ):
         status = "pending"
-    elif any(_generate_todo_status(other_counts[previous_step], num_datasets) == "failed" for previous_step in previous_steps):
+    elif any(
+        _generate_todo_status(other_counts[previous_step], num_datasets) == "failed" for previous_step in previous_steps
+    ):
         status = "canceled"
     return {
         "id": id,
-        "label": _generate_todo_label(status, past_tense, present_tense, num_datasets, counts, default_message=default_message),
+        "label": _generate_todo_label(
+            status, past_tense, present_tense, num_datasets, counts, default_message=default_message
+        ),
         "status": status,
-        "description": _generate_todo_description(status, counts, description_default=description_default)
+        "description": _generate_todo_description(status, counts, description_default=description_default),
     }
+
 
 def populate_harmonization_todos(state: Any):
     """
@@ -897,12 +1041,24 @@ def populate_harmonization_todos(state: Any):
     """
     # Initializate variables
     accession_codes = get_accession_codes(state)
-    harmonization_disease_label_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "map_disease_labels_to_ontology")
-    harmonization_disease_group_label_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "group_disease_labels")
-    harmonize_tissue_label_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "map_tissue_labels_to_ontology")
-    harmonize_tissue_group_label_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "group_tissue_labels")
-    harmonize_cell_type_label_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "map_cell_type_labels_to_ontology")
-    harmonize_sex_label_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "harmonize_sex_labels")
+    harmonization_disease_label_counts = retrieve_status_counts(
+        get_accession_codes(state), state.datasets, "map_disease_labels_to_ontology"
+    )
+    harmonization_disease_group_label_counts = retrieve_status_counts(
+        get_accession_codes(state), state.datasets, "group_disease_labels"
+    )
+    harmonize_tissue_label_counts = retrieve_status_counts(
+        get_accession_codes(state), state.datasets, "map_tissue_labels_to_ontology"
+    )
+    harmonize_tissue_group_label_counts = retrieve_status_counts(
+        get_accession_codes(state), state.datasets, "group_tissue_labels"
+    )
+    harmonize_cell_type_label_counts = retrieve_status_counts(
+        get_accession_codes(state), state.datasets, "map_cell_type_labels_to_ontology"
+    )
+    harmonize_sex_label_counts = retrieve_status_counts(
+        get_accession_codes(state), state.datasets, "harmonize_sex_labels"
+    )
 
     all_count_dicts = {
         "harmonize_disease_labels": harmonization_disease_label_counts,
@@ -910,20 +1066,33 @@ def populate_harmonization_todos(state: Any):
         "harmonize_tissue_labels": harmonize_tissue_label_counts,
         "harmonize_tissue_group_labels": harmonize_tissue_group_label_counts,
         "harmonize_cell_type_labels": harmonize_cell_type_label_counts,
-        "harmonize_sex_labels": harmonize_sex_label_counts
+        "harmonize_sex_labels": harmonize_sex_label_counts,
     }
 
     num_datasets = len(accession_codes)
     todos = [
-        generate_harmonization_todo_entry("harmonize_disease_labels", harmonization_disease_label_counts, num_datasets, all_count_dicts),
-        generate_harmonization_todo_entry("harmonize_disease_group_labels", harmonization_disease_group_label_counts, num_datasets, all_count_dicts),
-        generate_harmonization_todo_entry("harmonize_tissue_labels", harmonize_tissue_label_counts, num_datasets, all_count_dicts),
-        generate_harmonization_todo_entry("harmonize_tissue_group_labels", harmonize_tissue_group_label_counts, num_datasets, all_count_dicts),
-        generate_harmonization_todo_entry("harmonize_cell_type_labels", harmonize_cell_type_label_counts, num_datasets, all_count_dicts),
-        generate_harmonization_todo_entry("harmonize_sex_labels", harmonize_sex_label_counts, num_datasets, all_count_dicts),
+        generate_harmonization_todo_entry(
+            "harmonize_disease_labels", harmonization_disease_label_counts, num_datasets, all_count_dicts
+        ),
+        generate_harmonization_todo_entry(
+            "harmonize_disease_group_labels", harmonization_disease_group_label_counts, num_datasets, all_count_dicts
+        ),
+        generate_harmonization_todo_entry(
+            "harmonize_tissue_labels", harmonize_tissue_label_counts, num_datasets, all_count_dicts
+        ),
+        generate_harmonization_todo_entry(
+            "harmonize_tissue_group_labels", harmonize_tissue_group_label_counts, num_datasets, all_count_dicts
+        ),
+        generate_harmonization_todo_entry(
+            "harmonize_cell_type_labels", harmonize_cell_type_label_counts, num_datasets, all_count_dicts
+        ),
+        generate_harmonization_todo_entry(
+            "harmonize_sex_labels", harmonize_sex_label_counts, num_datasets, all_count_dicts
+        ),
     ]
 
     return todos
+
 
 def update_harmonization_progress_tracker(state: Any) -> ToolMessage:
     """
@@ -935,7 +1104,7 @@ def update_harmonization_progress_tracker(state: Any) -> ToolMessage:
     Returns:
         ToolMessage: A message object representing the updated progress tracker for harmonization.
     """
-    
+
     hash = _get_status_id(state.messages, "harmonization")
 
     # Hash from accession codes + user message + user message time
@@ -947,16 +1116,18 @@ def update_harmonization_progress_tracker(state: Any) -> ToolMessage:
             "id": hash,
             "title": "Harmonization Progress",
             "description": "Tracking the progress of harmonizing dataset labels",
-            "todos": populate_harmonization_todos(state)
+            "todos": populate_harmonization_todos(state),
         },
         additional_kwargs={
             "name": "geoRetrievalProgress",
-            'created_at': datetime.now(timezone.utc).isoformat(),
-        }
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        },
     )
     return message
 
+
 CURRENT_FILE = Path(__file__).resolve()
+
 
 def find_project_root_with_data(start: Path = CURRENT_FILE, marker_dir: str = "data") -> Optional[Path]:
     """
@@ -974,6 +1145,7 @@ def find_project_root_with_data(start: Path = CURRENT_FILE, marker_dir: str = "d
         if (ancestor / marker_dir).is_dir():
             return ancestor
     return None
+
 
 PROJECT_ROOT = find_project_root_with_data()
 if PROJECT_ROOT is None:

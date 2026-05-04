@@ -1,6 +1,9 @@
 __all__ = [
-    "format_methylation_data", "format_individual_methylation_data",
-    "merge_formatted_supplementary_data", "_create_subject_id_mapping"]
+    "format_methylation_data",
+    "format_individual_methylation_data",
+    "merge_formatted_supplementary_data",
+    "_create_subject_id_mapping",
+]
 import os
 import re
 import json
@@ -9,7 +12,7 @@ import uuid
 import asyncio
 import pandas as pd
 import numpy as np
-import random 
+import random
 
 from rapidfuzz import fuzz, process
 from datetime import datetime, timezone
@@ -19,17 +22,30 @@ from pydantic import ValidationError
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
 from ...agent.state.models import GEOIngestionConfig, GeoDatasetState, GeoIngestionSubgraphState
 from ...utils.helper import compute_sha256, consolidate_artifacts, write_feather
-from ...utils.examples import generate_column_interpretation_examples, generate_column_interpretation_examples_no_detection
-from ...utils.prompting import generate_infer_methylation_data_column_scheme_prompt, generate_infer_methylation_data_column_scheme_alt_prompt
+from ...utils.examples import (
+    generate_column_interpretation_examples,
+    generate_column_interpretation_examples_no_detection,
+)
+from ...utils.prompting import (
+    generate_infer_methylation_data_column_scheme_prompt,
+    generate_infer_methylation_data_column_scheme_alt_prompt,
+)
 from ...contracts.common import ArtifactRef
 from ...contracts.geo import (
-    SampleDataResolution, LexFeat, ErrorResolution, ForcedSampleDataResolution, GEOMetadataExtractionResult, ResolvedResolution)
+    SampleDataResolution,
+    LexFeat,
+    ErrorResolution,
+    ForcedSampleDataResolution,
+    GEOMetadataExtractionResult,
+    ResolvedResolution,
+)
 from .extract_sample_level_metadata import get_field_value, cpg_union, _merge_to_dataframe
 from langchain_core.runnables import RunnableConfig
 from ...agent.graphs.deps import Deps
 
 CALL_TIMEOUT = 180
 GLOBAL_RETRY_LIMIT = 5
+
 
 def _check_for_cpg_probes(sample_data: pd.DataFrame) -> Dict[str, bool]:
     """Determine whether CpG probes are in rows or columns.
@@ -55,6 +71,7 @@ def _check_for_cpg_probes(sample_data: pd.DataFrame) -> Dict[str, bool]:
         "rows": n_cg_rows > n_cg_cols,
     }
 
+
 def _check_for_detection_columns(sample_data: pd.DataFrame) -> bool:
     """Heuristic check for presence of detection p-value columns.
 
@@ -69,12 +86,15 @@ def _check_for_detection_columns(sample_data: pd.DataFrame) -> bool:
         True if detection columns are likely present.
     """
     columns = sample_data.columns.tolist()
-    #detection_cols = [col for col in columns if "detect" in col.lower()] # May not have detect in the name
-    columns_lt_rows = len(columns) < len(sample_data.index) # There will almost certainly be more probes than samples
-    #columns_even = len(columns) % 2 == 0 # Thoughts, doesn't necessarily have to be so
+    # detection_cols = [col for col in columns if "detect" in col.lower()] # May not have detect in the name
+    columns_lt_rows = len(columns) < len(sample_data.index)  # There will almost certainly be more probes than samples
+    # columns_even = len(columns) % 2 == 0 # Thoughts, doesn't necessarily have to be so
     return columns_lt_rows
 
-async def _process_detection_columns(artifact: ArtifactRef, sample_data: pd.DataFrame, config: RunnableConfig, messages: List[AnyMessage]) -> Tuple[pd.DataFrame, ArtifactRef]:
+
+async def _process_detection_columns(
+    artifact: ArtifactRef, sample_data: pd.DataFrame, config: RunnableConfig, messages: List[AnyMessage]
+) -> Tuple[pd.DataFrame, ArtifactRef]:
     """Process methylation data with paired beta and detection p-value columns.
 
     Uses LLM-assisted column scheme resolution to identify beta and
@@ -107,11 +127,19 @@ async def _process_detection_columns(artifact: ArtifactRef, sample_data: pd.Data
 
     # 1. Vectorized Numeric Conversion
     # Converting the whole dataframe once is significantly faster than per-column in a loop
-    sample_data = sample_data.apply(pd.to_numeric, errors='coerce')
+    sample_data = sample_data.apply(pd.to_numeric, errors="coerce")
 
     # 2. Extract Patterns
-    beta_pat = re.compile(column_scheme.beta_column.pattern, re.IGNORECASE) if column_scheme.beta_column.status == "resolved" else None
-    det_pat = re.compile(column_scheme.detection_column.pattern, re.IGNORECASE) if column_scheme.detection_column.status == "resolved" else None
+    beta_pat = (
+        re.compile(column_scheme.beta_column.pattern, re.IGNORECASE)
+        if column_scheme.beta_column.status == "resolved"
+        else None
+    )
+    det_pat = (
+        re.compile(column_scheme.detection_column.pattern, re.IGNORECASE)
+        if column_scheme.detection_column.status == "resolved"
+        else None
+    )
 
     if not beta_pat:
         return pd.DataFrame(), artifact
@@ -132,14 +160,11 @@ async def _process_detection_columns(artifact: ArtifactRef, sample_data: pd.Data
         no_detection_time_taken = (end_time - start_time).total_seconds()
         print(f"\nTime taken to process data without detection columns: {no_detection_time_taken} seconds\n")
         return methylation_df, artifact
-    
 
     start_time = datetime.now()
     score_matrix = lexical_score_matrix(beta_cols, det_cols)
     best_j = np.argmax(score_matrix, axis=1)
-    mapper = {
-        beta_cols[i]: det_cols[j] for i, j in enumerate(best_j)
-    }
+    mapper = {beta_cols[i]: det_cols[j] for i, j in enumerate(best_j)}
     det_cols = [mapper[beta_col] for beta_col in beta_cols]
     end_time = datetime.now()
     mapping_time_taken = (end_time - start_time).total_seconds()
@@ -153,7 +178,7 @@ async def _process_detection_columns(artifact: ArtifactRef, sample_data: pd.Data
     # Check for identical columns (your specific logic) and apply the 0.05 threshold
     # np.where is much faster than iterating and renaming
     mask = np.where(np.array_equal(beta_matrix, det_matrix), 0.0, det_matrix) < 0.05
-    
+
     # Apply mask: Keep beta value if p < 0.05, else NaN
     # Masking is an O(n) operation in memory
     filtered_values = np.where(mask, beta_matrix, np.nan)
@@ -161,21 +186,20 @@ async def _process_detection_columns(artifact: ArtifactRef, sample_data: pd.Data
     # 5. Reconstruct DataFrame
     # We transpose and reconstruct to match your "Sample as Index" requirement
     start_time = datetime.now()
-    methylation_df = pd.DataFrame(
-        filtered_values.T, 
-        index=beta_cols, 
-        columns=sample_data.index
-    )
+    methylation_df = pd.DataFrame(filtered_values.T, index=beta_cols, columns=sample_data.index)
     end_time = datetime.now()
     reconstruction_time_taken = (end_time - start_time).total_seconds()
     print(f"\nTime taken to reconstruct filtered DataFrame: {reconstruction_time_taken} seconds\n")
-    
+
     # Drop columns (CpGs) that are now all NaN across all samples if necessary
-    #methylation_df.dropna(axis=1, how='all', inplace=True)
+    # methylation_df.dropna(axis=1, how='all', inplace=True)
 
     return methylation_df, artifact
 
-async def _process_detection_columns_alt(artifact:ArtifactRef, sample_data: pd.DataFrame, config: RunnableConfig, messages: List[AnyMessage]) -> Tuple[pd.DataFrame, ArtifactRef]:
+
+async def _process_detection_columns_alt(
+    artifact: ArtifactRef, sample_data: pd.DataFrame, config: RunnableConfig, messages: List[AnyMessage]
+) -> Tuple[pd.DataFrame, ArtifactRef]:
     """Alternative detection-column processing via per-subject pair extraction.
 
     Resolves column scheme with LLM, then processes each beta/detection
@@ -196,39 +220,55 @@ async def _process_detection_columns_alt(artifact:ArtifactRef, sample_data: pd.D
     """
     column_scheme, artifact = await _get_column_scheme(artifact, sample_data, config)
     if all(s.status in ["error", "missing"] for s in [column_scheme.beta_column, column_scheme.detection_column]):
-        raise ValueError(f"Unable to determine column scheme for dataset {artifact.accession_code} with artifact {artifact.path}. Beta column notes: {column_scheme.beta_column.notes}, Detection column notes: {column_scheme.detection_column.notes}")
-    
-    beta_pattern = re.compile(column_scheme.beta_column.pattern, re.IGNORECASE) if column_scheme.beta_column.status == "resolved" else None
+        raise ValueError(
+            f"Unable to determine column scheme for dataset {artifact.accession_code} with artifact {artifact.path}. Beta column notes: {column_scheme.beta_column.notes}, Detection column notes: {column_scheme.detection_column.notes}"
+        )
+
+    beta_pattern = (
+        re.compile(column_scheme.beta_column.pattern, re.IGNORECASE)
+        if column_scheme.beta_column.status == "resolved"
+        else None
+    )
     beta_columns = [idx for idx, col in enumerate(sample_data.columns) if beta_pattern.search(col)]
 
-    detection_pattern = re.compile(column_scheme.detection_column.pattern, re.IGNORECASE) if column_scheme.detection_column.status == "resolved" else None
-    detection_columns = [idx for idx, col in enumerate(sample_data.columns) if detection_pattern and detection_pattern.search(col)]
+    detection_pattern = (
+        re.compile(column_scheme.detection_column.pattern, re.IGNORECASE)
+        if column_scheme.detection_column.status == "resolved"
+        else None
+    )
+    detection_columns = [
+        idx for idx, col in enumerate(sample_data.columns) if detection_pattern and detection_pattern.search(col)
+    ]
 
     if not beta_pattern:
         return pd.DataFrame(), artifact
     elif not detection_pattern:
         methylation_df = _matrix_shape_check(sample_data)
         return methylation_df, artifact
-    
-    paired_columns = [[sample_data.columns.tolist()[beta_col], sample_data.columns.tolist()[detection_col]] for beta_col, detection_col in zip(beta_columns, detection_columns)]
+
+    paired_columns = [
+        [sample_data.columns.tolist()[beta_col], sample_data.columns.tolist()[detection_col]]
+        for beta_col, detection_col in zip(beta_columns, detection_columns)
+    ]
     methylation_rows = []
     methylation_columns = []
     for pair in paired_columns:
         data = sample_data[pair].copy()
         subject_name = pair[0].strip()
         data.rename(columns={pair[0]: "Value", pair[1]: "Detection_Pval"}, inplace=True)
-        data['ID_REF'] = data.index
-        data['Detection_Pval'] = pd.to_numeric(data['Detection_Pval'], errors='coerce')
-        data['Value'] = pd.to_numeric(data['Value'], errors='coerce')
-        if data['Value'].equals(data['Detection_Pval']):
-            data['Detection_Pval'] = 0.0
-        data = data[data['Detection_Pval'] < 0.05].copy()
+        data["ID_REF"] = data.index
+        data["Detection_Pval"] = pd.to_numeric(data["Detection_Pval"], errors="coerce")
+        data["Value"] = pd.to_numeric(data["Value"], errors="coerce")
+        if data["Value"].equals(data["Detection_Pval"]):
+            data["Detection_Pval"] = 0.0
+        data = data[data["Detection_Pval"] < 0.05].copy()
 
         methylation_rows.append([subject_name] + data["Value"].tolist())
-        methylation_columns.append(['Sample'] + data["ID_REF"].tolist())
+        methylation_columns.append(["Sample"] + data["ID_REF"].tolist())
 
-    methylation_df = _merge_to_dataframe(methylation_rows, methylation_columns, index_col="Sample") 
+    methylation_df = _merge_to_dataframe(methylation_rows, methylation_columns, index_col="Sample")
     return methylation_df, artifact
+
 
 def _matrix_shape_check(sample_data: pd.DataFrame) -> pd.DataFrame:
     """Ensure CpG probes are columns and samples are rows.
@@ -254,6 +294,7 @@ def _matrix_shape_check(sample_data: pd.DataFrame) -> pd.DataFrame:
     cpg_cols = sample_data.columns[mask].sort_values()
     return sample_data.loc[:, cpg_cols]
 
+
 def _identify_delimiter(first_line: str) -> str:
     """Detect the field delimiter from a header line.
 
@@ -268,15 +309,16 @@ def _identify_delimiter(first_line: str) -> str:
     Raises:
         ValueError: If none of the expected delimiters is found.
     """
-    if '\t' in first_line:
-        return '\t'
-    elif ',' in first_line:
-        return ','
-    elif ' ' in first_line:
-        return ' '
+    if "\t" in first_line:
+        return "\t"
+    elif "," in first_line:
+        return ","
+    elif " " in first_line:
+        return " "
     else:
         raise ValueError("Unable to identify delimiter. Expected tab, comma, or space.")
-    
+
+
 def _read_sample_data(file_path: str) -> pd.DataFrame:
     """Read a supplementary methylation data file into a DataFrame.
 
@@ -298,14 +340,14 @@ def _read_sample_data(file_path: str) -> pd.DataFrame:
         open_func = gzip.open
     else:
         open_func = open
-    with open_func(file_path, 'rt') as f:
+    with open_func(file_path, "rt") as f:
         first_line = ""
         counter = 0
         for line in f:
             counter += 1
             if not line.startswith("#") and not line.strip() == "":
                 first_line = line
-                break        
+                break
             if counter > 20:
                 raise ValueError("Unable to find a valid header line within the first 20 lines of the file.")
     delimiter = _identify_delimiter(first_line)
@@ -318,6 +360,7 @@ def _read_sample_data(file_path: str) -> pd.DataFrame:
             break
     sample_data.columns = [x.lower().strip() for x in sample_data.columns.tolist()]
     return sample_data
+
 
 def _generate_data_samples(sample_data: pd.DataFrame, seed: int = 0) -> Tuple[str, pd.DataFrame]:
     """Generate a random column subset for LLM prompts.
@@ -340,7 +383,8 @@ def _generate_data_samples(sample_data: pd.DataFrame, seed: int = 0) -> Tuple[st
     sample_data_markdown = sample_data[sampled_columns].head(5).to_markdown(index=False)
     return sample_data_markdown, sample_data[sampled_columns].copy()
 
-def _check_pattern_performance(pattern:str, columns: List[str]) -> Tuple[set, set]:
+
+def _check_pattern_performance(pattern: str, columns: List[str]) -> Tuple[set, set]:
     """Evaluate a regex pattern against a list of column names.
 
     Args:
@@ -357,10 +401,14 @@ def _check_pattern_performance(pattern:str, columns: List[str]) -> Tuple[set, se
     missing_cols = [col for col in sorted(columns) if col not in matching_cols]
     return set(matching_cols), set(missing_cols)
 
+
 def _check_pattern_performance_change(
-    prev_beta_pattern: str, prev_detection_pattern: Optional[str],
-    current_beta_pattern: str, current_detection_pattern: Optional[str],
-    columns: List[str]) -> bool:
+    prev_beta_pattern: str,
+    prev_detection_pattern: Optional[str],
+    current_beta_pattern: str,
+    current_detection_pattern: Optional[str],
+    columns: List[str],
+) -> bool:
     """Check if pattern refinement changed what was matched.
 
     Compares the sets of matching/missing columns for both beta and
@@ -383,20 +431,31 @@ def _check_pattern_performance_change(
     prev_beta_matching_cols, prev_beta_missing_cols = _check_pattern_performance(prev_beta_pattern, columns)
     current_beta_matching_cols, current_beta_missing_cols = _check_pattern_performance(current_beta_pattern, columns)
     # Detection pattern performance (if applicable)
-    prev_detection_matching_cols, prev_detection_missing_cols = _check_pattern_performance(prev_detection_pattern, columns)
-    current_detection_matching_cols, current_detection_missing_cols = _check_pattern_performance(current_detection_pattern, columns)
-
-    return (
-        (prev_beta_matching_cols == current_beta_matching_cols) and
-        (prev_beta_missing_cols == current_beta_missing_cols) and
-        (prev_detection_matching_cols == current_detection_matching_cols) and
-        (prev_detection_missing_cols == current_detection_missing_cols)
+    prev_detection_matching_cols, prev_detection_missing_cols = _check_pattern_performance(
+        prev_detection_pattern, columns
+    )
+    current_detection_matching_cols, current_detection_missing_cols = _check_pattern_performance(
+        current_detection_pattern, columns
     )
 
+    return (
+        (prev_beta_matching_cols == current_beta_matching_cols)
+        and (prev_beta_missing_cols == current_beta_missing_cols)
+        and (prev_detection_matching_cols == current_detection_matching_cols)
+        and (prev_detection_missing_cols == current_detection_missing_cols)
+    )
+
+
 async def _get_column_scheme(
-        artifact: ArtifactRef, sample_data: pd.DataFrame, config: RunnableConfig,
-        messages: List[AIMessage] = [], count=0, prohibited_patterns: Optional[List[str]] = None,
-        prev_beta_pattern: Optional[str] = None, prev_detection_pattern: Optional[str] = None) -> Tuple[SampleDataResolution, ArtifactRef]:
+    artifact: ArtifactRef,
+    sample_data: pd.DataFrame,
+    config: RunnableConfig,
+    messages: List[AIMessage] = [],
+    count=0,
+    prohibited_patterns: Optional[List[str]] = None,
+    prev_beta_pattern: Optional[str] = None,
+    prev_detection_pattern: Optional[str] = None,
+) -> Tuple[SampleDataResolution, ArtifactRef]:
     """Resolve beta/detection column patterns via LLM with iterative refinement.
 
     Sends sampled column data to the deterministic LLM for structured
@@ -428,7 +487,9 @@ async def _get_column_scheme(
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
     default_llm = deps.default_llm
-    print(f"\nGetting column scheme for artifact {artifact.path} with accession code {artifact.accession_code}, attempt {count+1}")
+    print(
+        f"\nGetting column scheme for artifact {artifact.path} with accession code {artifact.accession_code}, attempt {count + 1}"
+    )
     sample_data_markdown, _ = _generate_data_samples(sample_data, seed=count)
     example_one_data_markdown, example_one_answer = generate_column_interpretation_examples()
     example_two_data_markdown, example_two_answer = generate_column_interpretation_examples(alt=True)
@@ -444,27 +505,32 @@ async def _get_column_scheme(
             example_three_response=json.dumps(example_three_answer, indent=2, ensure_ascii=False),
             prohibit_patterns=len(prohibited_patterns) > 0 if prohibited_patterns else False,
             prohibited_patterns=", ".join([f"`{p}`" for p in prohibited_patterns]) if prohibited_patterns else None,
-            json_schema=ForcedSampleDataResolution.model_json_schema())
+            json_schema=ForcedSampleDataResolution.model_json_schema(),
+        )
 
         system_message = SystemMessage(
             id=uuid.uuid4().hex,
             content=message,
             additional_kwargs={
-                'created_at': datetime.now(timezone.utc).isoformat(),
-            })
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
         human_message = HumanMessage(
             id=uuid.uuid4().hex,
             content=f"Please find the resolution for the following DNA methylation data:\n{sample_data_markdown}",
             additional_kwargs={
-                'created_at': datetime.now(timezone.utc).isoformat(),
-            })
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
         messages = [system_message, human_message]
 
     retry_limit = GLOBAL_RETRY_LIMIT
     retries = 0
     while retries < retry_limit:
         try:
-            resolved: Any = await asyncio.wait_for(deterministic_llm.acall_structured(messages, ForcedSampleDataResolution), timeout=CALL_TIMEOUT)
+            resolved: Any = await asyncio.wait_for(
+                deterministic_llm.acall_structured(messages, ForcedSampleDataResolution), timeout=CALL_TIMEOUT
+            )
             break
         except asyncio.TimeoutError:
             retries += 1
@@ -474,24 +540,25 @@ async def _get_column_scheme(
             continue
         except ValidationError as e:
             resolved: Any = SampleDataResolution(
-                beta_column={
-                    "status": "error",
-                    "notes": [f"Validation error for beta column extraction: {e}"]
-                },
+                beta_column={"status": "error", "notes": [f"Validation error for beta column extraction: {e}"]},
                 detection_column={
                     "status": "error",
-                    "notes": [f"Validation error for detection column extraction: {e}"]
-                })
+                    "notes": [f"Validation error for detection column extraction: {e}"],
+                },
+            )
             break
-    
-    new_sample_data_markdown, new_columns = _generate_data_samples(sample_data, seed=count+1)
+
+    new_sample_data_markdown, new_columns = _generate_data_samples(sample_data, seed=count + 1)
 
     if prev_beta_pattern or prev_detection_pattern:
         if _check_pattern_performance_change(
-            prev_beta_pattern, prev_detection_pattern,
-            resolved.beta_column.pattern, resolved.detection_column.pattern if resolved.detection_column.status == "resolved" else None,
-            new_columns.columns.tolist()):
-                count = 4
+            prev_beta_pattern,
+            prev_detection_pattern,
+            resolved.beta_column.pattern,
+            resolved.detection_column.pattern if resolved.detection_column.status == "resolved" else None,
+            new_columns.columns.tolist(),
+        ):
+            count = 4
 
     # Otherwise, if we are under the retry limit, try to fix
     if count < 3:
@@ -499,9 +566,10 @@ async def _get_column_scheme(
             id=uuid.uuid4().hex,
             content=f"Attempt {count} resolution:\n {resolved.model_dump()}",
             additional_kwargs={
-                'created_at': datetime.now(timezone.utc).isoformat(),
-        })
-        
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
         beta_pattern = re.compile(resolved.beta_column.pattern, re.IGNORECASE)
         beta_columns = [col for col in sorted(new_columns.columns.tolist()) if beta_pattern.search(col)]
         missing_beta_columns = [col for col in sorted(new_columns.columns.tolist()) if col not in beta_columns]
@@ -509,66 +577,95 @@ async def _get_column_scheme(
         print(f"\nBeta columns identified with pattern {resolved.beta_column.pattern}: {beta_columns}")
         print(f"\nColumns that failed to match beta pattern {resolved.beta_column.pattern}: {missing_beta_columns}")
 
-        detection_pattern = re.compile(resolved.detection_column.pattern, re.IGNORECASE) if resolved.detection_column.status == "resolved" else None
-        detection_columns = [col for col in sorted(new_columns.columns.tolist()) if detection_pattern and detection_pattern.search(col)]
-        missing_detection_columns = [col for col in sorted(new_columns.columns.tolist()) if col not in detection_columns]
+        detection_pattern = (
+            re.compile(resolved.detection_column.pattern, re.IGNORECASE)
+            if resolved.detection_column.status == "resolved"
+            else None
+        )
+        detection_columns = [
+            col for col in sorted(new_columns.columns.tolist()) if detection_pattern and detection_pattern.search(col)
+        ]
+        missing_detection_columns = [
+            col for col in sorted(new_columns.columns.tolist()) if col not in detection_columns
+        ]
         if detection_pattern:
             print(f"\n Detection pattern: {detection_pattern}")
-            print(f"\nDetection columns identified with pattern {resolved.detection_column.pattern}: {detection_columns}")
-            print(f"\nColumns that failed to match detection pattern {resolved.detection_column.pattern}: {missing_detection_columns}")
+            print(
+                f"\nDetection columns identified with pattern {resolved.detection_column.pattern}: {detection_columns}"
+            )
+            print(
+                f"\nColumns that failed to match detection pattern {resolved.detection_column.pattern}: {missing_detection_columns}"
+            )
 
         # Cases
         complete_failure = len(beta_columns) == 0
         permissive_beta = (len(missing_beta_columns) == 0) and len(detection_columns) > 0
         double_checking_work = len(missing_beta_columns) > 0
-        
+
         if complete_failure or permissive_beta or double_checking_work:
             base_prompt = generate_infer_methylation_data_column_scheme_alt_prompt(
                 model_response=json.dumps(resolved.model_dump(), indent=2, ensure_ascii=False),
                 sample_data=new_sample_data_markdown,
                 random_column=new_columns.columns.tolist()[0],
                 beta_pattern=resolved.beta_column.pattern,
-                beta_columns=", ".join(beta_columns) if len(beta_columns) > 0 else "N/A, because your pattern failed to match any columns.",
-                not_beta_columns=", ".join(missing_beta_columns) if len(missing_beta_columns) > 0 else "N/A, all columns were identified as being `beta_column`s.",
-                detection_pattern=resolved.detection_column.pattern if resolved.detection_column.status == "resolved" else "N/A, because you don't believe there are any detection columns.",
-                detection_column=", ".join(detection_columns) if len(detection_columns) > 0 else "N/A, because you don't believe there are any detection columns.",
-                not_detection_columns=", ".join(missing_detection_columns) if len(missing_detection_columns) > 0 else "N/A, because you don't believe there are any detection columns.",
-                json_schema=ForcedSampleDataResolution.model_json_schema()
+                beta_columns=", ".join(beta_columns)
+                if len(beta_columns) > 0
+                else "N/A, because your pattern failed to match any columns.",
+                not_beta_columns=", ".join(missing_beta_columns)
+                if len(missing_beta_columns) > 0
+                else "N/A, all columns were identified as being `beta_column`s.",
+                detection_pattern=resolved.detection_column.pattern
+                if resolved.detection_column.status == "resolved"
+                else "N/A, because you don't believe there are any detection columns.",
+                detection_column=", ".join(detection_columns)
+                if len(detection_columns) > 0
+                else "N/A, because you don't believe there are any detection columns.",
+                not_detection_columns=", ".join(missing_detection_columns)
+                if len(missing_detection_columns) > 0
+                else "N/A, because you don't believe there are any detection columns.",
+                json_schema=ForcedSampleDataResolution.model_json_schema(),
             )
             correction_message = HumanMessage(
                 id=uuid.uuid4().hex,
                 content=base_prompt,
-                additional_kwargs={
-                    'created_at': datetime.now(timezone.utc).isoformat()
-                })
+                additional_kwargs={"created_at": datetime.now(timezone.utc).isoformat()},
+            )
             return await _get_column_scheme(
-                artifact, sample_data, config,
+                artifact,
+                sample_data,
+                config,
                 messages=messages + [agent_message, correction_message],
-                count=count+1,
+                count=count + 1,
                 prev_beta_pattern=resolved.beta_column.pattern,
-                prev_detection_pattern=resolved.detection_column.pattern if resolved.detection_column.status == "resolved" else None)
-            
+                prev_detection_pattern=resolved.detection_column.pattern
+                if resolved.detection_column.status == "resolved"
+                else None,
+            )
+
     column_scheme_path = os.path.splitext(artifact.path)[0] + ".json"
     with open(column_scheme_path, "w", encoding="utf-8") as f:
-        json.dump(
-            resolved.model_dump(),
-            f,
-            ensure_ascii=False,
-            indent=2)
-    column_scheme_artifact = ArtifactRef.model_validate({
-        "accession_code": artifact.accession_code,
-        "path": column_scheme_path,
-        "kind": "supplementary_file_methylation_data_column_scheme",
-        "sha256": compute_sha256(column_scheme_path, is_path=True),
-        "bytes": os.path.getsize(column_scheme_path),
-        "created_at": datetime.now(timezone.utc).isoformat()
-    })
-            
+        json.dump(resolved.model_dump(), f, ensure_ascii=False, indent=2)
+    column_scheme_artifact = ArtifactRef.model_validate(
+        {
+            "accession_code": artifact.accession_code,
+            "path": column_scheme_path,
+            "kind": "supplementary_file_methylation_data_column_scheme",
+            "sha256": compute_sha256(column_scheme_path, is_path=True),
+            "bytes": os.path.getsize(column_scheme_path),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
     return resolved, column_scheme_artifact
-    
+
+
 async def format_individual_methylation_data(
-        accession_code: str, return_dict: Dict[str, Any], config: RunnableConfig,
-        artifact: ArtifactRef, messages: List[AnyMessage]) -> Dict[str, Any]:
+    accession_code: str,
+    return_dict: Dict[str, Any],
+    config: RunnableConfig,
+    artifact: ArtifactRef,
+    messages: List[AnyMessage],
+) -> Dict[str, Any]:
     """Format a single supplementary methylation data file.
 
     Reads raw data, processes detection columns if present, shapes the
@@ -596,19 +693,23 @@ async def format_individual_methylation_data(
         df = _matrix_shape_check(sample_data)
 
     write_feather(df, methylation_dataframe_output_path, index_name="subject_id")
-    methylation_artifact = ArtifactRef.model_validate({
-        "accession_code": accession_code,
-        "path": methylation_dataframe_output_path,
-        "kind": "supplementary_file_methylation_data_formatted",
-        "sha256": compute_sha256(methylation_dataframe_output_path, is_path=True),
-        "bytes": os.path.getsize(methylation_dataframe_output_path),
-        "created_at": datetime.now(timezone.utc).isoformat()})
-    
+    methylation_artifact = ArtifactRef.model_validate(
+        {
+            "accession_code": accession_code,
+            "path": methylation_dataframe_output_path,
+            "kind": "supplementary_file_methylation_data_formatted",
+            "sha256": compute_sha256(methylation_dataframe_output_path, is_path=True),
+            "bytes": os.path.getsize(methylation_dataframe_output_path),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
     return_dict["config"]["artifacts"] = consolidate_artifacts(
-        [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]],
-        [methylation_artifact])
+        [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], [methylation_artifact]
+    )
     return_dict["datasets"][accession_code]["supplementary_data"][artifact.sha256] = "running"
     return return_dict
+
 
 def merge_formatted_supplementary_data(state: GeoIngestionSubgraphState, accession_code: str) -> pd.DataFrame:
     """Concatenate all formatted supplementary data for a GEO accession.
@@ -627,12 +728,19 @@ def merge_formatted_supplementary_data(state: GeoIngestionSubgraphState, accessi
     state_config = state.config
     dataset_state = state.datasets[accession_code]
     print(f"\nDataset supplementary data state: {dataset_state.supplementary_data}")
-    formatted_artifacts = [a for a in state_config.artifacts if (a.kind == "supplementary_file_methylation_data_formatted") and (a.accession_code == accession_code)]
+    formatted_artifacts = [
+        a
+        for a in state_config.artifacts
+        if (a.kind == "supplementary_file_methylation_data_formatted") and (a.accession_code == accession_code)
+    ]
     formatted_datasets = [pd.read_csv(artifact.path, index_col=0) for artifact in formatted_artifacts]
     merged_data = pd.concat(formatted_datasets, axis=0)
     return merged_data
-    
-async def format_methylation_data(state_config: GEOIngestionConfig, state: GeoDatasetState, config: RunnableConfig, messages: List[AnyMessage]) -> Dict[str, Any]:
+
+
+async def format_methylation_data(
+    state_config: GEOIngestionConfig, state: GeoDatasetState, config: RunnableConfig, messages: List[AnyMessage]
+) -> Dict[str, Any]:
     """Format all supplementary methylation files for a dataset.
 
     Iterates over every supplementary methylation data artifact for
@@ -653,11 +761,13 @@ async def format_methylation_data(state_config: GEOIngestionConfig, state: GeoDa
     formatted_datasets = []
     accession_code = state.accession
     methylation_dataframe_output_path = os.path.join(state.output_dir, "preqc_methylation_matrix.csv")
-    return_dict = {
-        "config": state_config.model_dump()
-    } 
+    return_dict = {"config": state_config.model_dump()}
 
-    sample_data_artifacts = [a for a in state_config.artifacts if (a.kind == "supplementary_file_methylation_data") and (a.accession_code == accession_code)]
+    sample_data_artifacts = [
+        a
+        for a in state_config.artifacts
+        if (a.kind == "supplementary_file_methylation_data") and (a.accession_code == accession_code)
+    ]
     sample_datasets = [_read_sample_data(artifact.path) for artifact in sample_data_artifacts]
     collected_artifacts = []
 
@@ -672,28 +782,35 @@ async def format_methylation_data(state_config: GEOIngestionConfig, state: GeoDa
 
     if not os.path.exists(methylation_dataframe_output_path):
         formatted_data.to_csv(methylation_dataframe_output_path, index=True)
-        methylation_artifact = ArtifactRef.model_validate({
-            "accession_code": accession_code,
-            "path": methylation_dataframe_output_path,
-            "kind": "preqc_methylation_data",
-            "sha256": compute_sha256(methylation_dataframe_output_path, is_path=True),
-            "bytes": os.path.getsize(methylation_dataframe_output_path),
-            "created_at": datetime.now(timezone.utc).isoformat()})
-    else:
-        if next((a for a in state_config.artifacts if a.path == methylation_dataframe_output_path), None) is None:
-            methylation_artifact = ArtifactRef.model_validate({
+        methylation_artifact = ArtifactRef.model_validate(
+            {
                 "accession_code": accession_code,
                 "path": methylation_dataframe_output_path,
                 "kind": "preqc_methylation_data",
                 "sha256": compute_sha256(methylation_dataframe_output_path, is_path=True),
                 "bytes": os.path.getsize(methylation_dataframe_output_path),
-                "created_at": datetime.now(timezone.utc).isoformat()})
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+    else:
+        if next((a for a in state_config.artifacts if a.path == methylation_dataframe_output_path), None) is None:
+            methylation_artifact = ArtifactRef.model_validate(
+                {
+                    "accession_code": accession_code,
+                    "path": methylation_dataframe_output_path,
+                    "kind": "preqc_methylation_data",
+                    "sha256": compute_sha256(methylation_dataframe_output_path, is_path=True),
+                    "bytes": os.path.getsize(methylation_dataframe_output_path),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
     collected_artifacts.append(methylation_artifact)
-    
+
     return_dict["config"]["artifacts"] = consolidate_artifacts(
-        [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]],
-        collected_artifacts)
+        [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], collected_artifacts
+    )
     return return_dict
+
 
 def generate_lexical_features(name: str) -> LexFeat:
     """Tokenize and normalize a column name into lexical features.
@@ -721,7 +838,7 @@ def generate_lexical_features(name: str) -> LexFeat:
         s = s.strip()
         s = CAMEL_RE.sub(" ", s)
         s = SEP_RE.sub(" ", s)
-        s = ALNUM_BOUND_RE.sub(" ", s)   # <-- ADD THIS
+        s = ALNUM_BOUND_RE.sub(" ", s)  # <-- ADD THIS
         s = NON_ALNUM_RE.sub(" ", s)
         s = WS_RE.sub(" ", s)
         return s.lower().strip()
@@ -739,8 +856,9 @@ def generate_lexical_features(name: str) -> LexFeat:
         nums = tuple([t for t in toks if NUM_RE.match(t)])
         words = tuple([t for t in toks if not NUM_RE.match(t)])
         return LexFeat(raw=name, norm=norm, tokens=tuple(toks), nums=nums, words=words)
-    
+
     return featurize(name)
+
 
 def build_vocab(featsA: List[LexFeat], featsB: List[LexFeat], attr: str) -> Dict[str, int]:
     """Build a vocabulary index from a lexical feature attribute.
@@ -767,6 +885,7 @@ def build_vocab(featsA: List[LexFeat], featsB: List[LexFeat], attr: str) -> Dict
                 vocab[t] = len(vocab)
     return vocab
 
+
 def incidence_matrix(feats: List[LexFeat], vocab: Dict[str, int], attr: str) -> np.ndarray:
     """Build a binary incidence matrix for a lexical feature attribute.
 
@@ -787,6 +906,7 @@ def incidence_matrix(feats: List[LexFeat], vocab: Dict[str, int], attr: str) -> 
             X[i, vocab[t]] = 1
     return X
 
+
 def jaccard_matrix(A_bin: np.ndarray, B_bin: np.ndarray) -> np.ndarray:
     """
     A_bin: (N, V) {0,1}
@@ -803,6 +923,7 @@ def jaccard_matrix(A_bin: np.ndarray, B_bin: np.ndarray) -> np.ndarray:
     # If both empty sets => define Jaccard as 1.0 (matches your earlier behavior)
     out = np.where(union > 0, inter / union, 1.0).astype(np.float32)
     return out
+
 
 def number_compatibility_matrix(A_nums_bin: np.ndarray, B_nums_bin: np.ndarray) -> np.ndarray:
     """
@@ -829,6 +950,7 @@ def number_compatibility_matrix(A_nums_bin: np.ndarray, B_nums_bin: np.ndarray) 
     out[both] = np.where(union[both] > 0, inter[both] / union[both], 1.0).astype(np.float32)
     return out
 
+
 def token_count_penalty_matrix(featsA, featsB, gamma: float = 2.0) -> np.ndarray:
     """
     Penalize large differences in number of tokens. Returns (N,M) in [0,1].
@@ -841,8 +963,7 @@ def token_count_penalty_matrix(featsA, featsB, gamma: float = 2.0) -> np.ndarray
     return np.exp(-gamma * rel).astype(np.float32)
 
 
-
-def lexical_score_matrix(A: List[str], B: List[str], workers: int = -1,  no_count_penalty: bool = False) -> np.ndarray:
+def lexical_score_matrix(A: List[str], B: List[str], workers: int = -1, no_count_penalty: bool = False) -> np.ndarray:
     """Compute a lexical similarity matrix between two string lists.
 
     Combines token-sort-ratio fuzziness, word-level Jaccard, and
@@ -866,7 +987,7 @@ def lexical_score_matrix(A: List[str], B: List[str], workers: int = -1,  no_coun
     A_norm = [f.norm for f in featsA]
     B_norm = [f.norm for f in featsB]
     tsr = process.cdist(A_norm, B_norm, scorer=fuzz.token_sort_ratio, score_cutoff=0, workers=workers)
-    tsr = (np.asarray(tsr, dtype=np.float32) / 100.0)  # (N,M)
+    tsr = np.asarray(tsr, dtype=np.float32) / 100.0  # (N,M)
 
     # word_j: Jaccard on non-numeric tokens
     word_vocab = build_vocab(featsA, featsB, attr="words")
@@ -888,17 +1009,19 @@ def lexical_score_matrix(A: List[str], B: List[str], workers: int = -1,  no_coun
     tok_pen = token_count_penalty_matrix(featsA, featsB, gamma=1.0)
 
     # (optional) character-length penalty too; this is milder if you already do tok_pen
-    #A_len = np.array([len(f.norm) for f in featsA], dtype=np.float32)[:, None]
-    #B_len = np.array([len(f.norm) for f in featsB], dtype=np.float32)[None, :]
-    #max_len = np.maximum(A_len, B_len)
-    #rel_len = np.where(max_len > 0, np.abs(A_len - B_len) / max_len, 0.0)
-    #len_pen = np.exp(-1.5 * rel_len).astype(np.float32)
+    # A_len = np.array([len(f.norm) for f in featsA], dtype=np.float32)[:, None]
+    # B_len = np.array([len(f.norm) for f in featsB], dtype=np.float32)[None, :]
+    # max_len = np.maximum(A_len, B_len)
+    # rel_len = np.where(max_len > 0, np.abs(A_len - B_len) / max_len, 0.0)
+    # len_pen = np.exp(-1.5 * rel_len).astype(np.float32)
 
     S = (S * tok_pen).astype(np.float32)
     return S
 
+
 def extract_subject_column_mapping(
-        metadata_artifact: ArtifactRef, sample_data_df: pd.DataFrame, return_dict: Dict[str, Any]) -> Any:
+    metadata_artifact: ArtifactRef, sample_data_df: pd.DataFrame, return_dict: Dict[str, Any]
+) -> Any:
     """Map sample data indices to metadata subject IDs via lexical scoring.
 
     Reads the metadata CSV, computes a lexical similarity matrix
@@ -916,35 +1039,34 @@ def extract_subject_column_mapping(
         The updated return_dict.
     """
     metadata_df = pd.read_csv(metadata_artifact.path, index_col=0)
-    subject_ids = metadata_df['Subject'].tolist()
+    subject_ids = metadata_df["Subject"].tolist()
     print(f"\nMetadata subject IDs: {subject_ids}")
     sample_data_subjects = sample_data_df.index.tolist()
     print(f"\nSample data subjects: {sample_data_subjects}")
     score_matrix = lexical_score_matrix(sample_data_subjects, subject_ids)
     best_j = np.argmax(score_matrix, axis=1)
-    mapper = {
-        sample_data_subjects[i]: subject_ids[j] for i, j in enumerate(best_j)
-    }
+    mapper = {sample_data_subjects[i]: subject_ids[j] for i, j in enumerate(best_j)}
     print(f"\nGenerated subject mapping: {mapper}")
     # Save mapper
     mapper_artifact_path = os.path.join(
-        os.path.dirname(metadata_artifact.path),
-        f"{metadata_artifact.accession_code}_subject_mapping.json")
+        os.path.dirname(metadata_artifact.path), f"{metadata_artifact.accession_code}_subject_mapping.json"
+    )
     with open(mapper_artifact_path, "w", encoding="utf-8") as f:
         json.dump(mapper, f, ensure_ascii=False, indent=2)
-    mapper_artifact = ArtifactRef.model_validate({
-        "accession_code": metadata_artifact.accession_code,
-        "path": mapper_artifact_path,
-        "kind": "subject_column_mapping",
-        "sha256": compute_sha256(mapper_artifact_path, is_path=True),
-        "bytes": os.path.getsize(mapper_artifact_path),
-        "created_at": datetime.now(timezone.utc).isoformat()
-    })
-    return_dict["config"]["artifacts"] = consolidate_artifacts(
-        return_dict["config"]["artifacts"],
-        [mapper_artifact])
+    mapper_artifact = ArtifactRef.model_validate(
+        {
+            "accession_code": metadata_artifact.accession_code,
+            "path": mapper_artifact_path,
+            "kind": "subject_column_mapping",
+            "sha256": compute_sha256(mapper_artifact_path, is_path=True),
+            "bytes": os.path.getsize(mapper_artifact_path),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    return_dict["config"]["artifacts"] = consolidate_artifacts(return_dict["config"]["artifacts"], [mapper_artifact])
 
     return return_dict
+
 
 def _extract_best_subject_id_fields(user_input: Any, sample_data: pd.DataFrame) -> Tuple[Optional[str], Optional[str]]:
     """Identify which metadata field best matches sample data indices.
@@ -1010,8 +1132,9 @@ def _extract_best_subject_id_fields(user_input: Any, sample_data: pd.DataFrame) 
                 field_name = f
                 key_name = None
     print(f"\nExtracting subject for field {field_name} and key {key_name})")
-    
+
     return field_name, key_name
+
 
 def _create_subject_id_mapping(
     accession_code: str, user_input: pd.DataFrame, metadata_dict: Dict[str, Any], sample_data: pd.DataFrame
@@ -1035,11 +1158,12 @@ def _create_subject_id_mapping(
         A DataFrame with columns "Sample", "Subject", and
         "Beta_Subjects".
     """
+
     # This is to map from the original subject id to the best subject id
     # I have the field name and key name, I need to extract that here
     def _extract_subject(
-            field_name: str, target_values: List[str], metadata_dict: Dict[str, Any], 
-            key_name: Optional[str] = None):
+        field_name: str, target_values: List[str], metadata_dict: Dict[str, Any], key_name: Optional[str] = None
+    ):
         subject = None
         candidate_subjects = []
         max_score = -1
@@ -1054,22 +1178,23 @@ def _create_subject_id_mapping(
                     for item in f_value:
                         candidate_subjects.append(item)
         candidate_subjects = list(sorted(set(candidate_subjects)))
-        score_matrix = lexical_score_matrix(
-            candidate_subjects, target_values, no_count_penalty = True)
+        score_matrix = lexical_score_matrix(candidate_subjects, target_values, no_count_penalty=True)
         best_j = np.argmax(score_matrix, axis=1)
         for i, j in enumerate(best_j):
             if score_matrix[i, j] > max_score:
                 max_score = score_matrix[i, j]
                 subject = candidate_subjects[i]
                 sample = target_values[j]
-                print(f"\nExtracted subject {subject} for value {sample} in field {field_name} and key {key_name} with score {max_score}")
+                print(
+                    f"\nExtracted subject {subject} for value {sample} in field {field_name} and key {key_name} with score {max_score}"
+                )
         return subject
-    
+
     def _get_subject_column_values(source_values: List[str], target_values: List[str]) -> Any:
-            score_matrix = lexical_score_matrix(source_values, target_values)
-            best_j = np.argmax(score_matrix, axis=1)
-            ordered_target_values = [target_values[j] for j in best_j]
-            return ordered_target_values
+        score_matrix = lexical_score_matrix(source_values, target_values)
+        best_j = np.argmax(score_matrix, axis=1)
+        ordered_target_values = [target_values[j] for j in best_j]
+        return ordered_target_values
 
     # Get metadata columns
     accession_code = accession_code
@@ -1079,11 +1204,13 @@ def _create_subject_id_mapping(
     rows = []
     for gsm_name, gsm in metadata_dict["sample_metadata"].items():
         # Get sample level values
-        rows.append({
-            'Sample': gsm_name,
-            'Subject': _extract_subject(field_name, target_values, gsm, key_name=key_name),
-        })
-    
+        rows.append(
+            {
+                "Sample": gsm_name,
+                "Subject": _extract_subject(field_name, target_values, gsm, key_name=key_name),
+            }
+        )
+
     df = pd.DataFrame(rows)
-    df['Beta_Subjects'] = _get_subject_column_values(df['Subject'].tolist(), target_values)
+    df["Beta_Subjects"] = _get_subject_column_values(df["Subject"].tolist(), target_values)
     return df

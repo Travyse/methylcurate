@@ -10,8 +10,25 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from ...contracts.harmonize import HumanReadableConceptInput, LabelMappingSet
 from ...contracts.harmonize import HarmonizationConcept
 from ...contracts.geo import Concept as GEOConcepts
-from ...contracts.geo import GEODownloadResult, GEOMetadataExtractionInput, GEOMetadataExtractionResult, MetadataSummary, GeoSampleLevelMetadataBatch
-from ...contracts.qc import PreprocessDataInput, PreprocessDataResult, SampleLevelQCInput, SampleLevelQCResult, CpGLevelQCInput, CpGLevelQCResult, DNAmQCInput, DNAmQCResult, InterarrayCorrelationQCInput, InterarrayCorrelationQCResult
+from ...contracts.geo import (
+    GEODownloadResult,
+    GEOMetadataExtractionInput,
+    GEOMetadataExtractionResult,
+    MetadataSummary,
+    GeoSampleLevelMetadataBatch,
+)
+from ...contracts.qc import (
+    PreprocessDataInput,
+    PreprocessDataResult,
+    SampleLevelQCInput,
+    SampleLevelQCResult,
+    CpGLevelQCInput,
+    CpGLevelQCResult,
+    DNAmQCInput,
+    DNAmQCResult,
+    InterarrayCorrelationQCInput,
+    InterarrayCorrelationQCResult,
+)
 from ...contracts.common import ArtifactRef, StepStatus, HumanReviewRequest, HumanReviewDecision
 from ...contracts.clocks import MethylationClocks
 from ...contracts.router import RouterOutput
@@ -21,6 +38,8 @@ from ..registry.nodes import GRAPH_BUILDERS, PARAM_SCHEMAS
 
 def merge_dict(left: dict, right: dict) -> dict:
     return {**left, **right}
+
+
 def _validate_geo_accession(v: str) -> str:
     """Ensure a value is a valid GEO Series accession (must start with 'GSE')."""
     if not v or not isinstance(v, str):
@@ -28,6 +47,7 @@ def _validate_geo_accession(v: str) -> str:
     if not v.upper().startswith("GSE"):
         raise ValueError(f"accession {v} is not a valid GEO Series accession (must start with 'GSE')")
     return v
+
 
 def _validate_accessions_list(v):
     """Ensure accessions is a non-empty list of valid GEO Series accessions."""
@@ -37,6 +57,7 @@ def _validate_accessions_list(v):
         _validate_geo_accession(acc)
     return v
 
+
 def _validate_output_root(v):
     """Ensure output_root is a valid existing directory path."""
     if not v or not isinstance(v, str) or not os.path.exists(v):
@@ -44,46 +65,51 @@ def _validate_output_root(v):
     return v
 
 
-
 # ----------------------------
 # GEO Subgraph States
 # ----------------------------
+
 
 class GEOIngestionConfig(BaseModel):
     output_root: NonEmptyStr
     accessions: List[NonEmptyStr]
     artifacts: List[ArtifactRef] = Field(default_factory=list)
-    
+
     @field_validator("accessions", mode="before")
     @classmethod
     def validate_accessions(cls, v):
         return _validate_accessions_list(v)
 
+
 class GPLMetadata(BaseModel):
     platform_id: Optional[NonEmptyStr] = None
     title: Optional[NonEmptyStr] = None
 
+
 class RefinementTracking(BaseModel):
     num_retries: int = 0
-    formatting_history: Optional[List[List[str]]] = Field(default_factory=list) # Flagged concepts
-    parsing_history: Optional[List[List[str]]] = Field(default_factory=list) # Flagged concepts
-    example_errors: Optional[List[Dict[str, Any]]] = Field(default_factory=list) # Store examples of errors for review
+    formatting_history: Optional[List[List[str]]] = Field(default_factory=list)  # Flagged concepts
+    parsing_history: Optional[List[List[str]]] = Field(default_factory=list)  # Flagged concepts
+    example_errors: Optional[List[Dict[str, Any]]] = Field(default_factory=list)  # Store examples of errors for review
+
 
 class GeoDatasetState(BaseModel):
     accession: NonEmptyStr
     output_dir: NonEmptyStr
 
-    steps: Dict[str, StepStatus] = Field(default_factory=lambda: {
-        "download_soft": StepStatus(),
-        "check_valid_dataset": StepStatus(),
-        "extract_metadata_schema": StepStatus(),
-        "extract_data": StepStatus(),
-        "refine_metadata_schema": StepStatus(),
-        "supplementary_file_check": StepStatus(),
-    })
+    steps: Dict[str, StepStatus] = Field(
+        default_factory=lambda: {
+            "download_soft": StepStatus(),
+            "check_valid_dataset": StepStatus(),
+            "extract_metadata_schema": StepStatus(),
+            "extract_data": StepStatus(),
+            "refine_metadata_schema": StepStatus(),
+            "supplementary_file_check": StepStatus(),
+        }
+    )
 
     status: Literal["not_started", "in_progress", "failed", "completed"] = Field(default="not_started")
-    is_hidden: bool = Field(default=False) 
+    is_hidden: bool = Field(default=False)
     is_valid_dataset: bool = Field(default=True)
 
     download_result: Optional[GEODownloadResult] = None
@@ -97,18 +123,21 @@ class GeoDatasetState(BaseModel):
     artifacts: List[ArtifactRef] = Field(default_factory=list)
     platform_metadata: Optional[GPLMetadata] = None
     supplementary_files: Optional[List[str]] = Field(default_factory=list)
-    supplementary_data: Optional[Annotated[Dict[NonEmptyStr, Literal['pending', 'running', 'completed', 'failed']], merge_dict]] = None
+    supplementary_data: Optional[
+        Annotated[Dict[NonEmptyStr, Literal["pending", "running", "completed", "failed"]], merge_dict]
+    ] = None
 
     pending_review: Optional[List[HumanReviewRequest]] = None
     review_history: List[HumanReviewDecision] = Field(default_factory=list)
 
     warnings: List[NonEmptyStr] = Field(default_factory=list)
     errors: List[NonEmptyStr] = Field(default_factory=list)
-    
+
     @field_validator("accession", mode="before")
     @classmethod
     def validate_accession(cls, v):
         return _validate_geo_accession(v)
+
 
 class GeoIngestionSubgraphState(BaseModel):
     run_id: NonEmptyStr
@@ -122,7 +151,6 @@ class GeoIngestionSubgraphState(BaseModel):
 
     # per-accession states
     datasets: Annotated[Dict[NonEmptyStr, GeoDatasetState], merge_dict]
-
 
     # optional global artifacts/logs
     artifacts: List[ArtifactRef] = Field(default_factory=list)
@@ -140,9 +168,11 @@ class GeoIngestionSubgraphState(BaseModel):
             _validate_geo_accession(key)
         return self
 
+
 # ----------------------------
 # Harmonization Subgraph States
 # ----------------------------
+
 
 class HarmonizationIngestionConfig(BaseModel):
     output_root: NonEmptyStr
@@ -153,24 +183,27 @@ class HarmonizationIngestionConfig(BaseModel):
     @classmethod
     def validate_output_root(cls, v):
         return _validate_output_root(v)
-    
+
     @field_validator("accessions", mode="before")
     @classmethod
     def validate_accessions(cls, v):
         return _validate_accessions_list(v)
 
+
 class HarmonizationDatasetState(BaseModel):
     accession: NonEmptyStr
     output_dir: NonEmptyStr
     status: Literal["not_started", "in_progress", "failed", "completed"] = Field(default="not_started")
-    steps: Dict[NonEmptyStr, StepStatus] = Field(default_factory=lambda: {
-        "map_disease_labels_to_ontology": StepStatus(),
-        "group_disease_labels": StepStatus(),
-        "map_tissue_labels_to_ontology": StepStatus(),
-        "group_tissue_labels": StepStatus(),
-        "map_cell_type_labels_to_ontology": StepStatus(),
-        "harmonize_sex_labels": StepStatus(),
-    })
+    steps: Dict[NonEmptyStr, StepStatus] = Field(
+        default_factory=lambda: {
+            "map_disease_labels_to_ontology": StepStatus(),
+            "group_disease_labels": StepStatus(),
+            "map_tissue_labels_to_ontology": StepStatus(),
+            "group_tissue_labels": StepStatus(),
+            "map_cell_type_labels_to_ontology": StepStatus(),
+            "harmonize_sex_labels": StepStatus(),
+        }
+    )
 
     harmonization_input: Optional[HumanReadableConceptInput] = None
 
@@ -187,6 +220,7 @@ class HarmonizationDatasetState(BaseModel):
     cell_type_label_mapping: Optional[LabelMappingSet] = None
 
     sex_mapping: Optional[LabelMappingSet] = None
+
 
 class HarmonizationSubgraphState(BaseModel):
     run_id: NonEmptyStr
@@ -208,9 +242,11 @@ class HarmonizationSubgraphState(BaseModel):
     # UX/routing
     next_action_hint: Optional[NonEmptyStr] = None
 
+
 # ----------------------------
 # Quality Control Subgraph States
 # ----------------------------
+
 
 class QualityControlIngestionConfig(BaseModel):
     output_root: NonEmptyStr
@@ -221,20 +257,19 @@ class QualityControlIngestionConfig(BaseModel):
     @classmethod
     def validate_output_root(cls, v):
         return _validate_output_root(v)
-    
+
     @field_validator("accessions", mode="before")
     @classmethod
     def validate_accessions(cls, v):
         return _validate_accessions_list(v)
 
+
 class DatasetQualityControlState(BaseModel):
     accession: NonEmptyStr
     output_dir: NonEmptyStr
     status: Literal["not_started", "in_progress", "failed", "completed"] = Field(default="not_started")
-    steps: Dict[NonEmptyStr, StepStatus] = Field(default_factory=lambda: {
-        "quality_control": StepStatus()
-    })
-    
+    steps: Dict[NonEmptyStr, StepStatus] = Field(default_factory=lambda: {"quality_control": StepStatus()})
+
     data_conversion_result: Optional[PreprocessDataResult] = None
     sample_level_qc_result: Optional[SampleLevelQCResult] = None
     cpg_level_qc_result: Optional[CpGLevelQCResult] = None
@@ -242,11 +277,12 @@ class DatasetQualityControlState(BaseModel):
     interarray_correlation_qc_result: Optional[InterarrayCorrelationQCResult] = None
 
     artifacts: List[ArtifactRef] = Field(default_factory=list)
-    
+
     @field_validator("accession", mode="before")
     @classmethod
     def validate_accessions(cls, v):
         return _validate_geo_accession(v)
+
 
 class QualityControlSubgraphState(BaseModel):
     run_id: NonEmptyStr
@@ -256,7 +292,7 @@ class QualityControlSubgraphState(BaseModel):
 
     config: QualityControlIngestionConfig
     datasets: Annotated[Dict[NonEmptyStr, DatasetQualityControlState], merge_dict] = Field(default_factory=dict)
-    
+
     data_conversion_input: Optional[PreprocessDataInput] = None
     sample_level_qc_input: Optional[SampleLevelQCInput] = None
     cpg_level_qc_input: Optional[CpGLevelQCInput] = None
@@ -278,9 +314,11 @@ class QualityControlSubgraphState(BaseModel):
             _validate_geo_accession(key)
         return self
 
+
 # ----------------------------
 # Benchmarking Subgraph States
 # ----------------------------
+
 
 class BenchmarkingIngestionConfig(BaseModel):
     output_root: NonEmptyStr
@@ -292,31 +330,34 @@ class BenchmarkingIngestionConfig(BaseModel):
     @classmethod
     def validate_accessions(cls, v):
         return _validate_accessions_list(v)
-    
+
     @field_validator("output_root", mode="before")
     @classmethod
     def validate_output_root(cls, v):
         return _validate_output_root(v)
 
+
 class BenchmarkingDatasetState(BaseModel):
     accession: NonEmptyStr
     output_dir: NonEmptyStr
     status: Literal["not_started", "in_progress", "failed", "completed"] = Field(default="not_started")
-    steps: Dict[NonEmptyStr, StepStatus] = Field(default_factory=lambda: {
-        "retrieve_clocks": StepStatus(
-            status="completed"),
-        "make_predictions": StepStatus(),
-        "make_computations": StepStatus()
-    })
-    
+    steps: Dict[NonEmptyStr, StepStatus] = Field(
+        default_factory=lambda: {
+            "retrieve_clocks": StepStatus(status="completed"),
+            "make_predictions": StepStatus(),
+            "make_computations": StepStatus(),
+        }
+    )
+
     benchmarking_result: Optional[Dict[MethylationClocks, Any]] = None
 
     artifacts: List[ArtifactRef] = Field(default_factory=list)
-    
+
     @field_validator("accession", mode="before")
     @classmethod
     def validate_accessions(cls, v):
         return _validate_geo_accession(v)
+
 
 class BenchmarkingSubgraphState(BaseModel):
     run_id: NonEmptyStr
@@ -333,9 +374,11 @@ class BenchmarkingSubgraphState(BaseModel):
     # UX/routing
     next_action_hint: Optional[NonEmptyStr] = None
 
+
 # ----------------------------
 # Main State
 # ----------------------------
+
 
 class SubgraphHandle(BaseModel):
     name: Literal["geo_retrieval", "harmonization", "quality_control", "benchmarking"]
@@ -344,6 +387,7 @@ class SubgraphHandle(BaseModel):
     thread_id: NonEmptyStr
     warnings: List[NonEmptyStr] = Field(default_factory=list)
     errors: List[NonEmptyStr] = Field(default_factory=list)
+
 
 class MainState(BaseModel):
     run_id: NonEmptyStr
@@ -355,7 +399,9 @@ class MainState(BaseModel):
 
     # registry of subgraph runs
     subgraphs: Dict[NonEmptyStr, SubgraphHandle] = Field(default_factory=dict)
-    datasets: Annotated[Dict[NonEmptyStr, Dict[NonEmptyStr, StepStatus]], merge_dict] = Field(default_factory=dict) # track dataset-level status across subgraphs for UX
+    datasets: Annotated[Dict[NonEmptyStr, Dict[NonEmptyStr, StepStatus]], merge_dict] = Field(
+        default_factory=dict
+    )  # track dataset-level status across subgraphs for UX
     # Track each step across subgraphs
     # optional: unify HITL tickets across subgraphs for UX
     pending_reviews: Optional[HumanReviewRequest] = None

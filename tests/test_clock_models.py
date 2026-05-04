@@ -38,11 +38,12 @@ class TestImputeClockData:
         required = ["cg001", "cg002"]
         dnam = pd.DataFrame({"cg001": [0.5]}, index=["S1"])
         default_imp = pd.DataFrame(
-            {"cg001": [0.1], "cg002": [0.2]}, index=["ref"],
+            {"cg001": [0.1], "cg002": [0.2]},
+            index=["ref"],
         )
         user_imp = pd.DataFrame(
-            {"cg001": [0.9], "cg002": [0.8]}, index=["ref"],
+            {"cg001": [0.9], "cg002": [0.8]},
+            index=["ref"],
         )
-        result = _impute_clock_data(required, dnam, default_imp,
-                                     user_imputation=user_imp)
+        result = _impute_clock_data(required, dnam, default_imp, user_imputation=user_imp)
         assert result[0, 1] == pytest.approx(0.8)

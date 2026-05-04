@@ -5,6 +5,7 @@ from ..state.models import QualityControlSubgraphState
 from ..nodes.qc import quality_control_node, quality_control_summarization_node
 from ...utils.helper import get_accession_codes
 
+
 def route_quality_control_execution(state: QualityControlSubgraphState) -> str:
     """
     Determine the next node to route to after the quality control execution node.
@@ -16,8 +17,15 @@ def route_quality_control_execution(state: QualityControlSubgraphState) -> str:
         str: The key of the next node to route to.
     """
     accession_codes = get_accession_codes(state)
-    running_accession_codes = sorted([accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["quality_control"].status in {'running', 'not_started'}])
+    running_accession_codes = sorted(
+        [
+            accession_code
+            for accession_code in accession_codes
+            if state.datasets[accession_code].steps["quality_control"].status in {"running", "not_started"}
+        ]
+    )
     return "quality_control_execution" if running_accession_codes else "quality_control_summarization"
+
 
 def build_quality_control_graph() -> StateGraph:
     """
@@ -40,8 +48,8 @@ def build_quality_control_graph() -> StateGraph:
         {
             "quality_control_execution": "quality_control_execution",
             "quality_control_summarization": "quality_control_summarization",
-        })
+        },
+    )
     g.add_edge("quality_control_summarization", END)
 
     return g
-

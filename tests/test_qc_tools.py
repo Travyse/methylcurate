@@ -8,12 +8,14 @@ import pytest
 class TestQcParamNames:
     def test_handle_sample_level_missingness_param_is_qc_input(self):
         from methylcurate.tools.qc.qc import handle_sample_level_missingness
+
         sig = inspect.signature(handle_sample_level_missingness)
         assert "qc_input" in sig.parameters
         assert "state" not in sig.parameters
 
     def test_handle_sample_level_missingness_param_type_is_not_any(self):
         from methylcurate.tools.qc.qc import handle_sample_level_missingness
+
         sig = inspect.signature(handle_sample_level_missingness)
         annotation = str(sig.parameters["qc_input"].annotation)
         assert "SampleLevelQCInput" in annotation
@@ -21,18 +23,21 @@ class TestQcParamNames:
 
     def test_handle_cpg_level_missingness_param_is_qc_input(self):
         from methylcurate.tools.qc.qc import handle_cpg_level_missingness
+
         sig = inspect.signature(handle_cpg_level_missingness)
         assert "qc_input" in sig.parameters
         assert "state" not in sig.parameters
 
     def test_maximum_dnam_filter_param_is_qc_input(self):
         from methylcurate.tools.qc.qc import maximum_dnam_filter
+
         sig = inspect.signature(maximum_dnam_filter)
         assert "qc_input" in sig.parameters
         assert "state" not in sig.parameters
 
     def test_interarray_correlation_param_is_qc_input(self):
         from methylcurate.tools.qc.qc import interarray_correlation
+
         sig = inspect.signature(interarray_correlation)
         assert "qc_input" in sig.parameters
         assert "state" not in sig.parameters
@@ -77,6 +82,7 @@ class TestQcWorkflowContractImports:
     def test_run_all_qc_imports_from_contracts_qc_not_preprocess(self):
         """Verify the workflow module imports from contracts.qc (not contracts.preprocess)."""
         import methylcurate.tools.qc.workflow as mod
+
         source = inspect.getsource(mod)
         assert "contracts.qc" in source
         assert "contracts.preprocess" not in source

@@ -20,13 +20,9 @@ class TestGetCustomModelsReturnsFourTuple:
         type(fake_input).accession_code = "GSE00000"
         type(fake_input).artifact = None
 
-        with patch(
-            "methylcurate.tools.geo.metadata_column_extraction.build_dynamic_result_model"
-        ) as mock_build:
+        with patch("methylcurate.tools.geo.metadata_column_extraction.build_dynamic_result_model") as mock_build:
             mock_build.return_value = (MagicMock(), MagicMock(), MagicMock())
-            with patch(
-                "methylcurate.tools.geo.metadata_column_extraction.get_args"
-            ) as mock_args:
+            with patch("methylcurate.tools.geo.metadata_column_extraction.get_args") as mock_args:
                 mock_args.return_value = ["age", "sex", "tissue", "disease_status"]
                 result = _get_custom_models(fake_input)
                 assert len(result) == 4
@@ -35,4 +31,5 @@ class TestGetCustomModelsReturnsFourTuple:
 class TestExtractAllColumnsIsAsync:
     def test_extract_all_columns_is_async(self):
         from methylcurate.tools.geo.metadata_column_extraction import _extract_all_columns
+
         assert inspect.iscoroutinefunction(_extract_all_columns)

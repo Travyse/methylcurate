@@ -2,6 +2,7 @@ from langgraph.graph import StateGraph, START, END
 from ..state.models import MainState
 from ..nodes.router import router_node, clarify_router_node
 
+
 def route_after_router(state: MainState):
     """
     Determine the next node to route to after the router node.
@@ -16,6 +17,7 @@ def route_after_router(state: MainState):
         return "clarify"
     return "done"
 
+
 def finalize_route(state: MainState):
     """
     Finalize the routing process.
@@ -29,6 +31,7 @@ def finalize_route(state: MainState):
     # optional: normalize fields for the runner
     # ensure routed_subgraph + routed_params are set
     return state
+
 
 def build_main_graph() -> StateGraph:
     """

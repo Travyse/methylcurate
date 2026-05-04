@@ -2,6 +2,7 @@ __all__ = ["setup_logger"]
 import os
 import logging
 
+
 def setup_logger(log_path, log_name, file_name):
     """
     Sets up a logger with the specified log path, log name, and file name.
@@ -20,7 +21,7 @@ def setup_logger(log_path, log_name, file_name):
         os.makedirs(log_path)
     file_handler = logging.FileHandler(os.path.join(log_path, file_name))
     file_handler.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     file_handler.setFormatter(formatter)
     if not logger.handlers:
         logger.addHandler(file_handler)

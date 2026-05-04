@@ -33,6 +33,7 @@ def openai_chunk(run_id: str, content: str) -> dict:
         ],
     }
 
+
 @dataclass(frozen=True)
 class CLIConfig:
     checkpoints_db: str
@@ -89,6 +90,7 @@ def parse_args() -> CLIConfig:
         params=_parse_kv_params(ns.param),
     )
 
+
 # ----------------------------
 # CLI runner
 # ----------------------------
@@ -118,14 +120,13 @@ async def chat_loop(cfg: CLIConfig):
 
             if session.main_state is None:
                 from .agent.state.models import MainState
-                session.main_state = make_main_state(
-                    run_id=run_id,
-                    default_output_root=cfg.default_output_root)
+
+                session.main_state = make_main_state(run_id=run_id, default_output_root=cfg.default_output_root)
 
             if session.task and not session.task.done():
                 print("[busy]")
                 continue
-            
+
             async def run():
                 try:
                     if session.pending_interrupt is not None:
@@ -199,11 +200,7 @@ async def chat_loop(cfg: CLIConfig):
                 # Stream intermediate text events
                 text = None
                 if isinstance(ev.payload, dict):
-                    text = (
-                        ev.payload.get("text")
-                        or ev.payload.get("message")
-                        or ev.payload.get("content")
-                    )
+                    text = ev.payload.get("text") or ev.payload.get("message") or ev.payload.get("content")
                 if text:
                     chunk = openai_chunk(run_id, text)
                     print(chunk["choices"][0]["delta"]["content"], end="", flush=True)
@@ -215,4 +212,4 @@ async def chat_loop(cfg: CLIConfig):
 if __name__ == "__main__":
     cfg = parse_args()
     asyncio.run(chat_loop(cfg))
-    #python -m agentic_ai_aging_clock_helper.agentic_ai_aging_clock_helper --default-output-root "/Users/travyse/Documents/Research/Agentic-AI/dev-testing"
+    # python -m agentic_ai_aging_clock_helper.agentic_ai_aging_clock_helper --default-output-root "/Users/travyse/Documents/Research/Agentic-AI/dev-testing"

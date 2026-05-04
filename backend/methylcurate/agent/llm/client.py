@@ -15,6 +15,7 @@ T = TypeVar("T", bound=BaseModel)
 
 Provider = Literal["openai", "azure_openai", "anthropic", "ollama"]
 
+
 @dataclass
 class LLMConfig:
     """
@@ -39,6 +40,7 @@ class LLMConfig:
         reasoning (Optional[bool]): Enable reasoning.
         streaming (bool): Enable streaming.
     """
+
     provider: Provider
     model: str
 
@@ -138,12 +140,16 @@ class LLMClient:
             deployment = cfg.azure_deployment or os.getenv("AZURE_OPENAI_DEPLOYMENT")
             api_version = cfg.azure_api_version or os.getenv("AZURE_OPENAI_API_VERSION")
 
-            missing = [k for k, v in {
-                "AZURE_OPENAI_API_KEY": api_key,
-                "AZURE_OPENAI_ENDPOINT": endpoint,
-                "AZURE_OPENAI_DEPLOYMENT": deployment,
-                "AZURE_OPENAI_API_VERSION": api_version,
-            }.items() if not v]
+            missing = [
+                k
+                for k, v in {
+                    "AZURE_OPENAI_API_KEY": api_key,
+                    "AZURE_OPENAI_ENDPOINT": endpoint,
+                    "AZURE_OPENAI_DEPLOYMENT": deployment,
+                    "AZURE_OPENAI_API_VERSION": api_version,
+                }.items()
+                if not v
+            ]
             if missing:
                 raise ValueError(f"Azure OpenAI config missing: {', '.join(missing)}")
 
@@ -174,11 +180,7 @@ class LLMClient:
 
         if cfg.provider == "ollama":
             kwargs: Dict[str, Any] = dict(
-                model=cfg.model,
-                temperature=cfg.temperature,
-                top_k=cfg.top_k,
-                top_p=cfg.top_p,
-                seed=42
+                model=cfg.model, temperature=cfg.temperature, top_k=cfg.top_k, top_p=cfg.top_p, seed=42
             )
             if cfg.ollama_base_url:
                 kwargs["base_url"] = cfg.ollama_base_url
@@ -197,7 +199,7 @@ class LLMClient:
 
         Args:
             prompt (str): The input prompt.
-        
+
         Returns:
             str: The full response text.
         """
@@ -308,7 +310,7 @@ class LLMClient:
 
         Args:
             content (Any): The raw content from the LLM response.
-        
+
         Returns:
             str: The normalized text content.
         """

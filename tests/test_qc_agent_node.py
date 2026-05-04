@@ -14,6 +14,4 @@ def test_qc_agent_node_imports_resolve_or_fail_on_known_deps():
         assert "quality_control_node" in dir(module)
     except ModuleNotFoundError as e:
         tb = traceback.format_exc()
-        assert "preprocess" not in tb, (
-            f"Import references non-existent 'preprocess' module:\n{tb}"
-        )
+        assert "preprocess" not in tb, f"Import references non-existent 'preprocess' module:\n{tb}"

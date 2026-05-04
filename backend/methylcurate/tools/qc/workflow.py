@@ -5,21 +5,33 @@ import pandas as pd
 from datetime import datetime, timezone
 from typing import Dict, Any
 from .data_type_conversion import convert_data_type
-from .qc import handle_cpg_level_missingness, handle_sample_level_missingness, maximum_dnam_filter, interarray_correlation
-from ...contracts.qc import PreprocessDataInput, DNAmQCInput, CpGLevelQCInput, SampleLevelQCInput, InterarrayCorrelationQCInput
+from .qc import (
+    handle_cpg_level_missingness,
+    handle_sample_level_missingness,
+    maximum_dnam_filter,
+    interarray_correlation,
+)
+from ...contracts.qc import (
+    PreprocessDataInput,
+    DNAmQCInput,
+    CpGLevelQCInput,
+    SampleLevelQCInput,
+    InterarrayCorrelationQCInput,
+)
 from ...contracts.common import ArtifactRef
 from ...utils.helper import compute_sha256, read_feather, write_feather
 
+
 def run_all_qc(
-        accession_code: str,
-        data_path: str = None,
-        processed_path: str = None,
-        data_conversion_input: PreprocessDataInput = None,
-        sample_level_qc_input: SampleLevelQCInput = None,
-        cpg_level_qc_input: CpGLevelQCInput = None,
-        dnam_qc_input: DNAmQCInput = None,
-        interarray_correlation_qc_input: InterarrayCorrelationQCInput = None,
-        logger: Any = None
+    accession_code: str,
+    data_path: str = None,
+    processed_path: str = None,
+    data_conversion_input: PreprocessDataInput = None,
+    sample_level_qc_input: SampleLevelQCInput = None,
+    cpg_level_qc_input: CpGLevelQCInput = None,
+    dnam_qc_input: DNAmQCInput = None,
+    interarray_correlation_qc_input: InterarrayCorrelationQCInput = None,
+    logger: Any = None,
 ) -> Dict[str, Any]:
     """Run the full quality-control pipeline on a single methylation dataset.
 
@@ -81,13 +93,16 @@ def run_all_qc(
 
     write_feather(data_df, processed_path, index_name="subject_id")
     artifacts = [
-        ArtifactRef.model_validate({
-            "accession_code": accession_code,
-            "path": processed_path,
-            "kind": "postqc_methylation_data",
-            "sha256": compute_sha256(processed_path, is_path=True),
-            "bytes": os.path.getsize(processed_path),
-            "created_at": datetime.now(timezone.utc).isoformat()})
+        ArtifactRef.model_validate(
+            {
+                "accession_code": accession_code,
+                "path": processed_path,
+                "kind": "postqc_methylation_data",
+                "sha256": compute_sha256(processed_path, is_path=True),
+                "bytes": os.path.getsize(processed_path),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
     ]
     return {
         "data_conversion_result": data_conversion_result,
@@ -95,5 +110,5 @@ def run_all_qc(
         "cpg_level_qc_result": cpg_level_qc_result,
         "dnam_qc_result": dnam_qc_result,
         "interarray_correlation_qc_result": interarray_correlation_qc_result,
-        "artifacts": artifacts
+        "artifacts": artifacts,
     }

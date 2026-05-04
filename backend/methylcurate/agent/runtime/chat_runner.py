@@ -15,22 +15,24 @@ from ..graphs.deps import Deps
 MAIN_RECURSION_LIMIT = 500
 SUBGRAPH_RECURSION_LIMIT = 10000
 
+
 def _get_attr_or_key(obj, key, default_value=[]):
     if isinstance(obj, dict):
         return obj.get(key, default_value)
     return getattr(obj, key, None)
+
 
 def _get_artifacts(obj) -> list:
     if obj is None:
         return []
     if isinstance(obj, dict):
         if "config" in obj:
-            return list(
-                _get_attr_or_key(obj["config"], "artifacts", default_value=[]))
+            return list(_get_attr_or_key(obj["config"], "artifacts", default_value=[]))
         return list(obj.get("artifacts", []) or [])
     if hasattr(obj, "config"):
         return list(_get_attr_or_key(obj.config, "artifacts", default_value=[]))
     return list(getattr(obj, "artifacts", []) or [])
+
 
 def _artifact_key(a) -> str:
     # choose ONE stable key
@@ -38,14 +40,11 @@ def _artifact_key(a) -> str:
         return a.get("path") or a.get("name") or str(a)
     return getattr(a, "path", None) or getattr(a, "name", None) or str(a)
 
+
 def node_from_event(ev: dict) -> str | None:
     md = ev.get("metadata") or {}
-    return (
-        md.get("langgraph_node")
-        or md.get("node")
-        or ev.get("name")
-        or (ev.get("data") or {}).get("node")
-    )
+    return md.get("langgraph_node") or md.get("node") or ev.get("name") or (ev.get("data") or {}).get("node")
+
 
 @dataclass
 class StreamEvent:
@@ -72,7 +71,7 @@ class StreamingRunner:
             raise RuntimeError(
                 "Compiled main graph does not expose astream_events(); pin a LangGraph version that does."
             )
-    
+
     async def _update_main_state_messages(self, thread_id: str, new_messages: list):
         cfg = self._cfg(thread_id)
 
@@ -98,7 +97,7 @@ class StreamingRunner:
             return
 
         raise RuntimeError("Main graph does not support update_state/aupdate_state; cannot persist artifacts safely.")
-    
+
     async def _persist_main_artifacts(self, thread_id: str, merged: list):
         cfg = self._cfg(thread_id)
 
@@ -186,7 +185,7 @@ class StreamingRunner:
             return intr
 
         return None
-    
+
     def is_interrupt_event(self, ev: Any) -> bool:
         return self._extract_interrupt(ev) is not None
 
@@ -195,8 +194,10 @@ class StreamingRunner:
         if intr is None:
             return {"raw": str(ev)}
         return intr if isinstance(intr, dict) else {"value": intr}
-    
-    async def _load_or_create_sub_state(self, subgraph: Any, subgraph_name: str, run_id: str, thread_id: str, params: Dict[str, Any]):
+
+    async def _load_or_create_sub_state(
+        self, subgraph: Any, subgraph_name: str, run_id: str, thread_id: str, params: Dict[str, Any]
+    ):
         # Load from checkpoint if supported
         sub_state = None
         try:
@@ -213,7 +214,7 @@ class StreamingRunner:
             sub_state.config.accessions = sorted(list(set(sub_state.config.accessions)))
         except ValidationError as e:
             sub_state = make_subgraph_state(subgraph_name, run_id=run_id, params=params)
-        
+
         artifacts = params.get("artifacts", [])
         if len(sub_state.config.artifacts) > 0:
             artifacts = consolidate_artifacts(artifacts, sub_state.config.artifacts)
@@ -222,10 +223,12 @@ class StreamingRunner:
         # Populate datasets upon loading if not present
         for dataset in params.get("datasets", []):
             if dataset not in sub_state.datasets.keys():
-                sub_state.datasets[dataset] = DatasetQualityControlState.model_validate({
-                    "accession": dataset,
-                    "output_dir": os.path.join(params["output_root"], dataset),
-                })
+                sub_state.datasets[dataset] = DatasetQualityControlState.model_validate(
+                    {
+                        "accession": dataset,
+                        "output_dir": os.path.join(params["output_root"], dataset),
+                    }
+                )
         return sub_state
 
     # ----------------------------
@@ -248,40 +251,40 @@ class StreamingRunner:
 
     def _populate_main_datasets(self, artifacts: List[Any]) -> Dict[str, Any]:
         accession_codes = sorted(set(a.accession_code for a in artifacts if hasattr(a, "accession_code")))
-        step_statuses = { accession_code: {} for accession_code in accession_codes }
+        step_statuses = {accession_code: {} for accession_code in accession_codes}
         all_geo_completed = [a for a in artifacts if a.kind == "preqc_methylation_data"]
         for a in all_geo_completed:
             accession_code = a.accession_code
-            step_statuses[accession_code]['geo_retrieval'] = {
-                'status': 'completed',
-                'started_at': None,
-                'finished_at': None,
-                'error': None,
-                'warnings': []
+            step_statuses[accession_code]["geo_retrieval"] = {
+                "status": "completed",
+                "started_at": None,
+                "finished_at": None,
+                "error": None,
+                "warnings": [],
             }
         all_qc_completed = [a for a in artifacts if a.kind == "postqc_methylation_data"]
         for a in all_qc_completed:
             accession_code = a.accession_code
-            step_statuses[accession_code]['quality_control'] = {
-                'status': 'completed',
-                'started_at': None,
-                'finished_at': None,
-                'error': None,
-                'warnings': []
+            step_statuses[accession_code]["quality_control"] = {
+                "status": "completed",
+                "started_at": None,
+                "finished_at": None,
+                "error": None,
+                "warnings": [],
             }
-        
+
         all_benchmarking_completed = [a for a in artifacts if a.kind == "benchmark_summary"]
         for a in all_benchmarking_completed:
             accession_code = a.accession_code
-            step_statuses[accession_code]['benchmarking'] = {
-                'status': 'completed',
-                'started_at': None,
-                'finished_at': None,
-                'error': None,
-                'warnings': []
+            step_statuses[accession_code]["benchmarking"] = {
+                "status": "completed",
+                "started_at": None,
+                "finished_at": None,
+                "error": None,
+                "warnings": [],
             }
         return step_statuses
-    
+
     # ----------------------------
     # Run main then subgraph (stream)
     # ----------------------------
@@ -292,7 +295,7 @@ class StreamingRunner:
         main_state: Any,
         user_text: str,
         queue: asyncio.Queue,
-        session,    
+        session,
     ) -> None:
         """
         Runs main routing (stream), then the selected subgraph (stream).
@@ -337,7 +340,9 @@ class StreamingRunner:
         pending = main_out.get("pending_reviews")
         if pending is not None:
             payload = {
-                "prompt": getattr(pending, "question", None) or pending.get("question") or "I need your input to continue.",
+                "prompt": getattr(pending, "question", None)
+                or pending.get("question")
+                or "I need your input to continue.",
                 "context": getattr(pending, "payload", None) or pending.get("payload") or {},
                 "reason": getattr(pending, "reason", None) or pending.get("reason"),
                 "review_id": getattr(pending, "review_id", None) or pending.get("review_id"),
@@ -348,12 +353,12 @@ class StreamingRunner:
                 pass
             await queue.put(StreamEvent("interrupt", {"thread_id": main_thread, "payload": payload}))
             return
-        
+
         main_datasets = main_out.get("datasets", {})
         if not main_datasets:
             main_datasets = self._populate_main_datasets(main_out.get("artifacts"))
         self._persist_main_dataset_statuses(main_thread, main_datasets)
-        
+
         routing_history = main_out.get("routing_history") or []
         if not routing_history:
             await queue.put(StreamEvent("final", {"message": "No routing decision found."}))
@@ -362,9 +367,11 @@ class StreamingRunner:
         router_out = routing_history[-1]
         if getattr(router_out, "needs_clarification", False):
             # should already be caught by pending_reviews, but belt+suspenders
-            await queue.put(StreamEvent("interrupt", {"thread_id": main_thread, "payload": {"prompt": "I need one more detail."}}))
+            await queue.put(
+                StreamEvent("interrupt", {"thread_id": main_thread, "payload": {"prompt": "I need one more detail."}})
+            )
             return
-        
+
         router_dict = router_out.model_dump()
         subgraph_name = router_dict.get("subgraph")
         params = dict(router_dict.get("params") or {})
@@ -375,7 +382,9 @@ class StreamingRunner:
         params["artifacts"] = list((checkpointed or {}).get("artifacts", []) or [])
         out_artifacts = main_out.get("artifacts", [])
         out_config_artifacts = main_out.get("config", {}).get("artifacts", [])
-        params["datasets"] = checkpointed.get("datasets", {}) if checkpointed.get("datasets", {}) else main_out.get("datasets", [])
+        params["datasets"] = (
+            checkpointed.get("datasets", {}) if checkpointed.get("datasets", {}) else main_out.get("datasets", [])
+        )
 
         if not subgraph_name:
             await queue.put(StreamEvent("final", {"message": getattr(main_out, "next_action_hint", "Ready.")}))
@@ -390,14 +399,12 @@ class StreamingRunner:
         await queue.put(StreamEvent("status", {"stage": "subgraph", "name": subgraph_name}))
 
         sub_state = await self._load_or_create_sub_state(
-            subgraph=subgraph,
-            subgraph_name=subgraph_name,
-            run_id=run_id,
-            thread_id=sub_thread,
-            params=params
+            subgraph=subgraph, subgraph_name=subgraph_name, run_id=run_id, thread_id=sub_thread, params=params
         )
 
-        sub_state.messages.append(main_out["messages"][-1])  # pass last main message to subgraph state for context; adjust as needed
+        sub_state.messages.append(
+            main_out["messages"][-1]
+        )  # pass last main message to subgraph state for context; adjust as needed
 
         async for ev in subgraph.astream_events(
             sub_state,
@@ -406,28 +413,31 @@ class StreamingRunner:
         ):
             await queue.put(StreamEvent("event", {"thread_id": sub_thread, "raw": ev}))
             if isinstance(ev.get("data", {}).get("output", {}), Command):
-
                 if ev["data"]["output"] and ev["data"]["output"].update:
                     if "main_messages" in ev["data"]["output"].update:
                         node_name = node_from_event(ev)
-                        msg = [x.model_dump() for x in ev['data']['output'].update['main_messages']]
+                        msg = [x.model_dump() for x in ev["data"]["output"].update["main_messages"]]
                         # 1) persist to main thread
                         await self.main_graph.aupdate_state(self._cfg(main_thread), values={"messages": msg})
 
                         # 2) notify frontend (SSE)
-                        await queue.put(StreamEvent(
-                            "messages",
-                            {
-                                "messages": [{
-                                    "id": msg[0]["id"],
-                                    "type": "tool",
-                                    "name": msg[0]["additional_kwargs"]["name"],
-                                    "tool_call_id": msg[0]["tool_call_id"],
-                                    "content": msg[0]["content"],
-                                    "artifact": msg[0]["artifact"],
-                                }]
-                            }
-                        ))
+                        await queue.put(
+                            StreamEvent(
+                                "messages",
+                                {
+                                    "messages": [
+                                        {
+                                            "id": msg[0]["id"],
+                                            "type": "tool",
+                                            "name": msg[0]["additional_kwargs"]["name"],
+                                            "tool_call_id": msg[0]["tool_call_id"],
+                                            "content": msg[0]["content"],
+                                            "artifact": msg[0]["artifact"],
+                                        }
+                                    ]
+                                },
+                            )
+                        )
 
             if self.is_interrupt_event(ev):
                 payload = self.interrupt_payload(ev)
@@ -440,7 +450,9 @@ class StreamingRunner:
 
         sub_out = await self._get_state_if_supported(subgraph, sub_thread)
         if sub_out is None:
-            sub_out = await asyncio.to_thread(subgraph.invoke, sub_state, self._cfg(sub_thread, recursion_limit=SUBGRAPH_RECURSION_LIMIT))
+            sub_out = await asyncio.to_thread(
+                subgraph.invoke, sub_state, self._cfg(sub_thread, recursion_limit=SUBGRAPH_RECURSION_LIMIT)
+            )
 
         sub_artifacts = _get_artifacts(sub_out)
         main_artifacts = _get_artifacts(main_out)
@@ -454,37 +466,37 @@ class StreamingRunner:
                 merged.append(a)
                 seen.add(k)
 
-        
         await self._persist_main_artifacts(main_thread, merged)
         snap = await self.main_graph.aget_state(self._cfg(main_thread))
         vals = getattr(snap, "values", snap)
 
-
-        last = sub_out['messages'][-1] if sub_out.get('messages') else None
+        last = sub_out["messages"][-1] if sub_out.get("messages") else None
         if isinstance(last, ToolMessage):
             await self._update_main_state_messages(main_thread, [last])
             artifact = getattr(last, "artifact", None)
             name = (last.additional_kwargs or {}).get("name") or "geoDatasetSummary"
 
-
-            await queue.put(StreamEvent(
-                "messages",
-                {
-                    "messages": [{
-                        "id": last.id,
-                        "type": "tool",
-                        "name": name,
-                        "tool_call_id": last.tool_call_id,
-                        "content": last.content,
-                        "artifact": artifact,
-                    }]
-                }
-            ))
+            await queue.put(
+                StreamEvent(
+                    "messages",
+                    {
+                        "messages": [
+                            {
+                                "id": last.id,
+                                "type": "tool",
+                                "name": name,
+                                "tool_call_id": last.tool_call_id,
+                                "content": last.content,
+                                "artifact": artifact,
+                            }
+                        ]
+                    },
+                )
+            )
             await queue.put(StreamEvent("final", {"message": ""}))
         else:
             await queue.put(
-                StreamEvent("final", {
-                    "message": getattr(sub_out, "next_action_hint", f"{subgraph_name} completed.")})
+                StreamEvent("final", {"message": getattr(sub_out, "next_action_hint", f"{subgraph_name} completed.")})
             )
 
     # ----------------------------
@@ -496,7 +508,7 @@ class StreamingRunner:
         thread_id: str,
         payload: Any,
         queue: asyncio.Queue,
-        session,    
+        session,
     ) -> None:
         """
         Resume from an interrupt by passing Command(resume=payload).
@@ -518,7 +530,10 @@ class StreamingRunner:
         cmd = Command(resume=payload)
         async for ev in graph.astream_events(
             cmd,
-            config=self._cfg(thread_id, recursion_limit=MAIN_RECURSION_LIMIT if thread_id.endswith(":main") else SUBGRAPH_RECURSION_LIMIT),
+            config=self._cfg(
+                thread_id,
+                recursion_limit=MAIN_RECURSION_LIMIT if thread_id.endswith(":main") else SUBGRAPH_RECURSION_LIMIT,
+            ),
             version="v2",
         ):
             await queue.put(StreamEvent("event", {"thread_id": thread_id, "raw": ev}))
@@ -526,25 +541,31 @@ class StreamingRunner:
                 if ev["data"]["output"] and ev["data"]["output"].update:
                     if "main_messages" in ev["data"]["output"].update:
                         node_name = node_from_event(ev)
-                        msg = [x.model_dump() for x in ev['data']['output'].update['main_messages']]
+                        msg = [x.model_dump() for x in ev["data"]["output"].update["main_messages"]]
                         # 1) persist to main thread
-                        await self.main_graph.aupdate_state(self._cfg(f"{thread_id.split(':',1)[0]}:main"), values={"messages": msg})
+                        await self.main_graph.aupdate_state(
+                            self._cfg(f"{thread_id.split(':', 1)[0]}:main"), values={"messages": msg}
+                        )
 
                         # 2) notify frontend (SSE)
-                        await queue.put(StreamEvent(
-                            "messages",
-                            {
-                                "messages": [{
-                                    "id": msg[0]["id"],
-                                    "type": "tool",
-                                    "name": msg[0]["additional_kwargs"]["name"],
-                                    "tool_call_id": msg[0]["tool_call_id"],
-                                    "content": msg[0]["content"],
-                                    "artifact": msg[0]["artifact"],
-                                }]
-                            }
-                        ))
-                    
+                        await queue.put(
+                            StreamEvent(
+                                "messages",
+                                {
+                                    "messages": [
+                                        {
+                                            "id": msg[0]["id"],
+                                            "type": "tool",
+                                            "name": msg[0]["additional_kwargs"]["name"],
+                                            "tool_call_id": msg[0]["tool_call_id"],
+                                            "content": msg[0]["content"],
+                                            "artifact": msg[0]["artifact"],
+                                        }
+                                    ]
+                                },
+                            )
+                        )
+
             if self.is_interrupt_event(ev):
                 payload = self.interrupt_payload(ev)
                 try:
@@ -553,7 +574,7 @@ class StreamingRunner:
                     pass
                 await queue.put(StreamEvent("interrupt", {"thread_id": thread_id, "payload": payload}))
                 return
-        
+
         main_thread = f"{raw_id}:main"
         main_out = await self._get_state_if_supported(self.main_graph, main_thread)
 

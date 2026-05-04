@@ -18,6 +18,7 @@ def mock_gse():
 class TestCacheMethylationData:
     def test_returns_dataframe(self, mock_gse):
         from methylcurate.tools.geo.download_softfile import _cache_methylation_data
+
         with tempfile.TemporaryDirectory() as tmpdir:
             result = _cache_methylation_data(mock_gse, output_dir=tmpdir)
             assert isinstance(result, pd.DataFrame)
@@ -26,6 +27,7 @@ class TestCacheMethylationData:
 class TestDownloadReturnType:
     def test_return_type_is_artifactref_not_path(self):
         from methylcurate.tools.geo.download_softfile import download
+
         sig = inspect.signature(download)
         annotation_str = str(sig.return_annotation)
         assert "ArtifactRef" in annotation_str
@@ -35,6 +37,7 @@ class TestDownloadReturnType:
 class TestParallelDownloadsReturnType:
     def test_return_type_is_dict_of_list_artifactref(self):
         from methylcurate.tools.geo.download_softfile import parallel_downloads
+
         sig = inspect.signature(parallel_downloads)
         annotation = str(sig.return_annotation)
         assert "ArtifactRef" in annotation
@@ -54,8 +57,7 @@ class TestDownloadGeoDatasetErrorHandling:
     @patch("methylcurate.tools.geo.download_softfile.json.dump")
     @patch("methylcurate.tools.geo.download_softfile.write_feather")
     def test_error_msg_initialized_when_all_retries_fail(
-        self, mock_wf, mock_jd, mock_cs, mock_cmd, mock_cm,
-        mock_geoparse, mock_exists, mock_listdir, mock_makedirs
+        self, mock_wf, mock_jd, mock_cs, mock_cmd, mock_cm, mock_geoparse, mock_exists, mock_listdir, mock_makedirs
     ):
         from methylcurate.tools.geo.download_softfile import _download_geo_dataset
 
@@ -74,6 +76,7 @@ class TestDownloadGeoDatasetErrorHandling:
 class TestDeadCodeRemoved:
     def test_download_function_has_no_duplicate_cache_check(self):
         from methylcurate.tools.geo.download_softfile import download
+
         source = inspect.getsource(download)
         lines = [l for l in source.split("\n") if "if os.path.exists(cache_download_path)" in l]
         assert len(lines) <= 1, f"Found {len(lines)} duplicate cache checks"
