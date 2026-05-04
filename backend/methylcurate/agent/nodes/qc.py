@@ -14,7 +14,6 @@ from ...utils.helper import (
     get_accession_codes, consolidate_artifacts, update_small_progress_tracker, load_metadata_aligned_methylation_data,
     read_feather, qc_progress)
 from ..state.models import QualityControlSubgraphState, DatasetQualityControlState
-from ..policies.validations.qc import qc_verification
 from ...tools.qc.workflow import run_all_qc
 from langchain_core.messages import ToolMessage
 from ...tools.qc.data_type_conversion import detect_data_type

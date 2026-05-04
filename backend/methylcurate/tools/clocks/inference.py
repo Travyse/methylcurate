@@ -563,3 +563,8 @@ def make_internal_clock_predictions(df, clocks, metadata_cols=None, imputer_stra
     else:
         res = results[0]
     return res
+
+
+def merge_and_process_computation_dfs(dfs):
+    return pd.concat(dfs, ignore_index=True)
+

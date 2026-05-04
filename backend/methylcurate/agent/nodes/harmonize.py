@@ -13,7 +13,6 @@ from typing import Dict, Any, List, Optional
 
 from ...contracts.common import ArtifactRef
 from ...contracts.harmonize import LabelMappingSet
-from ..policies.validations.harmonization import harmonization_verification
 from ..state.models import HarmonizationIngestionConfig, HarmonizationSubgraphState
 from ...tools.harmonize import (
     _harmonize_ontology_labels, _harmonize_ontology_group_labels, _harmonize_sex_labels,
