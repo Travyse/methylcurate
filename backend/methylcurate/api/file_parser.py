@@ -58,7 +58,7 @@ def _extract_accessions_from_files(files_raw: list[dict]) -> list[str]:
                 continue
             break
 
-        columns_lower = [c.lower().strip() for c in df.columns]
+        columns_lower = [c.lower().strip() for c in df.columns]  # type: ignore[union-attr]
         col_idx = None
         for candidate in ACCESSION_COLUMN_CANDIDATES:
             try:
@@ -70,8 +70,8 @@ def _extract_accessions_from_files(files_raw: list[dict]) -> list[str]:
         if col_idx is None:
             continue
 
-        col_name = df.columns[col_idx]
-        for val in df[col_name].dropna().astype(str):
+        col_name = df.columns[col_idx]  # type: ignore[index]
+        for val in df[col_name].dropna().astype(str):  # type: ignore[union-attr]
             if val.strip().upper().startswith("GSE"):
                 accessions.append(val.strip())
 

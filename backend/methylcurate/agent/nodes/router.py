@@ -61,7 +61,7 @@ async def router_node(state: MainState, config: RunnableConfig) -> dict[str, Any
     deps: Deps = config["configurable"]["deps"]
     llm = deps.llm
 
-    return_dict = {"messages": []}
+    return_dict = {"messages": []}  # type: ignore[var-annotated]
 
     router_out = await _get_router_decision(state.messages, llm)
     return_dict["routing_history"] = [router_out]
@@ -82,7 +82,7 @@ async def router_node(state: MainState, config: RunnableConfig) -> dict[str, Any
             payload=router_out.model_dump(),
             created_at=datetime.now(UTC).isoformat(),
         )
-        return_dict["next_action_hint"] = "Awaiting user clarification."
+        return_dict["next_action_hint"] = "Awaiting user clarification."  # type: ignore[index]
         return_dict["messages"].append(
             AIMessage(
                 content=router_out.clarification_question or "I need a bit more information to proceed.",
@@ -119,7 +119,7 @@ async def router_node(state: MainState, config: RunnableConfig) -> dict[str, Any
         return return_dict
 
     # Success
-    return_dict["next_action_hint"] = f"Ready to run {return_dict['routing_history'][-1].subgraph}."
+    return_dict["next_action_hint"] = f"Ready to run {return_dict['routing_history'][-1].subgraph}."  # type: ignore[index]
 
     return return_dict
 

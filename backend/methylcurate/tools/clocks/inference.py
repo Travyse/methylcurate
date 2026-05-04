@@ -16,6 +16,7 @@ __all__ = [
 
 import json
 import os
+from collections.abc import Sequence
 from functools import reduce
 from typing import Any, get_args
 
@@ -168,7 +169,7 @@ def get_all_methylation_aging_clocks(output_dir: str) -> list[MethylationAgingCl
     return sorted(methylation_clocks, key=lambda c: c.clock_name.lower())
 
 
-def compute_age_acceleration(adata: Any, clock_names: list[str]):
+def compute_age_acceleration(adata: Any, clock_names: Sequence[str]):
     """
     Compute age acceleration for the specified clocks in the given AnnData object.
 
@@ -208,7 +209,7 @@ def welch_one_sided_aac_gt_hc(
     control_label: str = "Control",
     group_col: str = "cohort",
     bootstrap_id: int = 1,
-) -> tuple[float, float]:
+) -> tuple[float, float] | tuple[None, None]:
     """
     Two-sample Welch t-test for a single dataset with one-sided alternative:
         H_A: mean(AAC) > mean(HC)
@@ -248,7 +249,7 @@ def welch_one_sided_aac_gt_hc(
 def bootstrap_welch_one_sided_aac_gt_hc(
     prediction_df: pd.DataFrame,
     extraction_protocol: dict[str, Any],
-    clocks: list[str] | None = None,
+    clocks: Sequence[str] | None = None,
     n_bootstraps: int = 1000,
 ) -> pd.DataFrame:
     """
@@ -318,7 +319,9 @@ def bootstrap_welch_one_sided_aac_gt_hc(
                 }
             )
     if not rows:
-        return pd.DataFrame(columns=["Accession_Code", "Disease", "Disease_Group", "Clock", "AA2", "AA2_Empirical_p"])
+        return pd.DataFrame(
+            columns=pd.Index(["Accession_Code", "Disease", "Disease_Group", "Clock", "AA2", "AA2_Empirical_p"])
+        )
     return pd.DataFrame(rows)
 
 
@@ -367,7 +370,7 @@ def one_sample_t_test(
 def bootstrap_aa1_test(
     prediction_df: pd.DataFrame,
     extraction_protocol: dict[str, Any],
-    clocks: list[str] | None = None,
+    clocks: Sequence[str] | None = None,
     n_bootstraps: int = 1000,
 ) -> pd.DataFrame:
     """
@@ -439,7 +442,9 @@ def bootstrap_aa1_test(
                 }
             )
     if not rows:
-        return pd.DataFrame(columns=["Accession_Code", "Disease", "Disease_Group", "Clock", "AA1", "AA1_Empirical_p"])
+        return pd.DataFrame(
+            columns=pd.Index(["Accession_Code", "Disease", "Disease_Group", "Clock", "AA1", "AA1_Empirical_p"])
+        )
     return pd.DataFrame(rows)
 
 
@@ -483,7 +488,7 @@ def _compute_hc_metric(prediction_df, extraction_protocol, clocks, metric_fn, me
 def compute_mae(
     prediction_df: pd.DataFrame,
     extraction_protocol: dict[str, Any],
-    clocks: list[str] | None = None,
+    clocks: Sequence[str] | None = None,
 ) -> pd.DataFrame:
     """Compute the mean absolute error (MAE) for each clock.
 
@@ -509,7 +514,7 @@ def compute_mae(
 def compute_medae(
     prediction_df: pd.DataFrame,
     extraction_protocol: dict[str, Any],
-    clocks: list[str] | None = None,
+    clocks: Sequence[str] | None = None,
 ) -> pd.DataFrame:
     """Compute the median absolute error (MedAE) for each clock.
 
@@ -535,7 +540,7 @@ def compute_medae(
 def compute_pearson_r(
     prediction_df: pd.DataFrame,
     extraction_protocol: dict[str, Any],
-    clocks: list[str] | None = None,
+    clocks: Sequence[str] | None = None,
 ) -> pd.DataFrame:
     """Compute the Pearson correlation for each clock vs chronological age.
 
@@ -573,6 +578,7 @@ def _make_pcbrainage_prediction(df, metadata_cols=None, imputer_strategy="knn"):
     pcbrainage_model = None
     model_path = os.path.join(str(PROJECT_ROOT), "data", "pcbrainage_model.pkl")
     pcbrainage_model = PCBrainAge.load_state(model_path)
+    metadata_cols = metadata_cols or []
     dnam = df[[x for x in df.columns.tolist() if x not in metadata_cols]].copy()
     metadata = df[metadata_cols].copy()
     res = pcbrainage_model.predict(dnam, pheno=metadata, user_imputation=None)
@@ -594,6 +600,7 @@ def _make_corticalage_prediction(df, metadata_cols=None, imputer_strategy="knn")
     corticalage_model = None
     model_path = os.path.join(str(PROJECT_ROOT), "data", "corticalage_model.pkl")
     corticalage_model = CorticalAge.load_state(model_path)
+    metadata_cols = metadata_cols or []
     dnam = df[[x for x in df.columns.tolist() if x not in metadata_cols]].copy()
     metadata = df[metadata_cols].copy()
     res = corticalage_model.predict(dnam, pheno=metadata, user_imputation=None)

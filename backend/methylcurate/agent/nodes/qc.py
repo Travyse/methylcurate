@@ -26,11 +26,11 @@ from ...utils.helper import (
     read_feather,
 )
 from ...utils.logging import setup_logger
-from ..state.models import DatasetQualityControlState, QualityControlSubgraphState
+from ..state.models import QualityControlSubgraphState
 
 
 def _get_data_conversion_input_or_default(
-    accession_code: str, state: DatasetQualityControlState
+    accession_code: str, state: QualityControlSubgraphState
 ) -> PreprocessDataInput:
     """
     Retrieves the data conversion input for the given accession code from the state. If the data conversion input is not present in the state, it attempts to infer the necessary information from the preqc_methylation_data artifact associated with the accession code. It reads the methylation data, detects its type, and constructs a PreprocessDataInput object with the detected type as the from_type and "beta" as the to_type. If the required artifact is missing, it raises a ValueError.
@@ -67,7 +67,7 @@ def _get_data_conversion_input_or_default(
     return PreprocessDataInput(from_type=detected_type, to_type=to_type)
 
 
-def _get_dnam_qc_input_or_default(state: DatasetQualityControlState) -> DNAmQCInput:
+def _get_dnam_qc_input_or_default(state: QualityControlSubgraphState) -> DNAmQCInput:
     """
     Retrieves the DNAm QC input for the given state. If the DNAm QC input is not present in the state, it returns a default DNAmQCInput object with a dnam_cutoff of 0.96.
 
@@ -82,7 +82,7 @@ def _get_dnam_qc_input_or_default(state: DatasetQualityControlState) -> DNAmQCIn
     return DNAmQCInput(dnam_cutoff=0.96)
 
 
-def _get_cpg_level_qc_input_or_default(state: DatasetQualityControlState) -> CpGLevelQCInput:
+def _get_cpg_level_qc_input_or_default(state: QualityControlSubgraphState) -> CpGLevelQCInput:
     """
     Retrieves the CpG level QC input for the given state. If the CpG level QC input is not present in the state, it returns a default CpGLevelQCInput object with a missing_cutoff of 0.2 and an imputation strategy of "whole".
 
@@ -97,7 +97,7 @@ def _get_cpg_level_qc_input_or_default(state: DatasetQualityControlState) -> CpG
     return CpGLevelQCInput(missing_cutoff=0.2, imputation_strategy=ImputationInput(strategy="whole"))
 
 
-def _get_sample_level_qc_input_or_default(state: DatasetQualityControlState) -> SampleLevelQCInput:
+def _get_sample_level_qc_input_or_default(state: QualityControlSubgraphState) -> SampleLevelQCInput:
     """
     Retrieves the sample level QC input for the given state. If the sample level QC input is not present in the state, it returns a default SampleLevelQCInput object with a missing_cutoff of 0.1.
 
@@ -112,7 +112,7 @@ def _get_sample_level_qc_input_or_default(state: DatasetQualityControlState) -> 
     return SampleLevelQCInput(missing_cutoff=0.1)
 
 
-def _get_interarray_correlation_qc_input_or_default(state: DatasetQualityControlState) -> InterarrayCorrelationQCInput:
+def _get_interarray_correlation_qc_input_or_default(state: QualityControlSubgraphState) -> InterarrayCorrelationQCInput:
     """
     Retrieves the interarray correlation QC input for the given state. If the interarray correlation QC input is not present in the state, it returns a default InterarrayCorrelationQCInput object with a correlation_cutoff of 0.9.
 

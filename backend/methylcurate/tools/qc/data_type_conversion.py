@@ -34,7 +34,7 @@ def detect_data_type(data_matrix: pd.DataFrame) -> str:  # TODO Fix the input
         return "m"
 
 
-def _convert_beta_to_m(beta_matrix: np.ndarray, clipping: PreprocessClippingInput = None) -> np.ndarray:
+def _convert_beta_to_m(beta_matrix: np.ndarray, clipping: PreprocessClippingInput | None = None) -> np.ndarray:
     """Convert beta-values to M-values, optionally clipping extreme values first."""
     if clipping is not None:
         lower = clipping.lower_bound if clipping.lower_bound is not None else 0.001

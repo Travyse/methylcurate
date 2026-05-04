@@ -19,7 +19,7 @@ import json
 import os
 import uuid
 from datetime import UTC, datetime
-from typing import Any, get_args
+from typing import Any, cast, get_args
 
 from greenery import parse
 from greenery.rxelems import Pattern
@@ -87,7 +87,7 @@ async def _invoke_llm_with_retry(
     from pydantic import ValidationError
 
     deps = config["configurable"]["deps"]
-    llm = deps.deterministic_llm
+    llm = deps.llm
 
     retries = 0
     resolved = None
@@ -211,7 +211,7 @@ def _get_parse_rate(metadata_summary: dict[str, Any] = None) -> dict[str, float]
     return parse_rates
 
 
-def _get_extraction_resolutions(extraction_result: Any) -> dict[Concept, Any]:
+def _get_extraction_resolutions(extraction_result: Any) -> dict[str, Any]:
     """Extract per-concept ``FieldResolution`` objects from a raw extraction result.
 
     The result may be either a dictionary or an object with attribute access.
@@ -300,7 +300,7 @@ async def _extract_column_for_concept_age(
         left unchanged on failure.
     """
     deps: Deps = config["configurable"]["deps"]
-    deterministic_llm = deps.deterministic_llm
+    llm = deps.llm
     clarification_message = AIMessage(
         id=uuid.uuid4().hex,
         content=generate_missing_age_check_prompt(user_input=user_input),
@@ -311,7 +311,7 @@ async def _extract_column_for_concept_age(
     prompt_messages = messages + [clarification_message]
     FieldResolutionCorrectionDyn = build_dynamic_resolution_correction_model(["age"], resolution_model)
     try:
-        resolved: Any = await deterministic_llm.acall_structured(prompt_messages, FieldResolutionCorrectionDyn)
+        resolved: Any = await llm.acall_structured(prompt_messages, FieldResolutionCorrectionDyn)
         resolutions["age"] = resolved.age
     except ValidationError as e:
         print(f"\n\nValidation error for concept age: {e}. Setting resolution to error with notes.")
@@ -341,7 +341,7 @@ async def _extract_column_for_concept_disease_status(
         ``control_value`` on success, or left unchanged on failure.
     """
     deps: Deps = config["configurable"]["deps"]
-    deterministic_llm = deps.deterministic_llm
+    llm = deps.llm
     if resolutions["disease_status"].extraction.field_name == "default" or not hasattr(
         resolutions["disease_status"].extraction, "key_name"
     ):
@@ -367,7 +367,7 @@ async def _extract_column_for_concept_disease_status(
     while retries < retry_limit:
         try:
             resolved: Any = await asyncio.wait_for(
-                deterministic_llm.acall_structured(call_messages, ControlIdentificationModel), timeout=CALL_TIMEOUT
+                llm.acall_structured(call_messages, ControlIdentificationModel), timeout=CALL_TIMEOUT
             )
             resolutions["disease_status"].extraction.control_value = resolved.control_value
             break
@@ -425,7 +425,7 @@ async def _extract_column_for_concept_misformatted(
     """
     print(f"\n\nMisformatted concepts: {misformatted_concepts}")
     deps: Deps = config["configurable"]["deps"]
-    deterministic_llm = deps.deterministic_llm
+    llm = deps.llm
     new_resolutions = resolutions
     prompt_params = {"misformatted_concepts": ", ".join(sorted([c for c in misformatted_concepts]))}
     prompt_bool_params = {f"is_{c}": True for c in misformatted_concepts}
@@ -451,7 +451,7 @@ async def _extract_column_for_concept_misformatted(
     while retries < retry_limit:
         try:
             resolved: Any = await asyncio.wait_for(
-                deterministic_llm.acall_structured(new_messages, FieldResolutionCorrectionDyn), timeout=CALL_TIMEOUT
+                llm.acall_structured(new_messages, FieldResolutionCorrectionDyn), timeout=CALL_TIMEOUT
             )
             for concept in misformatted_concepts:
                 new_resolutions[concept] = getattr(resolved, concept)
@@ -468,7 +468,7 @@ async def _extract_column_for_concept_misformatted(
                 },
             )
             resolved: Any = await asyncio.wait_for(
-                deterministic_llm.acall_structured(new_messages + [human_message], FieldResolutionCorrectionDyn),
+                llm.acall_structured(new_messages + [human_message], FieldResolutionCorrectionDyn),
                 timeout=CALL_TIMEOUT,
             )
             for concept in misformatted_concepts:
@@ -532,7 +532,7 @@ async def _extract_column_for_concept_poor_parsing(
     """
     print(f"\n\nPoorly parsed concepts: {poorly_parsed_concepts} with parse rates {parse_rates}")
     deps: Deps = config["configurable"]["deps"]
-    deterministic_llm = deps.deterministic_llm
+    llm = deps.llm
     new_resolutions = resolutions
     prompt_params = {"user_input": user_input.model_dump()}
     prompt_bool_params = {f"is_{c}": True for c in poorly_parsed_concepts}
@@ -565,7 +565,7 @@ async def _extract_column_for_concept_poor_parsing(
     while retries < retry_limit:
         try:
             resolved: Any = await asyncio.wait_for(
-                deterministic_llm.acall_structured(new_messages, FieldResolutionCorrectionDyn), timeout=CALL_TIMEOUT
+                llm.acall_structured(new_messages, FieldResolutionCorrectionDyn), timeout=CALL_TIMEOUT
             )
             for concept in poorly_parsed_concepts:
                 new_resolutions[concept] = getattr(resolved, concept)
@@ -582,7 +582,7 @@ async def _extract_column_for_concept_poor_parsing(
                 },
             )
             resolved: Any = await asyncio.wait_for(
-                deterministic_llm.acall_structured(new_messages + [human_message], FieldResolutionCorrectionDyn),
+                llm.acall_structured(new_messages + [human_message], FieldResolutionCorrectionDyn),
                 timeout=CALL_TIMEOUT,
             )
             for concept in poorly_parsed_concepts:
@@ -609,15 +609,15 @@ async def _extract_column_for_concept_with_retry(
     extraction_result: Any,
     count: int = 0,
     retries: int = 2,
-    parse_rates: dict[str, float] = None,
+    parse_rates: dict[str, float] | None = None,
     formatting_only: bool = False,
-    resolutions: dict[str, Any] = None,
-    config: RunnableConfig = None,
-    messages: list[AnyMessage] = None,
-    user_input: GEOMetadataExtractionInput = None,
-    failed_parsing_info: dict[str, Any] = None,
-    parsed_disease_statuses: list[str] = None,
-) -> dict[Concept, Any]:
+    resolutions: dict[str, Any] | None = None,
+    config: RunnableConfig | None = None,
+    messages: list[AnyMessage] | None = None,
+    user_input: GEOMetadataExtractionInput | None = None,
+    failed_parsing_info: dict[str, Any] | None = None,
+    parsed_disease_statuses: list[str] | None = None,
+) -> dict[str, Any]:
     """Orchestrate iterative refinement of extraction resolutions with retries.
 
     This is the main feedback-loop coordinator.  On each call it:
@@ -655,13 +655,14 @@ async def _extract_column_for_concept_with_retry(
     # Construct the message here
     _, resolution_model, resolution_model_envelope, __ = _get_custom_models(user_input)
     resolutions = _get_extraction_resolutions(extraction_result) if resolutions is None else resolutions
-    flagged_concepts, flagged_concept_notes = _check_extraction_patterns(resolutions)
+    flagged_concepts, flagged_concept_notes_raw = _check_extraction_patterns(resolutions)
+    flagged_concept_notes = cast(dict[str, str], flagged_concept_notes_raw)
     for concept in flagged_concepts:
-        resolutions[concept].notes.append(flagged_concept_notes[concept])
+        resolutions[concept].notes.append(flagged_concept_notes[concept])  # type: ignore[index]
         resolutions[concept].units = None if concept != "age" else resolutions[concept].units
     re_run = False
     if (count >= retries) or (len(flagged_concepts) == 0 and formatting_only):
-        return resolutions, re_run
+        return resolutions, re_run  # type: ignore[return-value]
 
     if len(flagged_concepts) > 0:
         print(
@@ -669,7 +670,12 @@ async def _extract_column_for_concept_with_retry(
         )
         # If there are misformatted concept patterns  attempt to return these patterns
         new_resolutions = await _extract_column_for_concept_misformatted(
-            flagged_concepts, messages, config, resolution_model, resolutions, resolution_model_envelope
+            flagged_concepts,
+            messages,
+            config,
+            resolution_model,
+            resolutions,
+            resolution_model_envelope,  # type: ignore[arg-type]
         )
         resolutions.update(new_resolutions)
         new_resolutions, re_run = await _extract_column_for_concept_with_retry(
@@ -719,14 +725,14 @@ async def _extract_column_for_concept_with_retry(
                 resolutions, config, user_input, messages, resolution_model
             )
 
-    return resolutions, re_run
+    return resolutions, re_run  # type: ignore[return-value]
 
 
 async def _extract_all_columns(
     messages: list[AnyMessage],
     config: RunnableConfig,
     result_model: Any,
-) -> GEOMetadataExtractionResult:
+) -> dict[str, Any]:
     """Call the deterministic LLM to extract all metadata columns in one pass.
 
     Uses the provided dynamic result model and retries on timeout, output
@@ -746,7 +752,7 @@ async def _extract_all_columns(
         failure.
     """
     deps: Deps = config["configurable"]["deps"]
-    deterministic_llm = deps.deterministic_llm
+    llm = deps.llm
 
     retry_limit = GLOBAL_RETRY_LIMIT
     retries = 0
@@ -756,7 +762,8 @@ async def _extract_all_columns(
         try:
             resolved: Any = result_model.model_validate(
                 await asyncio.wait_for(
-                    deterministic_llm.acall_structured(call_messages, result_model), timeout=CALL_TIMEOUT
+                    llm.acall_structured(call_messages, result_model),
+                    timeout=CALL_TIMEOUT,  # type: ignore[arg-type]
                 )
             )
             print(f"\n\nInitial extraction result: {resolved}\n\n")
@@ -861,15 +868,15 @@ async def extract_metadata_columns_alt(
     if hasattr(extraction_result, "resolutions"):
         resolutions = extraction_result.resolutions
     else:
-        resolutions = {
+        resolutions = {  # type: ignore[var-annotated]
             key: getattr(extraction_result, key) for key in get_args(Concept) if hasattr(extraction_result, key)
         }
 
-    if all((r.status in ["resolved", "missing"]) and (r.confidence > 0.6) for r in resolutions.values()):
+    if all((r.status in ["resolved", "missing"]) and (r.confidence > 0.6) for r in resolutions.values()):  # type: ignore[union-attr]
         try:
             with open(artifact_path, "w", encoding="utf-8") as f:
                 json.dump(
-                    {concept: resolution.model_dump() for concept, resolution in resolutions.items()},
+                    {concept: resolution.model_dump() for concept, resolution in resolutions.items()},  # type: ignore[union-attr]
                     f,
                     ensure_ascii=False,
                     indent=2,
@@ -909,14 +916,14 @@ async def _extract_column_for_concept(messages: list[AnyMessage], config: Runnab
         when the LLM output fails validation.
     """
     deps: Deps = config["configurable"]["deps"]
-    deterministic_llm = deps.deterministic_llm
+    llm = deps.llm
 
     try:
-        resolved: FieldResolution = FieldResolution.model_validate(
-            await deterministic_llm.acall_structured(messages, FieldResolution)
+        resolved: Any = FieldResolution.model_validate(
+            await llm.acall_structured(messages, FieldResolution)  # type: ignore[arg-type]
         )
     except ValidationError as e:
-        resolved: FieldResolution = FieldResolution(
+        resolved = ErrorResolution(  # type: ignore[assignment]
             units=None,
             extraction=None,
             confidence=0.0,
@@ -985,7 +992,7 @@ async def extract_metadata_columns(
         try:
             with open(artifact_path, "w", encoding="utf-8") as f:
                 json.dump(
-                    {concept: resolution.model_dump() for concept, resolution in resolutions.items()},
+                    {concept: resolution.model_dump() for concept, resolution in resolutions.items()},  # type: ignore[union-attr]
                     f,
                     ensure_ascii=False,
                     indent=2,

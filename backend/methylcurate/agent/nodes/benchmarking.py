@@ -81,7 +81,7 @@ def _get_harmonized_metadata(accession_code: str, artifacts: list[ArtifactRef]) 
 
 def _get_harmonized_full_data_if_available(
     accession_code: str, metadata_df: pd.DataFrame, methylation_df: pd.DataFrame, artifacts: list[ArtifactRef]
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, list[str]]:
     """
     Retrieve harmonized full data for a given accession code if available.
 
@@ -96,7 +96,8 @@ def _get_harmonized_full_data_if_available(
     """
     harmonized_metadata = _get_harmonized_metadata(accession_code, artifacts)
     if harmonized_metadata.empty:
-        return metadata_df.merge(methylation_df, left_index=True, right_index=True)
+        merged = metadata_df.merge(methylation_df, left_index=True, right_index=True)
+        return merged, merged.columns.tolist()
     individual_mapper = {}
     group_mapper = {}
     for _, row in harmonized_metadata.iterrows():
@@ -284,7 +285,7 @@ def benchmarking_node(state: BenchmarkingSubgraphState, config: RunnableConfig) 
             metadata_cols=metadata_columns + methylation_metadata_col,
             imputer_strategy="knn",
         )
-        adata.obs = adata.obs.merge(
+        adata.obs = adata.obs.merge(  # type: ignore[union-attr]
             internal_clock_predictions, on=metadata_columns + methylation_metadata_col, how="left"
         )
     adata = compute_age_acceleration(adata, state.config.clock_list)
@@ -505,6 +506,8 @@ def summarize_benchmarking_results(state: BenchmarkingSubgraphState, config: Run
             (a for a in state.config.artifacts if a.kind == "benchmark_summary" and a.accession_code == accession_code),
             None,
         )
+        if computation_artifact is None:
+            continue
         computation_df = pd.read_csv(computation_artifact.path, index_col=0)
         computation_dfs.append(computation_df)
 

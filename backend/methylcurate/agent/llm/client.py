@@ -9,7 +9,7 @@ from typing import Any, Literal, TypeVar
 from langchain_anthropic import ChatAnthropic
 from langchain_ollama import ChatOllama
 from langchain_openai import AzureChatOpenAI, ChatOpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -157,7 +157,7 @@ class LLMClient:
                 azure_endpoint=endpoint,
                 azure_deployment=deployment,
                 api_version=api_version,
-                api_key=api_key,
+                api_key=SecretStr(api_key) if api_key else None,
                 temperature=cfg.temperature,
                 timeout=cfg.timeout_s,
                 max_retries=cfg.max_retries,
@@ -170,8 +170,8 @@ class LLMClient:
                 raise ValueError("Missing Anthropic API key (ANTHROPIC_API_KEY or config.anthropic_api_key).")
 
             return ChatAnthropic(
-                model=cfg.model,
-                anthropic_api_key=api_key,
+                model_name=cfg.model,
+                api_key=SecretStr(api_key),
                 temperature=cfg.temperature,
                 timeout=cfg.timeout_s,
                 max_retries=cfg.max_retries,

@@ -72,11 +72,11 @@ def handle_cpg_level_missingness(
 
     if qc_input.imputation_strategy.imputation_model.concept == "knn":
         imputer = KNNImputer(
-            n_neighbors=qc_input.imputation_strategy.imputation_model.n_neighbors,
-            weights=qc_input.imputation_strategy.imputation_model.weights,
+            n_neighbors=qc_input.imputation_strategy.imputation_model.n_neighbors,  # type: ignore[union-attr]
+            weights=qc_input.imputation_strategy.imputation_model.weights,  # type: ignore[union-attr]
         )
     else:
-        imputer = SimpleImputer(strategy=qc_input.imputation_strategy.imputation_model.strategy)
+        imputer = SimpleImputer(strategy=qc_input.imputation_strategy.imputation_model.strategy)  # type: ignore[union-attr]
 
     data_df_filtered.loc[:, high_quality_cpgs] = imputer.fit_transform(data_df_filtered[high_quality_cpgs])
     state_result = CpGLevelQCResult.model_validate(

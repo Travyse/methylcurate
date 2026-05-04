@@ -61,17 +61,17 @@ async def extract_sample_metadata(state: GeoIngestionSubgraphState, config: Runn
         ),
         None,
     )
-    with open(metadata_artifact.path, encoding="utf-8") as f:
+    with open(metadata_artifact.path, encoding="utf-8") as f:  # type: ignore[union-attr]
         metadata_dict = json.load(f)
     return_dict = {"config": state.config.model_dump(), "datasets": {accession_code: dataset_state.model_dump()}}
     return_dict = extract_dataset_metadata(
         accession_code,
         state.config,
         metadata_dict,
-        dataset_state.metadata_extraction_result,
+        dataset_state.metadata_extraction_result,  # type: ignore[arg-type]
         True,
-        gpls=[dataset_state.platform_metadata.platform_id],
-        platform=[dataset_state.platform_metadata.title],
+        gpls=[dataset_state.platform_metadata.platform_id],  # type: ignore[union-attr,list-item]
+        platform=[dataset_state.platform_metadata.title],  # type: ignore[union-attr,list-item]
         return_dict=return_dict,
     )
     return_dict["main_messages"] = [update_progress_tracker(state)]
@@ -105,12 +105,12 @@ async def generate_metadata_extraction_summary(
         ),
         None,
     )
-    metadata = pd.read_csv(metadata_artifact.path, index_col=0)
+    metadata = pd.read_csv(metadata_artifact.path, index_col=0)  # type: ignore[union-attr]
     return_dict = generate_summary_data(
         metadata,
         accession_code,
-        [dataset_state.platform_metadata.platform_id],
-        [dataset_state.platform_metadata.title],
+        [dataset_state.platform_metadata.platform_id],  # type: ignore[union-attr,list-item]
+        [dataset_state.platform_metadata.title],  # type: ignore[union-attr,list-item]
         dataset_state.refinement_history.example_errors,
         return_dict,
     )
@@ -260,11 +260,14 @@ async def refine_extracted_columns(state: GeoIngestionSubgraphState, config: Run
         ),
         None,
     )
-    with open(metadata_artifact.path, encoding="utf-8") as f:
+    with open(metadata_artifact.path, encoding="utf-8") as f:  # type: ignore[union-attr]
         metadata_dict = json.load(f)
-    sample_subject_mapping = _create_subject_id_mapping(
-        accession_code, dataset_state.metadata_extraction_input, metadata_dict, methylation_data
-    )
+        sample_subject_mapping = _create_subject_id_mapping(
+            accession_code,
+            dataset_state.metadata_extraction_input,
+            metadata_dict,
+            methylation_data,  # type: ignore[arg-type]
+        )
     mapper_artifact_path = os.path.join(
         os.path.dirname(metadata_artifact.path), f"{metadata_artifact.accession_code}_subject_mapping.json"
     )

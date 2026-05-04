@@ -294,7 +294,9 @@ def _download_geo_dataset(accession: str, output_dir: str):
     )
 
 
-def download_geo_datasets(config: GEOIngestionConfig, batch: GEODownloadBatchInput) -> GEODownloadBatchResult:
+def download_geo_datasets(
+    config: GEOIngestionConfig, batch: GEODownloadBatchInput
+) -> tuple[list[Any], list[Any], GEODownloadBatchResult]:
     """
     Tool-friendly batch downloader:
       - does not assume a single output_dir for all accessions (each input can specify output_root)

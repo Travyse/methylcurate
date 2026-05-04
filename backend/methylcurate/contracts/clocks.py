@@ -32,7 +32,6 @@ MethylationClocks = Literal[
     "systemsageimmune",
     "systemsageinflammation",
     "systemsagekidney",
-    "systemsagekidney",
     "systemsageliver",
     "systemsagelung",
     "systemsagemetabolic",

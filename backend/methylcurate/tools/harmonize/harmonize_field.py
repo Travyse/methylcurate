@@ -175,23 +175,21 @@ async def call_llm_structured_with_retries(messages: list[Any], config: Runnable
 
     Args:
         messages: The message list to send to the LLM.
-        config: A RunnableConfig containing a "deps" key with deterministic_llm.
+        config: A RunnableConfig containing a "deps" key with llm.
         ResultModel: The Pydantic model to parse the structured output into.
 
     Returns:
         The parsed structured output, or None if all retries or validation failed.
     """
     deps: Deps = config["configurable"]["deps"]
-    deterministic_llm = deps.deterministic_llm
+    llm = deps.llm
 
     retry_limit = GLOBAL_RETRY_LIMIT
     retries = 0
     resolved = None
     while retries < retry_limit:
         try:
-            resolved: Any = await asyncio.wait_for(
-                deterministic_llm.acall_structured(messages, ResultModel), timeout=CALL_TIMEOUT
-            )
+            resolved: Any = await asyncio.wait_for(llm.acall_structured(messages, ResultModel), timeout=CALL_TIMEOUT)
             break
         except TimeoutError:
             retries += 1

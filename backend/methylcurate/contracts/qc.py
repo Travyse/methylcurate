@@ -211,3 +211,4 @@ class InterarrayCorrelationQCResult(BaseModel):
     removed_samples: list[NonEmptyStr] = Field(
         default_factory=list, description="List of sample IDs removed during inter-array correlation QC"
     )
+    notes: str | None = Field(default=None, description="Optional notes about the QC process")

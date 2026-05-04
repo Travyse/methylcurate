@@ -191,7 +191,7 @@ def check_downloads_succeeded(state: GeoIngestionSubgraphState, config: Runnable
     return Command(update=return_dict)
 
 
-def _check_is_methylation_dataset(platform_metadata: dict[str, any] | None = None):
+def _check_is_methylation_dataset(platform_metadata: dict[str, Any] | None = None):
     if not platform_metadata:
         return False
     gpl_whitelist = ["GPL29753", "GPL33022", "GPL21145", "GPL18809", "GPL8490"]
@@ -250,7 +250,7 @@ def check_platforms_used(state: GeoIngestionSubgraphState, config: RunnableConfi
     return Command(update=return_dict)
 
 
-def _check_if_data_present(artifacts: list[Any], return_dict: dict[str, Any]) -> bool:
+def _check_if_data_present(artifacts: list[Any], return_dict: dict[str, Any]) -> dict[str, Any]:
     accession_code = list(return_dict["datasets"].keys())[0]
     methylation_data_path = next(
         (a for a in artifacts if a.accession_code == accession_code and a.kind == "preqc_methylation_data"), None
@@ -296,14 +296,15 @@ def _check_if_data_present(artifacts: list[Any], return_dict: dict[str, Any]) ->
                 selections = [
                     s for s in supplementary_files if any(y in s for y in selection["data"]["data"]["selections"])
                 ]
-                artifacts = parallel_downloads(
+                download_results = parallel_downloads(
                     accession_code, selections, return_dict["datasets"][accession_code]["output_dir"]
                 )
                 return_dict["config"]["artifacts"] = consolidate_artifacts(
-                    [ArtifactRef.model_validate(x) for x in return_dict["config"]["artifacts"]], artifacts["artifacts"]
+                    [ArtifactRef.model_validate(x) for x in return_dict["config"]["artifacts"]],
+                    download_results["artifacts"],
                 )
                 return_dict["datasets"][accession_code]["supplementary_data"] = (
-                    {artifact.sha256: "pending" for artifact in artifacts["artifacts"]}
+                    {artifact.sha256: "pending" for artifact in download_results["artifacts"]}
                     if return_dict["datasets"][accession_code].get("supplementary_data", None) is None
                     else return_dict["datasets"][accession_code]["supplementary_data"]
                 )

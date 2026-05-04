@@ -483,7 +483,7 @@ async def _get_column_scheme(
             all retries.
     """
     deps: Deps = config["configurable"]["deps"]
-    deterministic_llm = deps.deterministic_llm
+    llm = deps.llm
     print(
         f"\nGetting column scheme for artifact {artifact.path} with accession code {artifact.accession_code}, attempt {count + 1}"
     )
@@ -526,7 +526,7 @@ async def _get_column_scheme(
     while retries < retry_limit:
         try:
             resolved: Any = await asyncio.wait_for(
-                deterministic_llm.acall_structured(messages, ForcedSampleDataResolution), timeout=CALL_TIMEOUT
+                llm.acall_structured(messages, ForcedSampleDataResolution), timeout=CALL_TIMEOUT
             )
             break
         except TimeoutError:
