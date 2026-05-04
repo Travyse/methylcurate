@@ -342,16 +342,46 @@ Own structured input and output schemas.
 
 Own workflow state requirements and artifact tracking.
 
-## Testing
+## Testing, Linting, and Type Checking
 
 This project uses an existing Mamba environment named `dnam-aging-agentic-ai`.
+All QA commands must use this environment. Do not create a new Conda environment.
 
-Always run tests with:
+### Formatting
 
 ```bash
-mamba run -n dnam-aging-agentic-ai pytest
+mamba run -n dnam-aging-agentic-ai ruff format .
+```
+
+### Linting
+
+```bash
+mamba run -n dnam-aging-agentic-ai ruff check . --fix
+```
+
+### Type Checking
+
+```bash
+mamba run -n dnam-aging-agentic-ai ty check .
+```
+
+### Tests
+
+Tests require `PYTHONPATH=backend` because the package is not pip-installed:
+
+```bash
+mamba run -n dnam-aging-agentic-ai PYTHONPATH=backend pytest
 ```
 
 Do not run plain `pytest`.
 
-Do not create a new Conda environment.
+### All-in-One QA
+
+After every code change, run all checks:
+
+```bash
+mamba run -n dnam-aging-agentic-ai ruff format . && \
+mamba run -n dnam-aging-agentic-ai ruff check . --fix && \
+mamba run -n dnam-aging-agentic-ai ty check . && \
+mamba run -n dnam-aging-agentic-ai PYTHONPATH=backend pytest
+```

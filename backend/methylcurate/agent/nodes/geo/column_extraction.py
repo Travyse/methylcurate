@@ -87,7 +87,7 @@ def _randomly_sample_from_dataset(
     return return_dict
 
 
-async def extract_metadata_schema(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> dict[str, Any]:
+async def extract_metadata_schema(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     if check_step_completion("extract_metadata_schema", state.datasets, accession_codes):
         return Command(
@@ -183,7 +183,7 @@ async def extract_metadata_schema(state: GeoIngestionSubgraphState, *, config: R
 
 
 async def check_column_extraction_rule_formatting(
-    state: GeoIngestionSubgraphState, *, config: RunnableConfig
+    state: GeoIngestionSubgraphState, config: RunnableConfig
 ) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     if check_step_completion("refine_metadata_schema", state.datasets, accession_codes):
@@ -273,7 +273,7 @@ async def check_column_extraction_rule_formatting(
 
 
 async def check_column_extraction_rule_accuracy(
-    state: GeoIngestionSubgraphState, *, config: RunnableConfig
+    state: GeoIngestionSubgraphState, config: RunnableConfig
 ) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     running_accession_codes = sorted(
@@ -403,9 +403,7 @@ async def check_column_extraction_rule_accuracy(
     return Command(update=return_dict)
 
 
-def geo_metadata_column_extraction_approval_node(
-    state: GeoIngestionSubgraphState, *, config: RunnableConfig
-) -> Command:
+def geo_metadata_column_extraction_approval_node(state: GeoIngestionSubgraphState, config: RunnableConfig) -> Command:
     """
     If any of the metadata extractions have concepts that need review, route to HITL. Return updated state based on HITL decisions.
     """

@@ -129,12 +129,8 @@ def _download_geo_dataset(accession: str, output_dir: str):
         No exceptions are propagated; errors are captured in the returned
         ``GEODownloadResult`` with ``status="failed"``.
     """
-    started_at = datetime.now(UTC).isoformat()
-
-    # Ensure output directory exists
-    artifacts = []
+    artifacts: list[ArtifactRef] = []
     os.makedirs(output_dir, exist_ok=True)
-    soft_path = _family_soft_path(output_dir, accession)
 
     # Get parent directory of output_dir
     parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(output_dir)))
@@ -306,9 +302,6 @@ def download_geo_datasets(config: GEOIngestionConfig, batch: GEODownloadBatchInp
       - continues on errors (partial success allowed)
     """
     # TODO: Restructure this to download in batches of 5 or so (I can configure this)
-    results: list[GEODownloadResult] = []
-    artifacts: list[ArtifactRef] = [x.model_dump() for x in config.artifacts]
-
     results: list[Any] = Parallel(n_jobs=-1)(
         delayed(_download_geo_dataset)(item.accession, os.path.join(config.output_root, item.accession))
         for item in batch.geo_downloads
@@ -446,7 +439,7 @@ def download(
             }
         )
 
-    for attempt in range(1, max_retries + 1):
+    for _attempt in range(1, max_retries + 1):
         try:
             with requests.get(https_url, stream=True, timeout=(10, 60)) as r:
                 r.raise_for_status()

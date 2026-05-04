@@ -50,14 +50,14 @@ def _cancel_downstream_steps(return_dict, accession_code):
 # ----------------------------
 
 
-def start_geo_subgraph(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> dict[str, Any]:
+def start_geo_subgraph(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     return_dict = {}
     return_dict["main_messages"] = [update_progress_tracker(state)]
     return_dict["messages"] = [update_progress_tracker(state)]
     return Command(update=return_dict)
 
 
-def geo_download_node(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> dict[str, Any]:
+def geo_download_node(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     """
     Goal is to download GEO datasets based on accession codes in the state. Return dict should update the config and datasets.
     """
@@ -167,7 +167,7 @@ def _check_downloads_succeeded(return_dict: dict[str, Any]) -> dict[str, Any]:
     return return_dict
 
 
-def check_downloads_succeeded(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> dict[str, Any]:
+def check_downloads_succeeded(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     unstarted_accession_codes = sorted(
         [accession_code for accession_code in accession_codes if not state.datasets.get(accession_code, False)]
@@ -191,7 +191,7 @@ def check_downloads_succeeded(state: GeoIngestionSubgraphState, *, config: Runna
     return Command(update=return_dict)
 
 
-def _check_is_methylation_dataset(platform_metadata: dict[str, any] = {}):
+def _check_is_methylation_dataset(platform_metadata: dict[str, any] | None = None):
     if not platform_metadata:
         return False
     gpl_whitelist = ["GPL29753", "GPL33022", "GPL21145", "GPL18809", "GPL8490"]
@@ -226,7 +226,7 @@ def _check_platforms_used(return_dict: dict[str, Any]) -> dict[str, Any]:
     return return_dict
 
 
-def check_platforms_used(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> dict[str, Any]:
+def check_platforms_used(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     unstarted_accession_codes = sorted(
         [accession_code for accession_code in accession_codes if not state.datasets.get(accession_code, False)]
@@ -356,7 +356,7 @@ def _check_if_data_present(artifacts: list[Any], return_dict: dict[str, Any]) ->
     return return_dict
 
 
-async def check_data_presence(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> dict[str, Any]:
+async def check_data_presence(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     download_completion = check_step_completion("download_soft", state.datasets, accession_codes)
     valid_check_completion = check_step_completion("check_valid_dataset", state.datasets, accession_codes)

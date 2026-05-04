@@ -1,5 +1,5 @@
 __all__ = ["HumanReadableConceptInput", "create_ontology_mapping_model"]
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, create_model
 
@@ -219,7 +219,7 @@ def create_ontology_mapping_model(
                 Literal[allowed_target_labels],
                 Field(..., description=f"The `{ontology_name}` ontology label that the source label maps to."),
             ),
-            "notes": (Optional[str], Field(None, description="Additional notes or context about the mapping")),
+            "notes": (str | None, Field(None, description="Additional notes or context about the mapping")),
         }
     else:
         target_label_description = (
@@ -240,7 +240,7 @@ def create_ontology_mapping_model(
                 Field(..., description=f"The input label to harmonize to the `{ontology_name}` ontology."),
             ),
             "target_label": (str, Field(..., description=target_label_description)),
-            "notes": (Optional[str], Field(None, description="Additional notes or context about the mapping")),
+            "notes": (str | None, Field(None, description="Additional notes or context about the mapping")),
         }
 
     OntologyMappingDyn = create_model(
@@ -249,9 +249,7 @@ def create_ontology_mapping_model(
         **params,
     )
 
-    OntologicalMappingOrMissingDyn = Annotated[
-        OntologyMappingDyn | MissingMapping, Field(discriminator="ontology")
-    ]
+    OntologicalMappingOrMissingDyn = Annotated[OntologyMappingDyn | MissingMapping, Field(discriminator="ontology")]
 
     LabelMappingSetDyn = create_model(
         f"LabelMappingSetModel__{ontology_literal}__{abs(hash((allowed_source_labels, allowed_target_labels)))}",

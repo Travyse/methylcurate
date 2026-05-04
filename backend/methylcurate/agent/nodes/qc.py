@@ -1,4 +1,4 @@
-__all__ = ["quality_control_plan_node", "quality_control_node"]
+__all__ = ["quality_control_node"]
 
 import hashlib
 import os
@@ -127,7 +127,7 @@ def _get_interarray_correlation_qc_input_or_default(state: DatasetQualityControl
     return InterarrayCorrelationQCInput(correlation_cutoff=0.9)
 
 
-def quality_control_node(state: QualityControlSubgraphState, *, config: RunnableConfig) -> Command:
+def quality_control_node(state: QualityControlSubgraphState, config: RunnableConfig) -> Command:
     """
     Executes the quality control process for the datasets in the given state and configuration. The function first checks if the quality control step has already been completed for all datasets in the state. If it has, it returns a Command with an update that includes messages to update the QC progress tracker. If not, it identifies the accession codes for which the quality control step is still running or not started, and retrieves the relevant artifacts for one of those accession codes. If the necessary preqc_methylation_data artifact is missing, it updates the state to mark the quality control step as failed for that accession code and returns a Command with the updated state. If the artifact is available, it calls the run_all_qc function to perform quality control on the dataset, updates the state with the results, and returns a Command with the updated state and progress messages.
 

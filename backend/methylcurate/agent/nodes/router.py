@@ -42,12 +42,12 @@ async def _get_router_decision(messages: list[AnyMessage], llm: Any) -> RouterOu
             retries += 1
             continue
         except ValidationError as e:
-            raise RuntimeError(f"LLM output failed validation: {e}")
+            raise RuntimeError(f"LLM output failed validation: {e}") from e
         except Exception as e:
-            raise RuntimeError(f"Some failure: {e}")
+            raise RuntimeError(f"Some failure: {e}") from e
 
 
-async def router_node(state: MainState, *, config: RunnableConfig) -> dict[str, Any]:
+async def router_node(state: MainState, config: RunnableConfig) -> dict[str, Any]:
     """
     Handle the routing logic for the given state using the configured LLM. This function retrieves a routing decision from the LLM, validates the decision, and prepares the appropriate response, including handling cases where human review is required. The function first calls the LLM to get a routing decision based on the message history. If the LLM indicates that clarification is needed or if the confidence in the routing decision is below a certain threshold, it creates a HumanReviewRequest for clarification and returns it along with a hint for the next action. If the routing decision is valid but the parameters fail validation against the chosen subgraph's parameter schema, it also creates a HumanReviewRequest for parameter correction. If the routing decision and parameters are valid, it prepares a response indicating that it's ready to run the selected subgraph.
 
@@ -94,7 +94,7 @@ async def router_node(state: MainState, *, config: RunnableConfig) -> dict[str, 
     # Case 2: Validate the params against the chosen subgraph param schema
     schema = PARAM_SCHEMAS[router_out.subgraph]
     try:
-        validated_params = schema.model_validate(router_out.params)
+        _validated_params = schema.model_validate(router_out.params)
     except ValidationError as e:
         # This is *also* a clarification case.
         # Prefer asking only for fields that failed validation.
@@ -124,7 +124,7 @@ async def router_node(state: MainState, *, config: RunnableConfig) -> dict[str, 
     return return_dict
 
 
-async def clarify_router_node(state: MainState, *, config: RunnableConfig) -> dict[str, Any]:
+async def clarify_router_node(state: MainState, config: RunnableConfig) -> dict[str, Any]:
     """
     Handle the clarification logic for the router node. This function is invoked when a human review is required for the routing decision, either due to low confidence or invalid parameters. It processes the human response to the clarification request, updates the message history with the human's input, and calls the LLM again to get an updated routing decision. The function then validates the new routing decision and parameters, and prepares the appropriate response based on whether the clarification resolved the issues or if further clarification is needed.
 

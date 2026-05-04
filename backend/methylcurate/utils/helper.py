@@ -206,16 +206,12 @@ def set_step_status(status="running", step=None, error=None, warnings=None) -> d
     """
     if step is not None:
         step["status"] = status
-        step["finished_at"] = (
-            datetime.now(UTC).isoformat() if status in ("completed", "failed", "canceled") else None
-        )
+        step["finished_at"] = datetime.now(UTC).isoformat() if status in ("completed", "failed", "canceled") else None
         return step
     return {
         "status": status,
         "started_at": datetime.now(UTC).isoformat(),
-        "finished_at": datetime.now(UTC).isoformat()
-        if status in ("completed", "failed", "canceled")
-        else None,
+        "finished_at": datetime.now(UTC).isoformat() if status in ("completed", "failed", "canceled") else None,
         "error": error,
         "warnings": warnings or [],
     }
@@ -272,7 +268,9 @@ def retrieve_status_counts(accession_codes: list[str], datasets: dict[str, Any],
     }
 
 
-def _generate_todo_description(status: str, status_counts: dict[str, int], description_default: str | None = None) -> str | None:
+def _generate_todo_description(
+    status: str, status_counts: dict[str, int], description_default: str | None = None
+) -> str | None:
     """
     Generates a description for a todo item based on the status and status counts.
 
@@ -486,9 +484,6 @@ def populate_todos(state: Any):
         List[Dict[str, Any]]: A list of dictionaries representing the todo entries.
     """
     # Initializate variables
-    provided_status = None
-    if all(ds.download_result and ds.download_result.status == "failed" for ds in state.datasets.values()):
-        provided_status = "failed"
     accession_codes = get_accession_codes(state)
     download_soft_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "download_soft")
     check_valid_dataset_counts = retrieve_status_counts(
@@ -609,7 +604,6 @@ def update_small_progress_tracker(state: Any, retrieval: str) -> ToolMessage:
     accession_codes = sorted(state.datasets.keys())
     hash = _get_status_id(state.messages, retrieval)
 
-    num_completed = sum(1 for x in accession_codes if state.datasets[x].steps["quality_control"].status == "completed")
     all_completed = all(
         state.datasets[x].steps["quality_control"].status in {"completed", "failed", "skipped"} for x in accession_codes
     )
@@ -736,7 +730,6 @@ def qc_progress(state: Any) -> ToolMessage:
     Returns:
         ToolMessage: A message object representing the updated progress tracker.
     """
-    accession_codes = sorted(state.datasets.keys())
     hash = _get_status_id(state.messages, "quality_control")
     current_time = datetime.now(UTC).isoformat()
     previous_message = next((m for m in state.main_messages if m.tool_call_id == hash), None)

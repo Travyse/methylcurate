@@ -1,6 +1,6 @@
 __all__ = []
 
-from typing import Literal, Union
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -109,10 +109,7 @@ class KNNImputerModelInput(BaseModel):
     weights: Literal["uniform", "distance"] = Field("uniform", description="Weighting strategy for KNN imputation")
 
 
-ImputerModelInput = Union[
-    SimpleImputerModelInput,
-    KNNImputerModelInput,
-]
+ImputerModelInput = SimpleImputerModelInput | KNNImputerModelInput
 
 
 class ImputationInput(BaseModel):

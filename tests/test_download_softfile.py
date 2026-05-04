@@ -40,8 +40,8 @@ class TestParallelDownloadsReturnType:
         sig = inspect.signature(parallel_downloads)
         annotation = str(sig.return_annotation)
         assert "ArtifactRef" in annotation
-        assert "Dict" in annotation
-        assert "List" in annotation
+        assert "dict" in annotation
+        assert "list" in annotation
         assert "Path" not in annotation
 
 
@@ -77,5 +77,5 @@ class TestDeadCodeRemoved:
         from methylcurate.tools.geo.download_softfile import download
 
         source = inspect.getsource(download)
-        lines = [l for l in source.split("\n") if "if os.path.exists(cache_download_path)" in l]
+        lines = [line for line in source.split("\n") if "if os.path.exists(cache_download_path)" in line]
         assert len(lines) <= 1, f"Found {len(lines)} duplicate cache checks"

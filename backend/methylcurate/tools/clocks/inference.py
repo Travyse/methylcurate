@@ -3,7 +3,6 @@ __all__ = [
     "get_available_methylation_dataframe",
     "get_all_methylation_aging_clocks",
     "compute_age_acceleration",
-    "predict_with_aging_clocks",
     "get_dataset_predictions",
     "compute_mae",
     "compute_medae",
@@ -159,7 +158,6 @@ def get_all_methylation_aging_clocks(output_dir: str) -> list[MethylationAgingCl
     pya.utils.show_all_clocks(os.path.join(output_dir))
     clock_metadata = torch.load(os.path.join(output_dir, "all_clock_metadata.pt"), weights_only=False)
     for clock_name in clock_metadata.keys():
-        metadata = clock_metadata[clock_name]
         if clock_name in get_args(MethylationClocks):
             # if metadata.get("data_type") == "methylation" and metadata.get("species") == "Homo sapiens":
             methylation_clocks.add(clock_name)

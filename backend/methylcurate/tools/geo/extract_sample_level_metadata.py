@@ -82,15 +82,13 @@ def cpg_union(data_rows: list[list[Any]], col_rows: list[list[str]]) -> tuple[li
     """
     union_cols = list(dict.fromkeys(chain.from_iterable(col_rows)))
     aligned = []
-    for rows, cols in zip(data_rows, col_rows):
+    for rows, cols in zip(data_rows, col_rows, strict=True):
         col_map = {col: rows[idx] for idx, col in enumerate(cols)}
         aligned.append([col_map.get(col, None) for col in union_cols])
     return aligned, union_cols
 
 
-def apply_extraction_rule(
-    field_values: list[str], rule: ExtractionRule
-) -> tuple[str | None, dict[str, Any] | None]:
+def apply_extraction_rule(field_values: list[str], rule: ExtractionRule) -> tuple[str | None, dict[str, Any] | None]:
     """Apply an extraction rule to a list of raw field values.
 
     Currently supports ``"regex"`` extraction rules. When the target field is
@@ -157,7 +155,7 @@ def _get_platform_title_from_gsm(gpl: str, max_retries: int = 3) -> str | None:
             after all retries are exhausted.
     """
     url = f"https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc={gpl}&form=text&view=brief"
-    for attempt in range(1, max_retries + 1):
+    for _attempt in range(1, max_retries + 1):
         try:
             response = requests.get(url)
             response.raise_for_status()
@@ -186,7 +184,7 @@ def _get_platform_gpl_from_accession_code(accession_code: str, max_retries: int 
             after all retries are exhausted.
     """
     url = f"https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc={accession_code}&form=text&view=brief"
-    for attempt in range(1, max_retries + 1):
+    for _attempt in range(1, max_retries + 1):
         try:
             response = requests.get(url)
             response.raise_for_status()

@@ -86,7 +86,6 @@ async def _invoke_llm_with_retry(
     from langchain_core.exceptions import OutputParserException
     from pydantic import ValidationError
 
-
     deps = config["configurable"]["deps"]
     llm = deps.deterministic_llm
 
@@ -259,7 +258,6 @@ def _check_extraction_patterns(resolutions: dict[str, Any]) -> list[Concept]:
           why it was flagged.
     """
     flagged_patterns = []
-    flexible_concepts = ["sex", "disease_status", "tissue", "cell_type"]
     notes_flagged_patterns = {}
     for concept, resolution in resolutions.items():
         if resolution.status == "resolved" and resolution.extraction.field_name == "characteristics_ch1":
@@ -303,7 +301,6 @@ async def _extract_column_for_concept_age(
     """
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
-    default_llm = deps.default_llm
     clarification_message = AIMessage(
         id=uuid.uuid4().hex,
         content=generate_missing_age_check_prompt(user_input=user_input),
@@ -345,7 +342,6 @@ async def _extract_column_for_concept_disease_status(
     """
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
-    default_llm = deps.default_llm
     if resolutions["disease_status"].extraction.field_name == "default" or not hasattr(
         resolutions["disease_status"].extraction, "key_name"
     ):
@@ -430,7 +426,6 @@ async def _extract_column_for_concept_misformatted(
     print(f"\n\nMisformatted concepts: {misformatted_concepts}")
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
-    default_llm = deps.default_llm
     new_resolutions = resolutions
     prompt_params = {"misformatted_concepts": ", ".join(sorted([c for c in misformatted_concepts]))}
     prompt_bool_params = {f"is_{c}": True for c in misformatted_concepts}
@@ -538,7 +533,6 @@ async def _extract_column_for_concept_poor_parsing(
     print(f"\n\nPoorly parsed concepts: {poorly_parsed_concepts} with parse rates {parse_rates}")
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
-    default_llm = deps.default_llm
     new_resolutions = resolutions
     prompt_params = {"user_input": user_input.model_dump()}
     prompt_bool_params = {f"is_{c}": True for c in poorly_parsed_concepts}
@@ -753,7 +747,6 @@ async def _extract_all_columns(
     """
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
-    default_llm = deps.default_llm
 
     retry_limit = GLOBAL_RETRY_LIMIT
     retries = 0
@@ -892,7 +885,6 @@ async def extract_metadata_columns_alt(
                 }
             )
         except Exception:
-            execution_status = "failed"
             artifact = None
 
     extraction_result.artifact = artifact
@@ -918,7 +910,6 @@ async def _extract_column_for_concept(messages: list[AnyMessage], config: Runnab
     """
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
-    default_llm = deps.default_llm
 
     try:
         resolved: FieldResolution = FieldResolution.model_validate(

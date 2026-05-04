@@ -116,7 +116,7 @@ def _get_harmonized_full_data_if_available(
     return metadata_df.merge(methylation_df, left_index=True, right_index=True), metadata_columns
 
 
-def clock_retrieval_node(state: BenchmarkingSubgraphState, *, config: RunnableConfig) -> Command:
+def clock_retrieval_node(state: BenchmarkingSubgraphState, config: RunnableConfig) -> Command:
     """
     Retrieve and validate clock models for benchmarking.
 
@@ -194,7 +194,7 @@ def clock_retrieval_node(state: BenchmarkingSubgraphState, *, config: RunnableCo
     return Command(update=return_dict)
 
 
-def benchmarking_node(state: BenchmarkingSubgraphState, *, config: RunnableConfig) -> Command:
+def benchmarking_node(state: BenchmarkingSubgraphState, config: RunnableConfig) -> Command:
     """
     Perform benchmarking for a given state and configuration.
 
@@ -225,7 +225,6 @@ def benchmarking_node(state: BenchmarkingSubgraphState, *, config: RunnableConfi
         "config": state.config.model_dump(),
         "datasets": {accession_code: state.datasets[accession_code].model_dump()},
     }
-    metadata_cols = ["Accession_Code", "Disease_Status", "Tissue", "Sex", "Sample", "age"]
     methylation_metadata_col = ["Subject"]
     clock_list = state.config.clock_list
     internal_clock_list = [x.lower() for x in clock_list if x.lower() in {"corticalage", "pcbrainage"}]
@@ -309,7 +308,7 @@ def benchmarking_node(state: BenchmarkingSubgraphState, *, config: RunnableConfi
     return Command(update=return_dict)
 
 
-def task_computation_node(state: BenchmarkingSubgraphState, *, config: RunnableConfig) -> Command:
+def task_computation_node(state: BenchmarkingSubgraphState, config: RunnableConfig) -> Command:
     """
     Perform computations for a given state and configuration.
 
@@ -383,7 +382,7 @@ def task_computation_node(state: BenchmarkingSubgraphState, *, config: RunnableC
     return Command(update=return_dict)
 
 
-def summarize_benchmarking_results(state: BenchmarkingSubgraphState, *, config: RunnableConfig) -> Command:
+def summarize_benchmarking_results(state: BenchmarkingSubgraphState, config: RunnableConfig) -> Command:
     """
     Summarize benchmarking results for a given state and configuration.
 

@@ -26,7 +26,7 @@ class TestRenamedFunctions:
         assert params["query"].annotation is str
         assert params["ontology"].annotation is str
         assert params["k"].annotation is int
-        assert "List" in str(sig.return_annotation)
+        assert "list" in str(sig.return_annotation)
 
 
 class TestHarmonizeReturnTypes:
@@ -35,7 +35,7 @@ class TestHarmonizeReturnTypes:
 
         sig = inspect.signature(_harmonize_ontology_labels)
         annotation = str(sig.return_annotation)
-        assert "Tuple" in annotation
+        assert "tuple" in annotation
         assert "LabelMappingSet" in annotation
 
     def test_harmonize_ontology_group_labels_returns_tuple(self):
@@ -43,7 +43,7 @@ class TestHarmonizeReturnTypes:
 
         sig = inspect.signature(_harmonize_ontology_group_labels)
         annotation = str(sig.return_annotation)
-        assert "Tuple" in annotation
+        assert "tuple" in annotation
         assert "LabelMappingSet" in annotation
 
     def test_harmonize_sex_labels_returns_tuple_of_labelmappingsets(self):
@@ -51,7 +51,7 @@ class TestHarmonizeReturnTypes:
 
         sig = inspect.signature(_harmonize_sex_labels)
         annotation = str(sig.return_annotation)
-        assert "Tuple" in annotation
+        assert "tuple" in annotation
         assert "LabelMappingSet" in annotation
 
     def test_construct_raw_mapping_returns_labelmappingset(self):

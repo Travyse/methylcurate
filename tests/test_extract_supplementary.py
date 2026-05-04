@@ -9,7 +9,7 @@ class TestProcessDetectionColumnsReturnType:
 
         sig = inspect.signature(_process_detection_columns)
         annotation = str(sig.return_annotation)
-        assert "Tuple" in annotation
+        assert "tuple" in annotation
         assert "DataFrame" in annotation
         assert "ArtifactRef" in annotation
 
@@ -20,7 +20,7 @@ class TestProcessDetectionColumnsReturnType:
 
         sig = inspect.signature(_process_detection_columns_alt)
         annotation = str(sig.return_annotation)
-        assert "Tuple" in annotation
+        assert "tuple" in annotation
         assert "DataFrame" in annotation
         assert "ArtifactRef" in annotation
 
@@ -33,7 +33,7 @@ class TestGetColumnSchemeReturnType:
 
         sig = inspect.signature(_get_column_scheme)
         annotation = str(sig.return_annotation)
-        assert "Tuple" in annotation
+        assert "tuple" in annotation
         assert "SampleDataResolution" in annotation
         assert "ArtifactRef" in annotation
 
@@ -46,7 +46,7 @@ class TestGenerateDataSamplesReturnType:
 
         sig = inspect.signature(_generate_data_samples)
         annotation = str(sig.return_annotation)
-        assert "Tuple" in annotation
+        assert "tuple" in annotation
         assert "str" in annotation
         assert "DataFrame" in annotation
 
@@ -59,7 +59,7 @@ class TestCheckForCpgProbesReturnType:
 
         sig = inspect.signature(_check_for_cpg_probes)
         annotation = str(sig.return_annotation)
-        assert "Dict" in annotation
+        assert "dict" in annotation
         assert "str" in annotation
         assert "bool" in annotation
 

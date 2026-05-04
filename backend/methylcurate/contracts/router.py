@@ -66,7 +66,7 @@ class RouterOutput(BaseModel):
         try:
             schema.model_validate(v)
         except Exception as e:
-            raise ValueError(f"Invalid params for subgraph {subgraph}: {e}")
+            raise ValueError(f"Invalid params for subgraph {subgraph}: {e}") from e
 
         # Further param validation can be added here if needed
         return v

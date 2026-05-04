@@ -183,7 +183,6 @@ async def call_llm_structured_with_retries(messages: list[Any], config: Runnable
     """
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
-    default_llm = deps.default_llm
 
     retry_limit = GLOBAL_RETRY_LIMIT
     retries = 0

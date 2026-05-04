@@ -16,7 +16,9 @@ MAIN_RECURSION_LIMIT = 500
 SUBGRAPH_RECURSION_LIMIT = 10000
 
 
-def _get_attr_or_key(obj, key, default_value=[]):
+def _get_attr_or_key(obj, key, default_value=None):
+    if default_value is None:
+        default_value = []
     if isinstance(obj, dict):
         return obj.get(key, default_value)
     return getattr(obj, key, None)
@@ -380,8 +382,6 @@ class StreamingRunner:
         # hydrate in-memory state from checkpoint
         params["output_root"] = checkpointed["default_output_root"]
         params["artifacts"] = list((checkpointed or {}).get("artifacts", []) or [])
-        out_artifacts = main_out.get("artifacts", [])
-        out_config_artifacts = main_out.get("config", {}).get("artifacts", [])
         params["datasets"] = (
             checkpointed.get("datasets", {}) if checkpointed.get("datasets", {}) else main_out.get("datasets", [])
         )
@@ -415,7 +415,7 @@ class StreamingRunner:
             if isinstance(ev.get("data", {}).get("output", {}), Command):
                 if ev["data"]["output"] and ev["data"]["output"].update:
                     if "main_messages" in ev["data"]["output"].update:
-                        node_name = node_from_event(ev)
+                        node_from_event(ev)
                         msg = [x.model_dump() for x in ev["data"]["output"].update["main_messages"]]
                         # 1) persist to main thread
                         await self.main_graph.aupdate_state(self._cfg(main_thread), values={"messages": msg})
@@ -467,8 +467,6 @@ class StreamingRunner:
                 seen.add(k)
 
         await self._persist_main_artifacts(main_thread, merged)
-        snap = await self.main_graph.aget_state(self._cfg(main_thread))
-        vals = getattr(snap, "values", snap)
 
         last = sub_out["messages"][-1] if sub_out.get("messages") else None
         if isinstance(last, ToolMessage):
@@ -540,7 +538,7 @@ class StreamingRunner:
             if isinstance(ev.get("data", {}).get("output", {}), Command):
                 if ev["data"]["output"] and ev["data"]["output"].update:
                     if "main_messages" in ev["data"]["output"].update:
-                        node_name = node_from_event(ev)
+                        node_from_event(ev)
                         msg = [x.model_dump() for x in ev["data"]["output"].update["main_messages"]]
                         # 1) persist to main thread
                         await self.main_graph.aupdate_state(
@@ -593,6 +591,5 @@ class StreamingRunner:
                 seen.add(k)
 
         await self._persist_main_artifacts(main_thread, merged)
-        snap = await self.main_graph.aget_state(self._cfg(main_thread))
 
         await queue.put(StreamEvent("final", {"message": "Resumed and completed."}))

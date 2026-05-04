@@ -143,7 +143,7 @@ def _get_harmonization_results(target_type: str, accession_code: str, artifacts:
     raise ValueError(f"No harmonization results found for {target_type} and accession code {accession_code}")
 
 
-async def disease_harmonization_node(state: HarmonizationSubgraphState, *, config: RunnableConfig):
+async def disease_harmonization_node(state: HarmonizationSubgraphState, config: RunnableConfig):
     """
     Performs disease harmonization for a given state and configuration.
     The function first checks if the disease harmonization step has already been completed for all datasets in the state. If it has, it returns a Command with an update that includes messages to update the harmonization progress tracker. If not, it identifies the accession codes for which the disease harmonization step is still running or not started, and selects one accession code to process.
@@ -220,7 +220,7 @@ async def disease_harmonization_node(state: HarmonizationSubgraphState, *, confi
     return Command(update=return_dict)
 
 
-async def higher_level_disease_mapping_node(state: HarmonizationSubgraphState, *, config: RunnableConfig):
+async def higher_level_disease_mapping_node(state: HarmonizationSubgraphState, config: RunnableConfig):
     """
     Performs higher level disease label mapping for the datasets in the given state and configuration. The function first checks if the disease grouping step has already been completed for all datasets in the state. If it has, it returns a Command with an update that includes messages to update the harmonization progress tracker. If not, it identifies the accession codes for which the disease grouping step is still running or not started, and retrieves the harmonization results for those accession codes. It then extracts the harmonized disease labels from the harmonization results and calls the _harmonize_ontology_group_labels helper function to perform higher level disease label mapping. The resulting group mapping is then used to construct a mapping from raw disease labels to harmonized group labels for each dataset, which is saved as a CSV artifact. The state is updated to mark the disease grouping step as completed and the tissue label mapping step as running for the processed accession codes, and a Command with the updated state is returned.
 
@@ -326,7 +326,7 @@ async def higher_level_disease_mapping_node(state: HarmonizationSubgraphState, *
     return Command(update=return_dict)
 
 
-async def tissue_harmonization_node(state: HarmonizationSubgraphState, *, config: RunnableConfig):
+async def tissue_harmonization_node(state: HarmonizationSubgraphState, config: RunnableConfig):
     """
     Performs tissue label harmonization for the datasets in the given state and configuration. The function first checks if the tissue label mapping step has already been completed for all datasets in the state. If it has, it returns a Command with an update that includes messages to update the harmonization progress tracker. If not, it identifies the accession codes for which the tissue label mapping step is still running or not started, and retrieves the harmonization results for those accession codes. It then extracts the harmonized tissue labels from the harmonization results and calls the _harmonize_ontology_labels helper function to perform tissue label harmonization. The resulting harmonized labels are saved as JSON artifacts. The state is updated to mark the tissue label mapping step as completed for the processed accession codes, and a Command with the updated state is returned.
 
@@ -354,7 +354,6 @@ async def tissue_harmonization_node(state: HarmonizationSubgraphState, *, config
         ]
     )
     accession_code = running_accession_codes.pop(0)
-    harmonization_dir = os.path.join(state.datasets[accession_code].output_dir, "harmonization")
 
     return_dict = {
         "config": state.config.model_dump(),
@@ -391,7 +390,7 @@ async def tissue_harmonization_node(state: HarmonizationSubgraphState, *, config
     return Command(update=return_dict)
 
 
-async def higher_level_tissue_mapping_node(state: HarmonizationSubgraphState, *, config: RunnableConfig):
+async def higher_level_tissue_mapping_node(state: HarmonizationSubgraphState, config: RunnableConfig):
     """
     Performs higher level tissue label mapping for the datasets in the given state and configuration. The function first checks if the tissue grouping step has already been completed for all datasets in the state. If it has, it returns a Command with an update that includes messages to update the harmonization progress tracker. If not, it identifies the accession codes for which the tissue grouping step is still running or not started, and retrieves the harmonization results for those accession codes. It then extracts the harmonized tissue labels from the harmonization results and calls the _harmonize_ontology_group_labels helper function to perform higher level tissue label mapping. The resulting group mapping is then used to construct a mapping from raw tissue labels to harmonized group labels for each dataset, which is saved as a CSV artifact. The state is updated to mark the tissue grouping step as completed and the cell type label mapping step as running for the processed accession codes, and a Command with the updated state is returned.
 
@@ -498,7 +497,7 @@ async def higher_level_tissue_mapping_node(state: HarmonizationSubgraphState, *,
     return Command(update=return_dict)
 
 
-async def cell_type_harmonization_node(state: HarmonizationSubgraphState, *, config: RunnableConfig):
+async def cell_type_harmonization_node(state: HarmonizationSubgraphState, config: RunnableConfig):
     """
     Performs cell type label harmonization for the datasets in the given state and configuration. The function first checks if the cell type label mapping step has already been completed for all datasets in the state. If it has, it returns a Command with an update that includes messages to update the harmonization progress tracker. If not, it identifies the accession codes for which the cell type label mapping step is still running or not started, and retrieves the harmonization results for those accession codes. It then extracts the harmonized cell type labels from the harmonization results and calls the _harmonize_ontology_labels helper function to perform cell type label harmonization. The resulting harmonized labels are saved as JSON artifacts. The state is updated to mark the cell type label mapping step as completed for the processed accession codes, and a Command with the updated state is returned.
 
@@ -526,7 +525,6 @@ async def cell_type_harmonization_node(state: HarmonizationSubgraphState, *, con
         ]
     )
     accession_code = running_accession_codes.pop(0)
-    harmonization_dir = os.path.join(state.datasets[accession_code].output_dir, "harmonization")
 
     return_dict = {
         "config": state.config.model_dump(),
@@ -556,7 +554,7 @@ async def cell_type_harmonization_node(state: HarmonizationSubgraphState, *, con
     return Command(update=return_dict)
 
 
-async def sex_harmonization_node(state: HarmonizationSubgraphState, *, config: RunnableConfig):
+async def sex_harmonization_node(state: HarmonizationSubgraphState, config: RunnableConfig):
     """
     Performs sex label harmonization for the datasets in the given state and configuration. The function first checks if the sex harmonization step has already been completed for all datasets in the state. If it has, it returns a Command with an update that includes messages to update the harmonization progress tracker. If not, it identifies the accession codes for which the sex harmonization step is still running or not started, and retrieves the metadata cache, sample metadata, and extraction protocol for one of those accession codes. If any of these are missing, or if the extraction protocol indicates that sex is missing, the function updates the state to mark the sex harmonization step as canceled for that accession code and returns a Command with the updated state. If the necessary information is available, the function calls the _harmonize_sex_labels helper function to perform sex label harmonization. The resulting harmonized labels are saved as a JSON artifact, and the state is updated to mark the sex harmonization step as completed for the processed accession code. Finally, a Command with the updated state is returned.
 

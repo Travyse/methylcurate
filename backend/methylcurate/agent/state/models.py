@@ -121,7 +121,9 @@ class GeoDatasetState(BaseModel):
     artifacts: list[ArtifactRef] = Field(default_factory=list)
     platform_metadata: GPLMetadata | None = None
     supplementary_files: list[str] | None = Field(default_factory=list)
-    supplementary_data: Annotated[dict[NonEmptyStr, Literal["pending", "running", "completed", "failed"]], merge_dict] | None = None
+    supplementary_data: (
+        Annotated[dict[NonEmptyStr, Literal["pending", "running", "completed", "failed"]], merge_dict] | None
+    ) = None
 
     pending_review: list[HumanReviewRequest] | None = None
     review_history: list[HumanReviewDecision] = Field(default_factory=list)

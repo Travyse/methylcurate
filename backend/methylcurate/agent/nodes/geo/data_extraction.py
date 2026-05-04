@@ -9,7 +9,6 @@ __all__ = [
 import hashlib
 import json
 import os
-import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -39,7 +38,7 @@ from ....utils.helper import (
 from ...state.models import GeoIngestionSubgraphState
 
 
-async def extract_sample_metadata(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> dict[str, Any]:
+async def extract_sample_metadata(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     if check_step_completion("extract_data", state.datasets, accession_codes):
         return Command(
@@ -81,7 +80,7 @@ async def extract_sample_metadata(state: GeoIngestionSubgraphState, *, config: R
 
 
 async def generate_metadata_extraction_summary(
-    state: GeoIngestionSubgraphState, *, config: RunnableConfig
+    state: GeoIngestionSubgraphState, config: RunnableConfig
 ) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     running_accession_codes = sorted(
@@ -126,7 +125,7 @@ async def generate_metadata_extraction_summary(
     return Command(update=return_dict)
 
 
-async def format_supplementary_data(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> dict[str, Any]:
+async def format_supplementary_data(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     if check_step_completion("supplementary_file_check", state.datasets, accession_codes):
         return Command(
@@ -179,7 +178,7 @@ async def format_supplementary_data(state: GeoIngestionSubgraphState, *, config:
     return Command(update=return_dict)
 
 
-async def merge_supplementary_file_data(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> dict[str, Any]:
+async def merge_supplementary_file_data(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     running_accession_codes = sorted(
         [
@@ -202,12 +201,9 @@ async def merge_supplementary_file_data(state: GeoIngestionSubgraphState, *, con
     methylation_dataframe_output_path = os.path.join(dataset_state.output_dir, "preqc_methylation_matrix.feather")
 
     return_dict = {"config": state.config.model_dump(), "datasets": {accession_code: dataset_state.model_dump()}}
-    start_time = time.time()
     formatted_datasets = [
         read_feather(artifact.path, index_name="subject_id") for artifact in formatted_supplementary_file_artifacts
     ]
-    end_time = time.time()
-    elapsed_time = end_time - start_time
     formatted_data = pd.concat(formatted_datasets, axis=0)
     write_feather(formatted_data, methylation_dataframe_output_path, index_name="subject_id")
 
@@ -230,7 +226,7 @@ async def merge_supplementary_file_data(state: GeoIngestionSubgraphState, *, con
     return Command(update=return_dict)
 
 
-async def refine_extracted_columns(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> dict[str, Any]:
+async def refine_extracted_columns(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     running_accession_codes = sorted(
         [
@@ -266,15 +262,6 @@ async def refine_extracted_columns(state: GeoIngestionSubgraphState, *, config: 
     )
     with open(metadata_artifact.path, encoding="utf-8") as f:
         metadata_dict = json.load(f)
-    dataset_metadata_artifact = next(
-        (
-            artifact
-            for artifact in state.config.artifacts
-            if (artifact.kind == "dataset_metadata") and (artifact.accession_code == accession_code)
-        ),
-        None,
-    )
-    dataset_metadata = pd.read_csv(dataset_metadata_artifact.path, index_col=0)
     sample_subject_mapping = _create_subject_id_mapping(
         accession_code, dataset_state.metadata_extraction_input, metadata_dict, methylation_data
     )
@@ -301,7 +288,7 @@ async def refine_extracted_columns(state: GeoIngestionSubgraphState, *, config: 
     return Command(update=return_dict)
 
 
-def summarize_geo_findings(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> GeoIngestionSubgraphState:
+def summarize_geo_findings(state: GeoIngestionSubgraphState, config: RunnableConfig) -> GeoIngestionSubgraphState:
     accession_codes = set()
     payload = {
         "id": "geo-dataset-summary",

@@ -118,14 +118,17 @@ async def chat_loop(cfg: CLIConfig):
             session = store.get(run_id) if store.exists(run_id) else store.create(run_id)
 
             if session.main_state is None:
-
                 session.main_state = make_main_state(run_id=run_id, default_output_root=cfg.default_output_root)
 
             if session.task and not session.task.done():
                 print("[busy]")
                 continue
 
-            async def run():
+            async def run(
+                session: Session = session,
+                user_text: str = user_text,
+                run_id: str = run_id,
+            ):
                 try:
                     if session.pending_interrupt is not None:
                         pending = session.pending_interrupt

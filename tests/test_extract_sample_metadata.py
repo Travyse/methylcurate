@@ -12,7 +12,7 @@ class TestGetFieldValueReturnsTuple:
 
         sig = inspect.signature(get_field_value)
         annotation = str(sig.return_annotation)
-        assert "Tuple" in annotation
+        assert "tuple" in annotation
         assert "str" in annotation
         assert "bool" in annotation
 

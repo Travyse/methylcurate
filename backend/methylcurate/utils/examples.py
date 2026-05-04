@@ -431,7 +431,11 @@ def generate_column_interpretation_examples(alt=False) -> tuple[pd.DataFrame, di
     }
     if alt:
         cols = [f"{random.randint(1, 10)}-{uuid.uuid4().hex[:4]}_{uuid.uuid4().hex[:8]}" for _ in range(5)]
-        cols = [val for pair in zip([f"{c}" for c in cols], [f"{c}_Detection_pval" for c in cols]) for val in pair]
+        cols = [
+            val
+            for pair in zip([f"{c}" for c in cols], [f"{c}_Detection_pval" for c in cols], strict=True)
+            for val in pair
+        ]
         example_input["columns"] = cols
     df = pd.DataFrame(data=example_input["rows"], columns=example_input["columns"], index=example_input["index"])
 

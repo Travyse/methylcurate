@@ -374,7 +374,6 @@ async def stream_thread(thread_id: str, req: StreamRequest, request: Request):
     session = store.get(thread_id) if store.exists(thread_id) else store.create(thread_id)
 
     if session.main_state is None:
-
         session.main_state = make_main_state(run_id=thread_id, default_output_root=request.app.state.output_dir)
 
     if session.task and not session.task.done():

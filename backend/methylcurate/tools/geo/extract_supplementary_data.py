@@ -246,7 +246,7 @@ async def _process_detection_columns_alt(
 
     paired_columns = [
         [sample_data.columns.tolist()[beta_col], sample_data.columns.tolist()[detection_col]]
-        for beta_col, detection_col in zip(beta_columns, detection_columns)
+        for beta_col, detection_col in zip(beta_columns, detection_columns, strict=True)
     ]
     methylation_rows = []
     methylation_columns = []
@@ -448,7 +448,7 @@ async def _get_column_scheme(
     artifact: ArtifactRef,
     sample_data: pd.DataFrame,
     config: RunnableConfig,
-    messages: list[AIMessage] = [],
+    messages: list[AIMessage] | None = None,
     count=0,
     prohibited_patterns: list[str] | None = None,
     prev_beta_pattern: str | None = None,
@@ -484,7 +484,6 @@ async def _get_column_scheme(
     """
     deps: Deps = config["configurable"]["deps"]
     deterministic_llm = deps.deterministic_llm
-    default_llm = deps.default_llm
     print(
         f"\nGetting column scheme for artifact {artifact.path} with accession code {artifact.accession_code}, attempt {count + 1}"
     )
@@ -769,7 +768,7 @@ async def format_methylation_data(
     sample_datasets = [_read_sample_data(artifact.path) for artifact in sample_data_artifacts]
     collected_artifacts = []
 
-    for sample_data_artifact, sample_data in zip(sample_data_artifacts, sample_datasets):
+    for sample_data_artifact, sample_data in zip(sample_data_artifacts, sample_datasets, strict=True):
         if _check_for_detection_columns(sample_data):
             df, artifact = await _process_detection_columns(sample_data_artifact, sample_data, config, messages)
             collected_artifacts.append(artifact)
@@ -1089,7 +1088,7 @@ def _extract_best_subject_id_fields(user_input: Any, sample_data: pd.DataFrame) 
     key_name = None
     candidate_dict = {}
     best_match = -1
-    for attr, value in vars(user_input).items():
+    for attr, _value in vars(user_input).items():
         if attr in ["artifact", "relation", "platform_id"]:
             continue
 

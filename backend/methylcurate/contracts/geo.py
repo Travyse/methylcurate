@@ -1,4 +1,4 @@
-from typing import Annotated, Any, Literal, Optional, get_args
+from typing import Annotated, Any, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
 
@@ -409,7 +409,7 @@ def build_dynamic_result_model(allowed_keys: tuple[str, ...]):
             ),
         ),
         control_value=(
-            Optional[NonEmptyStr],
+            NonEmptyStr | None,
             Field(
                 None,
                 description="This only set for extraction rules for disease_status. This identifies how the dataset encodes the control samples, e.g. 'healthy' or 'control'.",
@@ -430,7 +430,7 @@ def build_dynamic_result_model(allowed_keys: tuple[str, ...]):
         __config__=ConfigDict(extra="forbid"),
         status=(Literal["resolved"], Field(..., description="The resolution status for this concept.")),
         extraction=(ExtractionRuleDyn, Field(..., description="Rule used to extract this concept")),
-        units=(Optional[NonEmptyStr], Field(None, description="Units if applicable")),
+        units=(NonEmptyStr | None, Field(None, description="Units if applicable")),
     )
 
     MissingResolutionDyn = create_model(
@@ -477,7 +477,7 @@ def build_dynamic_result_model(allowed_keys: tuple[str, ...]):
     GEOMetadataExtractionResultDyn = create_model(
         f"GEOMetadataExtractionResult__{abs(hash(allowed_keys))}",
         __config__=ConfigDict(extra="forbid"),
-        artifact=(Optional[ArtifactRef], Field(..., description="Reference to saved json")),
+        artifact=(ArtifactRef | None, Field(..., description="Reference to saved json")),
         subject_id=(FieldResolutionDyn, Field(..., description="Resolution details for subject_id concept")),
         age=(FieldResolutionDyn, Field(..., description="Resolution details for age concept")),
         tissue=(FieldResolutionDyn, Field(..., description="Resolution details for tissue concept")),
@@ -487,7 +487,7 @@ def build_dynamic_result_model(allowed_keys: tuple[str, ...]):
         condition=(FieldResolutionDyn, Field(..., description="Resolution details for condition concept")),
         platform=(FieldResolutionDyn, Field(..., description="Resolution details for platform concept")),
         # execution_status=(Literal["succeeded", "failed"], Field("succeeded")),
-        error=(Optional[NonEmptyStr], Field(...)),
+        error=(NonEmptyStr | None, Field(...)),
     )
 
     print(f"\n\nConstructed dynamic result model {CharacteristicsExtractionRuleDyn.model_json_schema()}\n\n")
@@ -535,7 +535,7 @@ def build_dynamic_control_identification_model(allowed_values: tuple[str, ...]):
         __base__=BaseModel,
         __config__=ConfigDict(extra="forbid"),
         control_value=(
-            Optional[Literal[allowed_values]],
+            Literal[allowed_values] | None,
             Field(
                 ..., description="The value in the dataset that indicates a control sample, e.g. 'healthy' or 'control'"
             ),
@@ -749,23 +749,15 @@ class GEOSampleLevelMetadata(BaseModel):
     """
 
     sample_name: NonEmptyStr = Field(..., description="The sample name as listed in the GEO SOFT file, e.g. GSM12345")
-    subject_id: NonEmptyStr | None = Field(
-        None, description="The subject ID associated with this sample, if available"
-    )
+    subject_id: NonEmptyStr | None = Field(None, description="The subject ID associated with this sample, if available")
     age: float | None = Field(None, description="The age of the subject in years, if available")
     tissue: NonEmptyStr | None = Field(None, description="The tissue type associated with this sample, if available")
-    cell_type: NonEmptyStr | None = Field(
-        None, description="The cell type associated with this sample, if available"
-    )
-    status: NonEmptyStr | None = Field(
-        None, description="The disease status associated with this sample, if available"
-    )
+    cell_type: NonEmptyStr | None = Field(None, description="The cell type associated with this sample, if available")
+    status: NonEmptyStr | None = Field(None, description="The disease status associated with this sample, if available")
     sex: NonEmptyStr | None = Field(
         None, description="The sex of the subject associated with this sample, if available"
     )
-    platform: NonEmptyStr | None = Field(
-        None, description="The platform ID associated with this sample, if available"
-    )
+    platform: NonEmptyStr | None = Field(None, description="The platform ID associated with this sample, if available")
     gpl: list[NonEmptyStr] | None = Field(None, description="The GPL IDs associated with this sample, if available")
 
 
