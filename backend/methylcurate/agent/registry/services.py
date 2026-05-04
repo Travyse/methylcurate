@@ -16,13 +16,15 @@ def build_services_with_checkpointer(checkpointer) -> tuple[StreamingRunner, Dep
     Returns:
         A tuple containing the StreamingRunner instance and the Deps instance.
     """
+    import os
+
     llm = LLMClient(
         LLMConfig(
             provider="ollama",
-            model="qwen3.5:397b-cloud",
+            model=os.getenv("OLLAMA_MODEL", "qwen3.5:397b-cloud"),
             temperature=0.0,
             top_k=1,
-            ollama_base_url="http://localhost:11434",
+            ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
             reasoning=True,
             streaming=True,
         )
