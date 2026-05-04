@@ -232,12 +232,12 @@ async function loadState(threadId: string): Promise<LCMsg[]> {
   return (j?.values?.messages ?? []) as LCMsg[];
 }
 
-async function streamRun(params: { threadId: string; messages: LCMsg[] }) {
+async function streamRun(params: { threadId: string; messages: LCMsg[]; files?: Array<{ name: string; content: string }> }) {
   const res = await fetch(`${apiBase()}/threads/${encodeURIComponent(params.threadId)}/runs/stream`, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "text/event-stream" },
     body: JSON.stringify({
-      input: { messages: params.messages },
+      input: { messages: params.messages, files: params.files ?? [] },
       command: null,
       streamMode: ["messages", "updates"],
     }),
@@ -452,7 +452,6 @@ export function ExternalFastApiRuntimeProvider({ children }: { children: ReactNo
       }, [remoteId, aui]);
       const onNew = useCallback(
         async (msg: AppendMessage) => {
-          // ensure thread exists; if user is on "New Chat" this will create it
           const init = await aui.threadListItem().initialize();
           const tid = init?.remoteId as string | undefined;
           if (!tid) throw new Error("No active thread");
@@ -461,15 +460,32 @@ export function ExternalFastApiRuntimeProvider({ children }: { children: ReactNo
           if (!first || first.type !== "text") throw new Error("Only text supported");
           const userText = first.text ?? "";
 
-          // optimistic user message
-          // setMessages((cur) => [...cur, { type: "human", id: `human-${Date.now()}`, content: userText } as LCMsg]);
+          const fileEntries: Array<{ name: string; content: string }> = [];
+          const attachments = (msg as any).attachments as Array<{ file?: File; name?: string }> | undefined;
+          if (attachments?.length) {
+            const results = await Promise.all(
+              attachments.map(async (att) => {
+                if (!att.file) return null;
+                const buf = await att.file.arrayBuffer();
+                const bytes = new Uint8Array(buf);
+                let binary = "";
+                for (let i = 0; i < bytes.length; i++) {
+                  binary += String.fromCharCode(bytes[i]);
+                }
+                return { name: att.name ?? att.file.name, content: btoa(binary) };
+              }),
+            );
+            for (const r of results) {
+              if (r) fileEntries.push(r);
+            }
+          }
 
           setIsRunning(true);
           try {
             const cur = await loadState(tid).catch(() => []);
             const payload = [...cur, { id: crypto.randomUUID(), type: "human", content: userText } as LCMsg];
 
-            const sse = await streamRun({ threadId: tid, messages: payload });
+            const sse = await streamRun({ threadId: tid, messages: payload, files: fileEntries });
             for await (const [event, data] of sse) {
               if (event === "messages") {
                 const incoming = (data?.messages ?? []) as LCMsg[];
@@ -479,7 +495,6 @@ export function ExternalFastApiRuntimeProvider({ children }: { children: ReactNo
                       console.log("CONVERTED", toThreadMessageLike(m));
                     }
                   }
-                // if (incoming.length) setMessages((cur2) => [...cur2, ...incoming]); TODO: Check
                 if (incoming.length) setMessages((cur2) => upsertById(cur2, incoming));
               }
               if (event === "done") break;

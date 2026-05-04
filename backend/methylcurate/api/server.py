@@ -18,6 +18,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 import sqlite3
 
 from .session import SessionStore
+from .file_parser import _append_accessions_to_text, _extract_accessions_from_files
 from ..agent.state.utils import make_main_state
 from ..agent.registry.services import build_services_with_checkpointer
 
@@ -384,9 +385,7 @@ async def stream_thread(thread_id: str, req: StreamRequest, request: Request):
         last = input_messages[-1]
         if isinstance(last, dict):
             user_text = last.get("content") or ""
-            # if content is parts [{type:"text",text:"..."}], normalize
             if isinstance(user_text, list):
-                # best-effort: join text parts
                 parts = []
                 for p in user_text:
                     if isinstance(p, dict) and p.get("type") == "text":
@@ -394,6 +393,9 @@ async def stream_thread(thread_id: str, req: StreamRequest, request: Request):
                 user_text = "".join(parts)
         else:
             user_text = str(last)
+
+    files_raw = (input_obj.get("files") or []) if isinstance(input_obj, dict) else []
+    user_text = _append_accessions_to_text(user_text, _extract_accessions_from_files(files_raw))
     
     await session.queue.put(
         type("Ev", (), {"type": "status", "payload": {"_emit_user": user_text}})

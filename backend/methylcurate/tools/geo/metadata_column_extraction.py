@@ -26,7 +26,6 @@ from ...utils.helper import compute_sha256
 from ...utils.prompting import (
     generate_metadata_column_user_query,
     generate_metadata_column_user_query_alt,
-    generate_immediate_column_feedback,
     generate_immediate_single_column_feedback,
     generate_column_feedback_loop_prompt,
     generate_identify_control_value_prompt,

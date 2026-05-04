@@ -16,7 +16,6 @@ from ...contracts.common import HumanReviewRequest
 from ...contracts.router import RouterOutput
 from ...utils.helper import make_review_id
 from ..policies.validations.router import router_clarification_verification
-from ...utils.prompting import generate_router_interpretation_prompt, generate_router_clarification_prompt
 from ...utils.examples import generate_router_interpretation_examples, generate_router_clarification_examples
 
 MAX_RETRIES = 3

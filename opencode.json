@@ -1,16 +1,5 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "agent": {  
-    "code-reviewer": {
-        "description": "Reviews code for best practices and potential issues",
-        "mode": "subagent",
-        "model": "ollama/deepseek-v4-pro",
-        "prompt": "You are a code reviewer. Focus on security, performance, and maintainability. Reduce redundant code where appropriate.",
-        "permission": {
-            "edit": "deny"
-        }
-    }
-  },
   "permission": {
     "bash": {
       "git *": "allow",

@@ -15,8 +15,7 @@ from ...contracts.geo import GEOMetadataExtractionResult
 from ...utils.prompting import (
     generate_geo_system_prompt,
     generate_geo_system_concept_prompt,
-    generate_router_system_prompt,
-    generate_geo_metadata_harmonization_prompt)
+    generate_router_system_prompt)
 
 from ...utils.examples import (
     generate_router_interpretation_examples,

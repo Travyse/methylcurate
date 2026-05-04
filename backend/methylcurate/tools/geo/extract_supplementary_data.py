@@ -20,7 +20,7 @@ from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemM
 from ...agent.state.models import GEOIngestionConfig, GeoDatasetState, GeoIngestionSubgraphState
 from ...utils.helper import compute_sha256, consolidate_artifacts, write_feather
 from ...utils.examples import generate_column_interpretation_examples, generate_column_interpretation_examples_no_detection
-from ...utils.prompting import generate_infer_methylation_data_column_scheme_prompt, generate_subject_column_refinement_prompt, generate_infer_methylation_data_column_scheme_alt_prompt
+from ...utils.prompting import generate_infer_methylation_data_column_scheme_prompt, generate_infer_methylation_data_column_scheme_alt_prompt
 from ...contracts.common import ArtifactRef
 from ...contracts.geo import (
     SampleDataResolution, LexFeat, ErrorResolution, ForcedSampleDataResolution, GEOMetadataExtractionResult, ResolvedResolution)

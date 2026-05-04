@@ -21,3 +21,8 @@ class ResumeRequest(BaseModel):
     run_id: str
     thread_id: str
     answer: Any
+
+
+class FilePayload(BaseModel):
+    name: str
+    content: str
