@@ -1,42 +1,43 @@
 __all__ = ["clock_retrieval_node", "benchmarking_node", "task_computation_node", "summarize_benchmarking_results"]
 
 import hashlib
-import os
 import json
+import os
+from datetime import UTC, datetime
+
 import pandas as pd
 import pyaging as pya
-from datetime import datetime, timezone
-from langgraph.types import interrupt, Command
-from langchain_core.runnables import RunnableConfig
-from typing import List
-from ...contracts.common import ArtifactRef
 from langchain_core.messages import ToolMessage
-from ...utils.logging import setup_logger
-from ...utils.helper import (
-    get_accession_codes,
-    consolidate_artifacts,
-    benchmarking_progress,
-    compute_sha256,
-    load_metadata_aligned_methylation_data,
-    PROJECT_ROOT,
-)
+from langchain_core.runnables import RunnableConfig
+from langgraph.types import Command
+
+from ...contracts.common import ArtifactRef
 from ...tools.clocks.inference import (
+    bootstrap_aa1_test,
+    bootstrap_welch_one_sided_aac_gt_hc,
     compute_age_acceleration,
     compute_mae,
     compute_medae,
     compute_pearson_r,
+    get_dataset_predictions,
+    get_extraction_protocol,
     get_metadata_dataframe,
     make_internal_clock_predictions,
-    get_dataset_predictions,
-    bootstrap_aa1_test,
-    bootstrap_welch_one_sided_aac_gt_hc,
     merge_and_process_computation_dfs,
-    get_extraction_protocol,
 )
+from ...utils.helper import (
+    PROJECT_ROOT,
+    benchmarking_progress,
+    compute_sha256,
+    consolidate_artifacts,
+    get_accession_codes,
+    load_metadata_aligned_methylation_data,
+)
+from ...utils.logging import setup_logger
 from ..state.models import BenchmarkingSubgraphState
 
 
-def _get_harmonized_metadata(accession_code: str, artifacts: List[ArtifactRef]) -> pd.DataFrame:
+def _get_harmonized_metadata(accession_code: str, artifacts: list[ArtifactRef]) -> pd.DataFrame:
     """
     Retrieve harmonized metadata for a given accession code from a list of artifacts.
 
@@ -58,7 +59,7 @@ def _get_harmonized_metadata(accession_code: str, artifacts: List[ArtifactRef]) 
     for kind in target_json_kinds:
         artifact = next((a for a in artifacts if a.kind == kind and a.accession_code == accession_code), None)
         if artifact:
-            with open(artifact.path, "r") as f:
+            with open(artifact.path) as f:
                 mapping = json.load(f)
             for m in mapping["mappings"]:
                 if m.get("target_label", None) is None:
@@ -79,7 +80,7 @@ def _get_harmonized_metadata(accession_code: str, artifacts: List[ArtifactRef]) 
 
 
 def _get_harmonized_full_data_if_available(
-    accession_code: str, metadata_df: pd.DataFrame, methylation_df: pd.DataFrame, artifacts: List[ArtifactRef]
+    accession_code: str, metadata_df: pd.DataFrame, methylation_df: pd.DataFrame, artifacts: list[ArtifactRef]
 ) -> pd.DataFrame:
     """
     Retrieve harmonized full data for a given accession code if available.
@@ -161,7 +162,7 @@ def clock_retrieval_node(state: BenchmarkingSubgraphState, *, config: RunnableCo
                     "accession_code": None,
                     "sha256": compute_sha256(os.path.join(model_dir, f"{clock.lower()}_model.pkl"), is_path=True),
                     "bytes": os.path.getsize(os.path.join(model_dir, f"{clock.lower()}_model.pkl")),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 }
             )
         )
@@ -179,7 +180,7 @@ def clock_retrieval_node(state: BenchmarkingSubgraphState, *, config: RunnableCo
                     "accession_code": None,
                     "sha256": compute_sha256(os.path.join(clock_dir, f"{clock.lower()}.pt"), is_path=True),
                     "bytes": os.path.getsize(os.path.join(clock_dir, f"{clock.lower()}.pt")),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 }
             )
         )
@@ -289,7 +290,7 @@ def benchmarking_node(state: BenchmarkingSubgraphState, *, config: RunnableConfi
         )
     adata = compute_age_acceleration(adata, state.config.clock_list)
 
-    prediction_output_path = os.path.join(output_dir, f"predictions.csv")
+    prediction_output_path = os.path.join(output_dir, "predictions.csv")
     adata.obs.to_csv(prediction_output_path, index=True)
     artifact = ArtifactRef.model_validate(
         {
@@ -298,7 +299,7 @@ def benchmarking_node(state: BenchmarkingSubgraphState, *, config: RunnableConfi
             "accession_code": accession_code,
             "sha256": compute_sha256(prediction_output_path, is_path=True),
             "bytes": os.path.getsize(prediction_output_path),
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
     )
     return_dict["config"]["artifacts"] = consolidate_artifacts(state.config.artifacts, [artifact])
@@ -350,7 +351,7 @@ def task_computation_node(state: BenchmarkingSubgraphState, *, config: RunnableC
         return_dict["datasets"][accession_code]["status"] = "completed"
         return Command(update=return_dict)
 
-    computation_output_path = os.path.join(state.config.output_root, accession_code, f"benchmarking_results.csv")
+    computation_output_path = os.path.join(state.config.output_root, accession_code, "benchmarking_results.csv")
     mae = compute_mae(prediction_df, extraction_protocol, clocks=state.config.clock_list)
     medae = compute_medae(prediction_df, extraction_protocol, clocks=state.config.clock_list)
     pearson_r = compute_pearson_r(prediction_df, extraction_protocol, clocks=state.config.clock_list)
@@ -371,7 +372,7 @@ def task_computation_node(state: BenchmarkingSubgraphState, *, config: RunnableC
             "accession_code": accession_code,
             "sha256": compute_sha256(computation_output_path, is_path=True),
             "bytes": os.path.getsize(computation_output_path),
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
     )
     return_dict["config"]["artifacts"] = consolidate_artifacts(state.config.artifacts, [artifact])
@@ -394,11 +395,11 @@ def summarize_benchmarking_results(state: BenchmarkingSubgraphState, *, config: 
         Command: A command containing the updated state and any messages.
     """
 
-    def _create_hash(accession_codes: List[str], identifier: str):
+    def _create_hash(accession_codes: list[str], identifier: str):
         m = hashlib.sha256()
         for accession_code in sorted(accession_codes):
             m.update(accession_code.encode("utf-8"))
-        m.update("Benchmarking".encode("utf-8"))
+        m.update(b"Benchmarking")
         m.update(identifier.encode("utf-8"))
         return m.hexdigest()
 
@@ -543,7 +544,7 @@ def summarize_benchmarking_results(state: BenchmarkingSubgraphState, *, config: 
         artifact=predictive_performance_payload,
         additional_kwargs={
             "name": "geoDatasetSummary",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     )
 
@@ -558,7 +559,7 @@ def summarize_benchmarking_results(state: BenchmarkingSubgraphState, *, config: 
         artifact=aa1_payload,
         additional_kwargs={
             "name": "geoDatasetSummary",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     )
 
@@ -573,7 +574,7 @@ def summarize_benchmarking_results(state: BenchmarkingSubgraphState, *, config: 
         artifact=aa2_payload,
         additional_kwargs={
             "name": "geoDatasetSummary",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     )
 

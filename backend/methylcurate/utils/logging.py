@@ -1,6 +1,6 @@
 __all__ = ["setup_logger"]
-import os
 import logging
+import os
 
 
 def setup_logger(log_path, log_name, file_name):

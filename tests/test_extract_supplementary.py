@@ -1,7 +1,5 @@
 import inspect
 
-import pytest
-
 
 class TestProcessDetectionColumnsReturnType:
     def test_process_detection_columns_returns_tuple_of_df_and_artifactref(self):

@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 import os
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Dict, Literal, Optional, Type, TypeVar
+from typing import Any, Literal, TypeVar
 
-from pydantic import BaseModel
-
-from langchain_openai import AzureChatOpenAI, ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_ollama import ChatOllama
+from langchain_openai import AzureChatOpenAI, ChatOpenAI
+from pydantic import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -45,20 +45,20 @@ class LLMConfig:
     model: str
 
     # OpenAI
-    openai_api_key: Optional[str] = None
-    openai_base_url: Optional[str] = None
+    openai_api_key: str | None = None
+    openai_base_url: str | None = None
 
     # Azure OpenAI
-    azure_api_key: Optional[str] = None
-    azure_endpoint: Optional[str] = None
-    azure_deployment: Optional[str] = None
-    azure_api_version: Optional[str] = None
+    azure_api_key: str | None = None
+    azure_endpoint: str | None = None
+    azure_deployment: str | None = None
+    azure_api_version: str | None = None
 
     # Anthropic
-    anthropic_api_key: Optional[str] = None
+    anthropic_api_key: str | None = None
 
     # Ollama
-    ollama_base_url: Optional[str] = None  # e.g. http://localhost:11434
+    ollama_base_url: str | None = None  # e.g. http://localhost:11434
 
     # Runtime behavior
     temperature: float = 0.0
@@ -66,7 +66,7 @@ class LLMConfig:
     top_p: float = 0.9
     timeout_s: int = 120
     max_retries: int = 2
-    reasoning: Optional[bool] = None
+    reasoning: bool | None = None
 
     # Streaming
     streaming: bool = True
@@ -121,7 +121,7 @@ class LLMClient:
             if not api_key:
                 raise ValueError("Missing OpenAI API key (OPENAI_API_KEY or config.openai_api_key).")
 
-            kwargs: Dict[str, Any] = dict(
+            kwargs: dict[str, Any] = dict(
                 model=cfg.model,
                 api_key=api_key,
                 temperature=cfg.temperature,
@@ -179,7 +179,7 @@ class LLMClient:
             )
 
         if cfg.provider == "ollama":
-            kwargs: Dict[str, Any] = dict(
+            kwargs: dict[str, Any] = dict(
                 model=cfg.model, temperature=cfg.temperature, top_k=cfg.top_k, top_p=cfg.top_p, seed=42
             )
             if cfg.ollama_base_url:
@@ -221,7 +221,7 @@ class LLMClient:
     # ----------------------------
     # Native structured output
     # ----------------------------
-    def call_structured(self, prompt: str, schema: Type[T]) -> T:
+    def call_structured(self, prompt: str, schema: type[T]) -> T:
         """
         Native structured output using tool/function calling.
         Returns a Pydantic model instance of type `schema`.
@@ -241,7 +241,7 @@ class LLMClient:
             return out
         return schema.model_validate(out)
 
-    async def acall_structured(self, prompt: str, schema: Type[T]) -> T:
+    async def acall_structured(self, prompt: str, schema: type[T]) -> T:
         """
         Async native structured output using tool/function calling.
         Returns a Pydantic model instance of type `schema`.
@@ -279,7 +279,7 @@ class LLMClient:
             if text:
                 yield text
 
-    async def astream_structured_events(self, prompt: str, schema: Type[T]) -> AsyncIterator[Dict[str, Any]]:
+    async def astream_structured_events(self, prompt: str, schema: type[T]) -> AsyncIterator[dict[str, Any]]:
         """
         If you want to stream *events* for structured calls (tool call events), you typically do this at the
         LangGraph/LangChain runnable layer with astream_events.

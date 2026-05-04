@@ -13,23 +13,24 @@ __all__ = [
 ]
 import json
 import random
-import uuid
 import re
+import uuid
+from typing import Any
+
 import pandas as pd
-from typing import List, Dict, Any
-from ..contracts.router import RouterOutput
-from ..contracts.geo import GEOMetadataExtractionInput, GEOMetadataExtractionResult, FieldResolution
+from langchain_core.messages import SystemMessage
+
 from ..contracts.harmonize import create_ontology_mapping_model
-from langchain_core.messages import HumanMessage, AnyMessage, SystemMessage
+from ..contracts.router import RouterOutput
 from .prompting import (
-    generate_ontology_group_guess_user_query,
-    generate_ontology_group_guess_system_prompt,
-    generate_ontology_label_query,
-    generate_ontology_label_system_prompt,
-    generate_ontology_label_selection_query,
-    generate_ontology_label_selection_system_prompt,
     generate_high_level_ontology_label_selection_query,
     generate_high_level_ontology_label_selection_system_prompt,
+    generate_ontology_group_guess_system_prompt,
+    generate_ontology_group_guess_user_query,
+    generate_ontology_label_query,
+    generate_ontology_label_selection_query,
+    generate_ontology_label_selection_system_prompt,
+    generate_ontology_label_system_prompt,
 )
 
 
@@ -115,7 +116,7 @@ def generate_geo_metadata_extraction_examples(n_samples=10, concept: str = "age"
         tuple: A tuple containing the example input and the example resolution.
     """
 
-    def _generate_random_characteristics_ch1(concept: str, is_missing: bool) -> Dict[str, Any]:
+    def _generate_random_characteristics_ch1(concept: str, is_missing: bool) -> dict[str, Any]:
         """
         Generates a random characteristics_ch1 dictionary for GEO metadata extraction examples.
 
@@ -218,7 +219,7 @@ def generate_general_geo_metadata_extraction_examples(n_samples=10, is_missing=T
         tuple: A tuple containing the example input and the example resolution.
     """
 
-    def _generate_random_characteristics_ch1(is_missing: bool) -> Dict[str, Any]:
+    def _generate_random_characteristics_ch1(is_missing: bool) -> dict[str, Any]:
         """
         Generates a random characteristics_ch1 dictionary for GEO metadata extraction examples.
 
@@ -368,7 +369,7 @@ def generate_general_geo_metadata_extraction_examples(n_samples=10, is_missing=T
     return example_input, example_response
 
 
-def generate_metadata_harmonization_examples() -> tuple[Dict[str, Any], Dict[str, Any]]:
+def generate_metadata_harmonization_examples() -> tuple[dict[str, Any], dict[str, Any]]:
     """
     Generates examples for metadata harmonization.
 
@@ -402,7 +403,7 @@ def generate_metadata_harmonization_examples() -> tuple[Dict[str, Any], Dict[str
     return example_input, example_agent_response
 
 
-def generate_column_interpretation_examples(alt=False) -> tuple[pd.DataFrame, Dict[str, Any]]:
+def generate_column_interpretation_examples(alt=False) -> tuple[pd.DataFrame, dict[str, Any]]:
     """
     Generates examples for column interpretation.
 
@@ -437,12 +438,12 @@ def generate_column_interpretation_examples(alt=False) -> tuple[pd.DataFrame, Di
     example_agent_response = {
         "beta_column": {
             "status": "resolved",
-            "pattern": "^[a-zA-Z0-9]+_[a-zA-Z0-9]+_beta$" if not alt else "^\d+-[a-zA-Z0-9]+_[a-zA-Z0-9]+$",
+            "pattern": "^[a-zA-Z0-9]+_[a-zA-Z0-9]+_beta$" if not alt else r"^\d+-[a-zA-Z0-9]+_[a-zA-Z0-9]+$",
             "column_evidence": [
                 df.columns.tolist()[i]
                 for i in range(len(df.columns))
                 if re.search(
-                    "^[a-zA-Z0-9]+_[a-zA-Z0-9]+_beta$" if not alt else "^\d+-[a-zA-Z0-9]+_[a-zA-Z0-9]+$",
+                    "^[a-zA-Z0-9]+_[a-zA-Z0-9]+_beta$" if not alt else r"^\d+-[a-zA-Z0-9]+_[a-zA-Z0-9]+$",
                     df.columns[i],
                     re.IGNORECASE,
                 )
@@ -457,14 +458,14 @@ def generate_column_interpretation_examples(alt=False) -> tuple[pd.DataFrame, Di
             "status": "resolved",
             "pattern": "^[a-zA-Z0-9]+_[a-zA-Z0-9]+_Detection_pval$"
             if not alt
-            else "^\d+-[a-zA-Z0-9]+_[a-zA-Z0-9]+_Detection_pval$",
+            else r"^\d+-[a-zA-Z0-9]+_[a-zA-Z0-9]+_Detection_pval$",
             "column_evidence": [
                 df.columns.tolist()[i]
                 for i in range(len(df.columns))
                 if re.search(
                     "^[a-zA-Z0-9]+_[a-zA-Z0-9]+_Detection_pval$"
                     if not alt
-                    else "^\d+-[a-zA-Z0-9]+_[a-zA-Z0-9]+_Detection_pval$",
+                    else r"^\d+-[a-zA-Z0-9]+_[a-zA-Z0-9]+_Detection_pval$",
                     df.columns[i],
                     re.IGNORECASE,
                 )
@@ -480,7 +481,7 @@ def generate_column_interpretation_examples(alt=False) -> tuple[pd.DataFrame, Di
     return df.to_markdown(index=False), example_agent_response
 
 
-def generate_column_interpretation_examples_no_detection() -> tuple[pd.DataFrame, Dict[str, Any]]:
+def generate_column_interpretation_examples_no_detection() -> tuple[pd.DataFrame, dict[str, Any]]:
     """
     Generates examples for column interpretation without detection columns.
 
@@ -498,7 +499,7 @@ def generate_column_interpretation_examples_no_detection() -> tuple[pd.DataFrame
     example_agent_response = {
         "beta_column": {
             "status": "resolved",
-            "pattern": "^\d+-[a-zA-Z0-9]+_[a-zA-Z0-9]+$",
+            "pattern": r"^\d+-[a-zA-Z0-9]+_[a-zA-Z0-9]+$",
             "column_evidence": cols,
             "evidence": [
                 "Identified beta-like values in these columns which are bound between 0 and 1, and are not detection columns."
@@ -516,7 +517,7 @@ def generate_column_interpretation_examples_no_detection() -> tuple[pd.DataFrame
     return df.to_markdown(index=False), example_agent_response
 
 
-def _harmonization_dataset_info(ontology: str = "mondo") -> Dict[str, str]:
+def _harmonization_dataset_info(ontology: str = "mondo") -> dict[str, str]:
     """
     Retrieves dataset information based on the specified ontology.
 
@@ -540,7 +541,7 @@ def _harmonization_dataset_info(ontology: str = "mondo") -> Dict[str, str]:
         }
 
 
-def _harmonization_ontology_dict() -> Dict[str, Dict[str, str]]:
+def _harmonization_ontology_dict() -> dict[str, dict[str, str]]:
     """
     Retrieves ontology information for harmonization.
 
@@ -850,7 +851,7 @@ def _ontology_labels(ontology: str) -> tuple[list[str], Any, Any]:
         raise ValueError(f"Unsupported ontology: {ontology}")
 
 
-def _field_names(ontology: str) -> Dict[str, str]:
+def _field_names(ontology: str) -> dict[str, str]:
     """
     Retrieves the field names for the specified ontology.
 
@@ -902,7 +903,7 @@ def generate_ontology_guess_examples(ontology: str) -> SystemMessage:
     return system_message
 
 
-def _suggested_ontology_labels(ontology: str) -> tuple[list[str], Any, Any]:
+def _suggested_ontology_labels(ontology: str) -> tuple[dict[str, list[str]], Any, Any]:
     """
     Retrieves suggested ontology labels based on the specified ontology.
 
@@ -1144,7 +1145,7 @@ def generate_ontology_selection_examples(ontology: str) -> SystemMessage:
     return system_message
 
 
-def _suggested_high_level_ontology_labels(ontology: str) -> tuple[list[str], Any, Any]:
+def _suggested_high_level_ontology_labels(ontology: str) -> tuple[dict[str, list[str]], Any, Any]:
     """
     Retrieves suggested high-level ontology labels based on the specified ontology.
 
@@ -1259,6 +1260,7 @@ def _suggested_high_level_ontology_labels(ontology: str) -> tuple[list[str], Any
             }
         )
         return target_label_dict, LabelMappingSetDyn, label_mapping_set
+    raise ValueError(f"Unknown ontology: {ontology}")
 
 
 def generate_high_level_ontology_selection_examples(ontology: str) -> SystemMessage:

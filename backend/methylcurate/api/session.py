@@ -1,6 +1,6 @@
 import asyncio
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, List
+from typing import Any
 
 
 @dataclass
@@ -17,13 +17,13 @@ class RunSession:
     run_id: str
     queue: asyncio.Queue = field(default_factory=asyncio.Queue)
 
-    main_state: Optional[Any] = None
+    main_state: Any | None = None
 
     # If interrupted, store which thread + payload
-    pending_interrupt: Optional[Dict[str, Any]] = None  # {"thread_id": str, "payload": dict}
+    pending_interrupt: dict[str, Any] | None = None  # {"thread_id": str, "payload": dict}
 
     # Single active runner task per run
-    task: Optional[asyncio.Task] = None
+    task: asyncio.Task | None = None
 
 
 class SessionStore:
@@ -35,7 +35,7 @@ class SessionStore:
     """
 
     def __init__(self):
-        self._runs: Dict[str, RunSession] = {}
+        self._runs: dict[str, RunSession] = {}
 
     def create(self, run_id: str) -> RunSession:
         """
@@ -51,7 +51,7 @@ class SessionStore:
         self._runs[run_id] = s
         return s
 
-    def list_runs(self) -> List[str]:
+    def list_runs(self) -> list[str]:
         """
         Lists all active run sessions.
 

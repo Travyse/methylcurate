@@ -1,8 +1,9 @@
 __all__ = ["CorticalAge", "PCBrainAge"]
 
 import pickle
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
 
 def _impute_clock_data(required_cpgs, dnam, default_imputation, user_imputation=None):

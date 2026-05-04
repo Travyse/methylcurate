@@ -5,42 +5,43 @@ __all__ = [
     "geo_metadata_column_extraction_approval_node",
 ]
 
-import os
 import json
+import os
 import random
 import uuid
+from datetime import UTC, datetime
+from typing import Any, get_args
+
 import pandas as pd
-from datetime import datetime, timezone
-from ....contracts.common import ArtifactRef
-from langgraph.types import Command
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
-from typing import Any, List, Dict, get_args
-from langchain_core.messages import ToolMessage, HumanMessage
-from ....utils.helper import (
-    get_accession_codes,
-    compute_sha256,
-    set_step_status,
-    update_progress_tracker,
-    check_step_completion,
-    consolidate_artifacts,
-)
-from ....utils.prompting import generate_metadata_column_user_query_alt
-from ....contracts.geo import GEOMetadataExtractionInput, Concept
-from ...state.models import GeoIngestionSubgraphState, GeoDatasetState
+from langgraph.types import Command
+
+from ....contracts.common import ArtifactRef
+from ....contracts.geo import Concept, GEOMetadataExtractionInput
 from ....tools.geo import (
-    extract_metadata_columns_alt,
-    _get_custom_models,
-    _extract_all_columns,
-    _get_extraction_resolutions,
     _check_extraction_patterns,
+    _extract_all_columns,
+    _extract_column_for_concept_age,
+    _extract_column_for_concept_disease_status,
     _extract_column_for_concept_misformatted,
     _extract_column_for_concept_poor_parsing,
+    _get_custom_models,
+    _get_extraction_resolutions,
     _get_parse_rate,
-    _extract_column_for_concept_disease_status,
-    _extract_column_for_concept_age,
     extract_dataset_metadata,
     generate_summary_data,
 )
+from ....utils.helper import (
+    check_step_completion,
+    compute_sha256,
+    consolidate_artifacts,
+    get_accession_codes,
+    set_step_status,
+    update_progress_tracker,
+)
+from ....utils.prompting import generate_metadata_column_user_query_alt
+from ...state.models import GeoIngestionSubgraphState
 
 MAX_RETRIES = 3
 # ----------------------------
@@ -49,12 +50,12 @@ MAX_RETRIES = 3
 
 
 def _randomly_sample_from_dataset(
-    metadata_dict: Dict[str, Any],
-    return_dict: Dict[str, Any],
+    metadata_dict: dict[str, Any],
+    return_dict: dict[str, Any],
     accession_code: str,
     artifact: ArtifactRef,
     num_samples: int = 10,
-) -> List[Any]:
+) -> list[Any]:
     extraction_examples = {
         "accession_code": accession_code,
         "artifact": artifact,
@@ -86,7 +87,7 @@ def _randomly_sample_from_dataset(
     return return_dict
 
 
-async def extract_metadata_schema(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> Dict[str, Any]:
+async def extract_metadata_schema(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     if check_step_completion("extract_metadata_schema", state.datasets, accession_codes):
         return Command(
@@ -111,7 +112,7 @@ async def extract_metadata_schema(state: GeoIngestionSubgraphState, *, config: R
         a for a in state.config.artifacts if a.accession_code == accession_code and a.kind == "metadata_cache"
     )
     metadata = None
-    with open(metadata_artifact.path, "r", encoding="utf-8") as f:
+    with open(metadata_artifact.path, encoding="utf-8") as f:
         metadata = json.load(f)
 
     dataset_dict = {
@@ -135,7 +136,7 @@ async def extract_metadata_schema(state: GeoIngestionSubgraphState, *, config: R
             **dataset_dict,
         ),
         additional_kwargs={
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     )
     return_dict["llm_messages"].append(human_message)
@@ -161,7 +162,7 @@ async def extract_metadata_schema(state: GeoIngestionSubgraphState, *, config: R
             "accession_code": accession_code,
             "sha256": compute_sha256(artifact_path, is_path=True),
             "bytes": os.path.getsize(artifact_path),
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -183,7 +184,7 @@ async def extract_metadata_schema(state: GeoIngestionSubgraphState, *, config: R
 
 async def check_column_extraction_rule_formatting(
     state: GeoIngestionSubgraphState, *, config: RunnableConfig
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     if check_step_completion("refine_metadata_schema", state.datasets, accession_codes):
         return Command(
@@ -234,7 +235,7 @@ async def check_column_extraction_rule_formatting(
         ),
         None,
     )
-    with open(metadata_cache_artifact.path, "r", encoding="utf-8") as f:
+    with open(metadata_cache_artifact.path, encoding="utf-8") as f:
         metadata_dict = json.load(f)
     metadata_artifact = next(
         (
@@ -273,7 +274,7 @@ async def check_column_extraction_rule_formatting(
 
 async def check_column_extraction_rule_accuracy(
     state: GeoIngestionSubgraphState, *, config: RunnableConfig
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     running_accession_codes = sorted(
         [
@@ -292,7 +293,7 @@ async def check_column_extraction_rule_accuracy(
         a for a in state.config.artifacts if a.accession_code == accession_code and a.kind == "metadata_cache"
     )
     metadata = None
-    with open(metadata_artifact.path, "r", encoding="utf-8") as f:
+    with open(metadata_artifact.path, encoding="utf-8") as f:
         metadata = json.load(f)
 
     dataset_state = state.datasets[accession_code]
@@ -365,7 +366,7 @@ async def check_column_extraction_rule_accuracy(
         ),
         None,
     )
-    with open(metadata_cache_artifact.path, "r", encoding="utf-8") as f:
+    with open(metadata_cache_artifact.path, encoding="utf-8") as f:
         metadata_dict = json.load(f)
     metadata_artifact = next(
         (
@@ -449,7 +450,7 @@ def geo_metadata_column_extraction_approval_node(
                         "accession_code": accession_code,
                         "sha256": compute_sha256(artifact_path, is_path=True),
                         "bytes": os.path.getsize(artifact_path),
-                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "created_at": datetime.now(UTC).isoformat(),
                     }
                 ).model_dump()
             )

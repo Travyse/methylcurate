@@ -1,43 +1,40 @@
+import json
 import os
 import uuid
-import json
-from datetime import datetime, timezone
-from typing import Dict, Any, get_args, Optional
-from langchain_core.messages import SystemMessage
-from .models import (
-    GeoIngestionSubgraphState,
-    GEOIngestionConfig,
-    GeoDatasetState,
-    HarmonizationIngestionConfig,
-    HarmonizationDatasetState,
-    HarmonizationSubgraphState,
-    QualityControlIngestionConfig,
-    DatasetQualityControlState,
-    QualityControlSubgraphState,
-    BenchmarkingIngestionConfig,
-    BenchmarkingDatasetState,
-    BenchmarkingSubgraphState,
-    MainState,
-    SubgraphHandle,
-)
-from ...contracts.harmonize import HarmonizationConcept
+from datetime import UTC, datetime
+from typing import Any, get_args
+
+from langchain_core.messages import HumanMessage, SystemMessage
+
 from ...contracts.geo import Concept as GEOConcepts
 from ...contracts.geo import GEOMetadataExtractionResult
+from ...utils.examples import (
+    generate_general_geo_metadata_extraction_examples,
+    generate_geo_metadata_extraction_examples,
+    generate_router_clarification_examples,
+    generate_router_interpretation_examples,
+)
 from ...utils.prompting import (
-    generate_geo_system_prompt,
     generate_geo_system_concept_prompt,
+    generate_geo_system_prompt,
     generate_router_system_prompt,
 )
-
-from ...utils.examples import (
-    generate_router_interpretation_examples,
-    generate_router_clarification_examples,
-    generate_geo_metadata_extraction_examples,
-    generate_metadata_harmonization_examples,
-    generate_general_geo_metadata_extraction_examples,
+from .models import (
+    BenchmarkingDatasetState,
+    BenchmarkingIngestionConfig,
+    BenchmarkingSubgraphState,
+    DatasetQualityControlState,
+    GeoDatasetState,
+    GEOIngestionConfig,
+    GeoIngestionSubgraphState,
+    HarmonizationDatasetState,
+    HarmonizationIngestionConfig,
+    HarmonizationSubgraphState,
+    MainState,
+    QualityControlIngestionConfig,
+    QualityControlSubgraphState,
+    SubgraphHandle,
 )
-
-from langchain_core.messages import HumanMessage
 
 
 def _append_user_message(state: Any, user_text: str) -> None:
@@ -45,13 +42,13 @@ def _append_user_message(state: Any, user_text: str) -> None:
         return
 
     # attribute-style state
-    if hasattr(state, "messages") and isinstance(getattr(state, "messages"), list):
+    if hasattr(state, "messages") and isinstance(state.messages, list):
         state.messages.append(
             HumanMessage(
                 id=uuid.uuid4().hex,
                 content=user_text,
                 additional_kwargs={
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 },
             )
         )
@@ -64,7 +61,7 @@ def _append_user_message(state: Any, user_text: str) -> None:
                 id=uuid.uuid4().hex,
                 content=user_text,
                 additional_kwargs={
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 },
             )
         )
@@ -74,7 +71,7 @@ def _append_user_message(state: Any, user_text: str) -> None:
     raise TypeError(f"State has no messages container: {type(state)}")
 
 
-def make_geo_ingestion_state(run_id: str, params: Dict[str, Any]) -> GeoIngestionSubgraphState:
+def make_geo_ingestion_state(run_id: str, params: dict[str, Any]) -> GeoIngestionSubgraphState:
     params["output_root"] = os.path.join(params.get("output_root", "outputs/"), "data")
     config = GEOIngestionConfig.model_validate(params)
     datasets = {}
@@ -124,7 +121,7 @@ def make_geo_ingestion_state(run_id: str, params: Dict[str, Any]) -> GeoIngestio
     )
 
 
-def make_harmonization_state(run_id: str, params: Dict[str, Any]) -> HarmonizationSubgraphState:
+def make_harmonization_state(run_id: str, params: dict[str, Any]) -> HarmonizationSubgraphState:
     params["output_root"] = os.path.join(params.get("output_root", "outputs/"), "data")
     config = HarmonizationIngestionConfig.model_validate(params)
     datasets = {}
@@ -138,7 +135,7 @@ def make_harmonization_state(run_id: str, params: Dict[str, Any]) -> Harmonizati
     return HarmonizationSubgraphState(run_id=run_id, config=config, datasets=datasets)
 
 
-def make_quality_control_state(run_id: str, params: Dict[str, Any]) -> QualityControlSubgraphState:
+def make_quality_control_state(run_id: str, params: dict[str, Any]) -> QualityControlSubgraphState:
     params["output_root"] = os.path.join(params.get("output_root", "outputs/"), "data")
     config = QualityControlIngestionConfig.model_validate(params)
     datasets = {}
@@ -151,7 +148,7 @@ def make_quality_control_state(run_id: str, params: Dict[str, Any]) -> QualityCo
     return QualityControlSubgraphState(run_id=run_id, config=config, datasets=datasets)
 
 
-def make_benchmarking_state(run_id: str, params: Dict[str, Any]) -> BenchmarkingSubgraphState:
+def make_benchmarking_state(run_id: str, params: dict[str, Any]) -> BenchmarkingSubgraphState:
     params["output_root"] = os.path.join(params.get("output_root", "outputs/"), "analysis")
     config = BenchmarkingIngestionConfig.model_validate(params)
     datasets = {}
@@ -197,7 +194,7 @@ def register_subgraph(
 def make_subgraph_state(
     subgraph: str,
     run_id: str,
-    params: Dict[str, Any],
+    params: dict[str, Any],
 ):
     if subgraph == "geo_retrieval":
         return make_geo_ingestion_state(run_id, params)
@@ -213,7 +210,7 @@ def make_subgraph_state(
 
 def make_full_subgraph_state(
     subgraph: str,
-    params: Dict[str, Any],
+    params: dict[str, Any],
 ):
     if subgraph == "geo_retrieval":
         return GeoIngestionSubgraphState.model_validate(params)
@@ -240,8 +237,8 @@ def make_main_state(
     *,
     run_id: str,
     default_output_root: str = "outputs/",
-    user_request: Optional[str] = None,
-    next_action_hint: Optional[str] = None,
+    user_request: str | None = None,
+    next_action_hint: str | None = None,
 ) -> MainState:
     """
     Create an initial MainState for a new run.
@@ -298,12 +295,6 @@ def get_dataset_for_subgraph(subgraph_name: str) -> Any:
 
 # Register parameter schemas for each subgraph
 from ..registry.nodes import PARAM_SCHEMAS
-from .models import (
-    GEOIngestionConfig,
-    HarmonizationIngestionConfig,
-    QualityControlIngestionConfig,
-    BenchmarkingIngestionConfig,
-)
 
 PARAM_SCHEMAS["geo_retrieval"] = GEOIngestionConfig
 PARAM_SCHEMAS["harmonization"] = HarmonizationIngestionConfig

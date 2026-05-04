@@ -15,25 +15,24 @@ __all__ = [
     "make_internal_clock_predictions",
 ]
 
-import os
 import json
-import pickle
-import torch
-import pyaging as pya
-import pandas as pd
+import os
 from functools import reduce
-from typing import List, Any, Tuple, Optional, Dict, get_args
-from scipy import stats
+from typing import Any, get_args
+
+import pandas as pd
+import pyaging as pya
 import statsmodels.api as sm
+import torch
 from joblib import Parallel, delayed
-from statsmodels.stats.multitest import multipletests
-from sklearn.metrics import mean_absolute_error, median_absolute_error
+from scipy import stats
+
+from ...contracts.clocks import MethylationAgingClock, MethylationClocks
+from ...utils.helper import PROJECT_ROOT, load_metadata_aligned_methylation_data, read_feather
 from .clock_models import CorticalAge, PCBrainAge
-from ...contracts.clocks import MethylationAgingClock, PredictionInput, MethylationClocks
-from ...utils.helper import read_feather, load_metadata_aligned_methylation_data, PROJECT_ROOT
 
 
-def get_extraction_protocol(accession_code: str, artifacts: List[Any]) -> Any:
+def get_extraction_protocol(accession_code: str, artifacts: list[Any]) -> Any:
     """
     Retrieve the metadata extraction protocol for a given accession code from a list of artifacts.
 
@@ -50,7 +49,7 @@ def get_extraction_protocol(accession_code: str, artifacts: List[Any]) -> Any:
     if extraction_protocol_artifact is None:
         raise ValueError("No metadata extraction protocol found")
     extraction_protocol = None
-    with open(extraction_protocol_artifact.path, "r") as f:
+    with open(extraction_protocol_artifact.path) as f:
         extraction_protocol = json.load(f)
     return extraction_protocol
 
@@ -79,7 +78,7 @@ def _get_healthy_subset(prediction_df, extraction_protocol):
     return accession_code, control_label, healthy_subset, target_labels
 
 
-def get_metadata_dataframe(accession_code: str, artifacts: List[Any]) -> pd.DataFrame:
+def get_metadata_dataframe(accession_code: str, artifacts: list[Any]) -> pd.DataFrame:
     """
     Retrieve the metadata DataFrame for a given accession code from a list of artifacts.
 
@@ -98,7 +97,7 @@ def get_metadata_dataframe(accession_code: str, artifacts: List[Any]) -> pd.Data
     return pd.read_csv(metadata_artifact.path, index_col=0)
 
 
-def get_available_methylation_dataframe(accession_code: str, artifacts: List[Any]) -> pd.DataFrame:
+def get_available_methylation_dataframe(accession_code: str, artifacts: list[Any]) -> pd.DataFrame:
     """
     Retrieve the available methylation DataFrame for a given accession code from a list of artifacts.
 
@@ -126,7 +125,7 @@ def get_available_methylation_dataframe(accession_code: str, artifacts: List[Any
     raise ValueError("No methylation data")
 
 
-def get_dataset_predictions(accession_code: str, artifacts: List[Any]) -> pd.DataFrame:
+def get_dataset_predictions(accession_code: str, artifacts: list[Any]) -> pd.DataFrame:
     """
     Retrieve the dataset predictions for a given accession code from a list of artifacts.
 
@@ -146,7 +145,7 @@ def get_dataset_predictions(accession_code: str, artifacts: List[Any]) -> pd.Dat
     raise ValueError("No dataset predictions")
 
 
-def get_all_methylation_aging_clocks(output_dir: str) -> List[MethylationAgingClock]:
+def get_all_methylation_aging_clocks(output_dir: str) -> list[MethylationAgingClock]:
     """
     Retrieve all available methylation aging clocks from the specified output directory.
 
@@ -171,7 +170,7 @@ def get_all_methylation_aging_clocks(output_dir: str) -> List[MethylationAgingCl
     return sorted(methylation_clocks, key=lambda c: c.clock_name.lower())
 
 
-def compute_age_acceleration(adata: Any, clock_names: List[str]):
+def compute_age_acceleration(adata: Any, clock_names: list[str]):
     """
     Compute age acceleration for the specified clocks in the given AnnData object.
 
@@ -211,7 +210,7 @@ def welch_one_sided_aac_gt_hc(
     control_label: str = "Control",
     group_col: str = "cohort",
     bootstrap_id: int = 1,
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """
     Two-sample Welch t-test for a single dataset with one-sided alternative:
         H_A: mean(AAC) > mean(HC)
@@ -250,8 +249,8 @@ def welch_one_sided_aac_gt_hc(
 
 def bootstrap_welch_one_sided_aac_gt_hc(
     prediction_df: pd.DataFrame,
-    extraction_protocol: Dict[str, Any],
-    clocks: Optional[List[str]] = None,
+    extraction_protocol: dict[str, Any],
+    clocks: list[str] | None = None,
     n_bootstraps: int = 1000,
 ) -> pd.DataFrame:
     """
@@ -369,8 +368,8 @@ def one_sample_t_test(
 
 def bootstrap_aa1_test(
     prediction_df: pd.DataFrame,
-    extraction_protocol: Dict[str, Any],
-    clocks: Optional[List[str]] = None,
+    extraction_protocol: dict[str, Any],
+    clocks: list[str] | None = None,
     n_bootstraps: int = 1000,
 ) -> pd.DataFrame:
     """
@@ -485,8 +484,8 @@ def _compute_hc_metric(prediction_df, extraction_protocol, clocks, metric_fn, me
 
 def compute_mae(
     prediction_df: pd.DataFrame,
-    extraction_protocol: Dict[str, Any],
-    clocks: Optional[List[str]] = None,
+    extraction_protocol: dict[str, Any],
+    clocks: list[str] | None = None,
 ) -> pd.DataFrame:
     """Compute the mean absolute error (MAE) for each clock.
 
@@ -511,8 +510,8 @@ def compute_mae(
 
 def compute_medae(
     prediction_df: pd.DataFrame,
-    extraction_protocol: Dict[str, Any],
-    clocks: Optional[List[str]] = None,
+    extraction_protocol: dict[str, Any],
+    clocks: list[str] | None = None,
 ) -> pd.DataFrame:
     """Compute the median absolute error (MedAE) for each clock.
 
@@ -537,8 +536,8 @@ def compute_medae(
 
 def compute_pearson_r(
     prediction_df: pd.DataFrame,
-    extraction_protocol: Dict[str, Any],
-    clocks: Optional[List[str]] = None,
+    extraction_protocol: dict[str, Any],
+    clocks: list[str] | None = None,
 ) -> pd.DataFrame:
     """Compute the Pearson correlation for each clock vs chronological age.
 

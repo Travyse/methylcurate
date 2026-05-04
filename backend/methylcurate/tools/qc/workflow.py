@@ -1,25 +1,24 @@
 __all__ = ["run_all_qc"]
 import os
-import numpy as np
-import pandas as pd
-from datetime import datetime, timezone
-from typing import Dict, Any
+from datetime import UTC, datetime
+from typing import Any
+
+from ...contracts.common import ArtifactRef
+from ...contracts.qc import (
+    CpGLevelQCInput,
+    DNAmQCInput,
+    InterarrayCorrelationQCInput,
+    PreprocessDataInput,
+    SampleLevelQCInput,
+)
+from ...utils.helper import compute_sha256, read_feather, write_feather
 from .data_type_conversion import convert_data_type
 from .qc import (
     handle_cpg_level_missingness,
     handle_sample_level_missingness,
-    maximum_dnam_filter,
     interarray_correlation,
+    maximum_dnam_filter,
 )
-from ...contracts.qc import (
-    PreprocessDataInput,
-    DNAmQCInput,
-    CpGLevelQCInput,
-    SampleLevelQCInput,
-    InterarrayCorrelationQCInput,
-)
-from ...contracts.common import ArtifactRef
-from ...utils.helper import compute_sha256, read_feather, write_feather
 
 
 def run_all_qc(
@@ -32,7 +31,7 @@ def run_all_qc(
     dnam_qc_input: DNAmQCInput = None,
     interarray_correlation_qc_input: InterarrayCorrelationQCInput = None,
     logger: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run the full quality-control pipeline on a single methylation dataset.
 
     This is the top-level orchestrator for pre-benchmarking QC.  It
@@ -100,7 +99,7 @@ def run_all_qc(
                 "kind": "postqc_methylation_data",
                 "sha256": compute_sha256(processed_path, is_path=True),
                 "bytes": os.path.getsize(processed_path),
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
             }
         )
     ]

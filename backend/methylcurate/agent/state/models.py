@@ -1,39 +1,37 @@
 __all__ = []
 
 import os
+from operator import add
+from typing import Annotated, Any, Literal
 
 from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
-from typing import List, Dict, Optional, Literal, Annotated, Union, Any
-from operator import add
 from pydantic import BaseModel, Field, field_validator, model_validator
-from ...contracts.harmonize import HumanReadableConceptInput, LabelMappingSet
-from ...contracts.harmonize import HarmonizationConcept
+
+from ...contracts.clocks import MethylationClocks
+from ...contracts.common import ArtifactRef, HumanReviewDecision, HumanReviewRequest, StepStatus
 from ...contracts.geo import Concept as GEOConcepts
 from ...contracts.geo import (
     GEODownloadResult,
     GEOMetadataExtractionInput,
     GEOMetadataExtractionResult,
     MetadataSummary,
-    GeoSampleLevelMetadataBatch,
 )
+from ...contracts.harmonize import HumanReadableConceptInput, LabelMappingSet
 from ...contracts.qc import (
-    PreprocessDataInput,
-    PreprocessDataResult,
-    SampleLevelQCInput,
-    SampleLevelQCResult,
     CpGLevelQCInput,
     CpGLevelQCResult,
     DNAmQCInput,
     DNAmQCResult,
     InterarrayCorrelationQCInput,
     InterarrayCorrelationQCResult,
+    PreprocessDataInput,
+    PreprocessDataResult,
+    SampleLevelQCInput,
+    SampleLevelQCResult,
 )
-from ...contracts.common import ArtifactRef, StepStatus, HumanReviewRequest, HumanReviewDecision
-from ...contracts.clocks import MethylationClocks
 from ...contracts.router import RouterOutput
 from ...utils.helper import NonEmptyStr
-from ..registry.nodes import GRAPH_BUILDERS, PARAM_SCHEMAS
 
 
 def merge_dict(left: dict, right: dict) -> dict:
@@ -72,8 +70,8 @@ def _validate_output_root(v):
 
 class GEOIngestionConfig(BaseModel):
     output_root: NonEmptyStr
-    accessions: List[NonEmptyStr]
-    artifacts: List[ArtifactRef] = Field(default_factory=list)
+    accessions: list[NonEmptyStr]
+    artifacts: list[ArtifactRef] = Field(default_factory=list)
 
     @field_validator("accessions", mode="before")
     @classmethod
@@ -82,22 +80,22 @@ class GEOIngestionConfig(BaseModel):
 
 
 class GPLMetadata(BaseModel):
-    platform_id: Optional[NonEmptyStr] = None
-    title: Optional[NonEmptyStr] = None
+    platform_id: NonEmptyStr | None = None
+    title: NonEmptyStr | None = None
 
 
 class RefinementTracking(BaseModel):
     num_retries: int = 0
-    formatting_history: Optional[List[List[str]]] = Field(default_factory=list)  # Flagged concepts
-    parsing_history: Optional[List[List[str]]] = Field(default_factory=list)  # Flagged concepts
-    example_errors: Optional[List[Dict[str, Any]]] = Field(default_factory=list)  # Store examples of errors for review
+    formatting_history: list[list[str]] | None = Field(default_factory=list)  # Flagged concepts
+    parsing_history: list[list[str]] | None = Field(default_factory=list)  # Flagged concepts
+    example_errors: list[dict[str, Any]] | None = Field(default_factory=list)  # Store examples of errors for review
 
 
 class GeoDatasetState(BaseModel):
     accession: NonEmptyStr
     output_dir: NonEmptyStr
 
-    steps: Dict[str, StepStatus] = Field(
+    steps: dict[str, StepStatus] = Field(
         default_factory=lambda: {
             "download_soft": StepStatus(),
             "check_valid_dataset": StepStatus(),
@@ -112,26 +110,24 @@ class GeoDatasetState(BaseModel):
     is_hidden: bool = Field(default=False)
     is_valid_dataset: bool = Field(default=True)
 
-    download_result: Optional[GEODownloadResult] = None
+    download_result: GEODownloadResult | None = None
 
-    metadata_extraction_input: Optional[GEOMetadataExtractionInput] = None
-    metadata_extraction_result: Optional[GEOMetadataExtractionResult] = None
+    metadata_extraction_input: GEOMetadataExtractionInput | None = None
+    metadata_extraction_result: GEOMetadataExtractionResult | None = None
 
-    metadata_summary: Optional[MetadataSummary] = None
+    metadata_summary: MetadataSummary | None = None
     refinement_history: RefinementTracking = Field(default_factory=RefinementTracking)
 
-    artifacts: List[ArtifactRef] = Field(default_factory=list)
-    platform_metadata: Optional[GPLMetadata] = None
-    supplementary_files: Optional[List[str]] = Field(default_factory=list)
-    supplementary_data: Optional[
-        Annotated[Dict[NonEmptyStr, Literal["pending", "running", "completed", "failed"]], merge_dict]
-    ] = None
+    artifacts: list[ArtifactRef] = Field(default_factory=list)
+    platform_metadata: GPLMetadata | None = None
+    supplementary_files: list[str] | None = Field(default_factory=list)
+    supplementary_data: Annotated[dict[NonEmptyStr, Literal["pending", "running", "completed", "failed"]], merge_dict] | None = None
 
-    pending_review: Optional[List[HumanReviewRequest]] = None
-    review_history: List[HumanReviewDecision] = Field(default_factory=list)
+    pending_review: list[HumanReviewRequest] | None = None
+    review_history: list[HumanReviewDecision] = Field(default_factory=list)
 
-    warnings: List[NonEmptyStr] = Field(default_factory=list)
-    errors: List[NonEmptyStr] = Field(default_factory=list)
+    warnings: list[NonEmptyStr] = Field(default_factory=list)
+    errors: list[NonEmptyStr] = Field(default_factory=list)
 
     @field_validator("accession", mode="before")
     @classmethod
@@ -145,20 +141,20 @@ class GeoIngestionSubgraphState(BaseModel):
     messages: Annotated[list[AnyMessage], add_messages] = Field(default_factory=list)
     main_messages: Annotated[list[AnyMessage], add_messages] = Field(default_factory=list)
     llm_messages: Annotated[list[AnyMessage], add_messages] = Field(default_factory=list)
-    concept_messages: Dict[GEOConcepts, list[AnyMessage]] = Field(default_factory=dict)
+    concept_messages: dict[GEOConcepts, list[AnyMessage]] = Field(default_factory=dict)
 
     config: GEOIngestionConfig
 
     # per-accession states
-    datasets: Annotated[Dict[NonEmptyStr, GeoDatasetState], merge_dict]
+    datasets: Annotated[dict[NonEmptyStr, GeoDatasetState], merge_dict]
 
     # optional global artifacts/logs
-    artifacts: List[ArtifactRef] = Field(default_factory=list)
-    warnings: List[NonEmptyStr] = Field(default_factory=list)
-    errors: List[NonEmptyStr] = Field(default_factory=list)
+    artifacts: list[ArtifactRef] = Field(default_factory=list)
+    warnings: list[NonEmptyStr] = Field(default_factory=list)
+    errors: list[NonEmptyStr] = Field(default_factory=list)
 
     # UX/routing
-    next_action_hint: Optional[NonEmptyStr] = None
+    next_action_hint: NonEmptyStr | None = None
 
     @model_validator(mode="after")
     def validate_required_datasets(self):
@@ -176,8 +172,8 @@ class GeoIngestionSubgraphState(BaseModel):
 
 class HarmonizationIngestionConfig(BaseModel):
     output_root: NonEmptyStr
-    accessions: List[NonEmptyStr]
-    artifacts: List[ArtifactRef] = Field(default_factory=list)
+    accessions: list[NonEmptyStr]
+    artifacts: list[ArtifactRef] = Field(default_factory=list)
 
     @field_validator("output_root", mode="before")
     @classmethod
@@ -194,7 +190,7 @@ class HarmonizationDatasetState(BaseModel):
     accession: NonEmptyStr
     output_dir: NonEmptyStr
     status: Literal["not_started", "in_progress", "failed", "completed"] = Field(default="not_started")
-    steps: Dict[NonEmptyStr, StepStatus] = Field(
+    steps: dict[NonEmptyStr, StepStatus] = Field(
         default_factory=lambda: {
             "map_disease_labels_to_ontology": StepStatus(),
             "group_disease_labels": StepStatus(),
@@ -205,21 +201,21 @@ class HarmonizationDatasetState(BaseModel):
         }
     )
 
-    harmonization_input: Optional[HumanReadableConceptInput] = None
+    harmonization_input: HumanReadableConceptInput | None = None
 
     # Disease Harmonization
-    disease_label_guessing: Optional[LabelMappingSet] = None
-    disease_label_mapping: Optional[LabelMappingSet] = None
+    disease_label_guessing: LabelMappingSet | None = None
+    disease_label_mapping: LabelMappingSet | None = None
 
     # Tissue Harmonization
-    tissue_label_guessing: Optional[LabelMappingSet] = None
-    tissue_label_mapping: Optional[LabelMappingSet] = None
+    tissue_label_guessing: LabelMappingSet | None = None
+    tissue_label_mapping: LabelMappingSet | None = None
 
     # Cell Type Harmonization
-    cell_type_label_guessing: Optional[LabelMappingSet] = None
-    cell_type_label_mapping: Optional[LabelMappingSet] = None
+    cell_type_label_guessing: LabelMappingSet | None = None
+    cell_type_label_mapping: LabelMappingSet | None = None
 
-    sex_mapping: Optional[LabelMappingSet] = None
+    sex_mapping: LabelMappingSet | None = None
 
 
 class HarmonizationSubgraphState(BaseModel):
@@ -231,16 +227,16 @@ class HarmonizationSubgraphState(BaseModel):
     config: HarmonizationIngestionConfig
 
     # per-concept states
-    datasets: Annotated[Dict[NonEmptyStr, HarmonizationDatasetState], merge_dict] = Field(default_factory=dict)
-    disease_group_mapping: Optional[LabelMappingSet] = None
-    tissue_group_mapping: Optional[LabelMappingSet] = None
+    datasets: Annotated[dict[NonEmptyStr, HarmonizationDatasetState], merge_dict] = Field(default_factory=dict)
+    disease_group_mapping: LabelMappingSet | None = None
+    tissue_group_mapping: LabelMappingSet | None = None
 
     # optional global artifacts/logs
-    warnings: List[NonEmptyStr] = Field(default_factory=list)
-    errors: List[NonEmptyStr] = Field(default_factory=list)
+    warnings: list[NonEmptyStr] = Field(default_factory=list)
+    errors: list[NonEmptyStr] = Field(default_factory=list)
 
     # UX/routing
-    next_action_hint: Optional[NonEmptyStr] = None
+    next_action_hint: NonEmptyStr | None = None
 
 
 # ----------------------------
@@ -250,8 +246,8 @@ class HarmonizationSubgraphState(BaseModel):
 
 class QualityControlIngestionConfig(BaseModel):
     output_root: NonEmptyStr
-    accessions: List[NonEmptyStr]
-    artifacts: List[ArtifactRef] = Field(default_factory=list)
+    accessions: list[NonEmptyStr]
+    artifacts: list[ArtifactRef] = Field(default_factory=list)
 
     @field_validator("output_root", mode="before")
     @classmethod
@@ -268,15 +264,15 @@ class DatasetQualityControlState(BaseModel):
     accession: NonEmptyStr
     output_dir: NonEmptyStr
     status: Literal["not_started", "in_progress", "failed", "completed"] = Field(default="not_started")
-    steps: Dict[NonEmptyStr, StepStatus] = Field(default_factory=lambda: {"quality_control": StepStatus()})
+    steps: dict[NonEmptyStr, StepStatus] = Field(default_factory=lambda: {"quality_control": StepStatus()})
 
-    data_conversion_result: Optional[PreprocessDataResult] = None
-    sample_level_qc_result: Optional[SampleLevelQCResult] = None
-    cpg_level_qc_result: Optional[CpGLevelQCResult] = None
-    dnam_qc_result: Optional[DNAmQCResult] = None
-    interarray_correlation_qc_result: Optional[InterarrayCorrelationQCResult] = None
+    data_conversion_result: PreprocessDataResult | None = None
+    sample_level_qc_result: SampleLevelQCResult | None = None
+    cpg_level_qc_result: CpGLevelQCResult | None = None
+    dnam_qc_result: DNAmQCResult | None = None
+    interarray_correlation_qc_result: InterarrayCorrelationQCResult | None = None
 
-    artifacts: List[ArtifactRef] = Field(default_factory=list)
+    artifacts: list[ArtifactRef] = Field(default_factory=list)
 
     @field_validator("accession", mode="before")
     @classmethod
@@ -291,20 +287,20 @@ class QualityControlSubgraphState(BaseModel):
     main_messages: Annotated[list[AnyMessage], add_messages] = Field(default_factory=list)
 
     config: QualityControlIngestionConfig
-    datasets: Annotated[Dict[NonEmptyStr, DatasetQualityControlState], merge_dict] = Field(default_factory=dict)
+    datasets: Annotated[dict[NonEmptyStr, DatasetQualityControlState], merge_dict] = Field(default_factory=dict)
 
-    data_conversion_input: Optional[PreprocessDataInput] = None
-    sample_level_qc_input: Optional[SampleLevelQCInput] = None
-    cpg_level_qc_input: Optional[CpGLevelQCInput] = None
-    dnam_qc_input: Optional[DNAmQCInput] = None
-    interarray_correlation_qc_input: Optional[InterarrayCorrelationQCInput] = None
+    data_conversion_input: PreprocessDataInput | None = None
+    sample_level_qc_input: SampleLevelQCInput | None = None
+    cpg_level_qc_input: CpGLevelQCInput | None = None
+    dnam_qc_input: DNAmQCInput | None = None
+    interarray_correlation_qc_input: InterarrayCorrelationQCInput | None = None
 
     # optional global artifacts/logs
-    warnings: List[NonEmptyStr] = Field(default_factory=list)
-    errors: List[NonEmptyStr] = Field(default_factory=list)
+    warnings: list[NonEmptyStr] = Field(default_factory=list)
+    errors: list[NonEmptyStr] = Field(default_factory=list)
 
     # UX/routing
-    next_action_hint: Optional[NonEmptyStr] = None
+    next_action_hint: NonEmptyStr | None = None
 
     @model_validator(mode="after")
     def validate_required_datasets(self):
@@ -322,9 +318,9 @@ class QualityControlSubgraphState(BaseModel):
 
 class BenchmarkingIngestionConfig(BaseModel):
     output_root: NonEmptyStr
-    accessions: List[NonEmptyStr]
-    clock_list: List[MethylationClocks]
-    artifacts: List[ArtifactRef] = Field(default_factory=list)
+    accessions: list[NonEmptyStr]
+    clock_list: list[MethylationClocks]
+    artifacts: list[ArtifactRef] = Field(default_factory=list)
 
     @field_validator("accessions", mode="before")
     @classmethod
@@ -341,7 +337,7 @@ class BenchmarkingDatasetState(BaseModel):
     accession: NonEmptyStr
     output_dir: NonEmptyStr
     status: Literal["not_started", "in_progress", "failed", "completed"] = Field(default="not_started")
-    steps: Dict[NonEmptyStr, StepStatus] = Field(
+    steps: dict[NonEmptyStr, StepStatus] = Field(
         default_factory=lambda: {
             "retrieve_clocks": StepStatus(status="completed"),
             "make_predictions": StepStatus(),
@@ -349,9 +345,9 @@ class BenchmarkingDatasetState(BaseModel):
         }
     )
 
-    benchmarking_result: Optional[Dict[MethylationClocks, Any]] = None
+    benchmarking_result: dict[MethylationClocks, Any] | None = None
 
-    artifacts: List[ArtifactRef] = Field(default_factory=list)
+    artifacts: list[ArtifactRef] = Field(default_factory=list)
 
     @field_validator("accession", mode="before")
     @classmethod
@@ -366,13 +362,13 @@ class BenchmarkingSubgraphState(BaseModel):
     main_messages: Annotated[list[AnyMessage], add_messages] = Field(default_factory=list)
 
     config: BenchmarkingIngestionConfig
-    datasets: Annotated[Dict[NonEmptyStr, BenchmarkingDatasetState], merge_dict] = Field(default_factory=dict)
+    datasets: Annotated[dict[NonEmptyStr, BenchmarkingDatasetState], merge_dict] = Field(default_factory=dict)
 
-    warnings: List[NonEmptyStr] = Field(default_factory=list)
-    errors: List[NonEmptyStr] = Field(default_factory=list)
+    warnings: list[NonEmptyStr] = Field(default_factory=list)
+    errors: list[NonEmptyStr] = Field(default_factory=list)
 
     # UX/routing
-    next_action_hint: Optional[NonEmptyStr] = None
+    next_action_hint: NonEmptyStr | None = None
 
 
 # ----------------------------
@@ -385,29 +381,29 @@ class SubgraphHandle(BaseModel):
     status: Literal["not_started", "running", "paused_for_review", "completed", "failed"] = "not_started"
     # thread_id is the LangGraph checkpointing key you use to resume
     thread_id: NonEmptyStr
-    warnings: List[NonEmptyStr] = Field(default_factory=list)
-    errors: List[NonEmptyStr] = Field(default_factory=list)
+    warnings: list[NonEmptyStr] = Field(default_factory=list)
+    errors: list[NonEmptyStr] = Field(default_factory=list)
 
 
 class MainState(BaseModel):
     run_id: NonEmptyStr
-    user_request: Optional[NonEmptyStr] = None
-    default_output_root: Optional[NonEmptyStr] = None
+    user_request: NonEmptyStr | None = None
+    default_output_root: NonEmptyStr | None = None
     messages: Annotated[list[AnyMessage], add_messages] = Field(default_factory=list)
-    routing_history: Annotated[List[RouterOutput], add] = Field(default_factory=list)
+    routing_history: Annotated[list[RouterOutput], add] = Field(default_factory=list)
     needs_clarification: bool = False
 
     # registry of subgraph runs
-    subgraphs: Dict[NonEmptyStr, SubgraphHandle] = Field(default_factory=dict)
-    datasets: Annotated[Dict[NonEmptyStr, Dict[NonEmptyStr, StepStatus]], merge_dict] = Field(
+    subgraphs: dict[NonEmptyStr, SubgraphHandle] = Field(default_factory=dict)
+    datasets: Annotated[dict[NonEmptyStr, dict[NonEmptyStr, StepStatus]], merge_dict] = Field(
         default_factory=dict
     )  # track dataset-level status across subgraphs for UX
     # Track each step across subgraphs
     # optional: unify HITL tickets across subgraphs for UX
-    pending_reviews: Optional[HumanReviewRequest] = None
+    pending_reviews: HumanReviewRequest | None = None
 
-    artifacts: List[ArtifactRef] = Field(default_factory=list)
-    warnings: List[NonEmptyStr] = Field(default_factory=list)
-    errors: List[NonEmptyStr] = Field(default_factory=list)
+    artifacts: list[ArtifactRef] = Field(default_factory=list)
+    warnings: list[NonEmptyStr] = Field(default_factory=list)
+    errors: list[NonEmptyStr] = Field(default_factory=list)
 
-    next_action_hint: Optional[NonEmptyStr] = None
+    next_action_hint: NonEmptyStr | None = None

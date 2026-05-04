@@ -1,7 +1,7 @@
 import os
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List, Dict, Literal
-from datetime import datetime
 
 from ..utils.helper import NonEmptyStr
 
@@ -51,10 +51,10 @@ class ArtifactRef(BaseModel):
 
     path: NonEmptyStr
     kind: Kind  # e.g., "soft_family", "sample_metadata_csv", "beta_matrix_csv"
-    accession_code: Optional[NonEmptyStr] = None
-    sha256: Optional[NonEmptyStr] = None
-    bytes: Optional[int] = None
-    created_at: Optional[NonEmptyStr] = None  # ISO8601
+    accession_code: NonEmptyStr | None = None
+    sha256: NonEmptyStr | None = None
+    bytes: int | None = None
+    created_at: NonEmptyStr | None = None  # ISO8601
 
     @field_validator("path", mode="before")
     def validate_path(cls, v):
@@ -82,10 +82,10 @@ class StepStatus(BaseModel):
     """
 
     status: Literal["not_started", "running", "completed", "failed", "paused_for_review", "canceled"] = "not_started"
-    started_at: Optional[NonEmptyStr] = None
-    finished_at: Optional[NonEmptyStr] = None
-    error: Optional[NonEmptyStr] = None
-    warnings: List[NonEmptyStr] = Field(default_factory=list)
+    started_at: NonEmptyStr | None = None
+    finished_at: NonEmptyStr | None = None
+    error: NonEmptyStr | None = None
+    warnings: list[NonEmptyStr] = Field(default_factory=list)
 
 
 class HumanReviewRequest(BaseModel):
@@ -103,7 +103,7 @@ class HumanReviewRequest(BaseModel):
     review_id: NonEmptyStr
     reason: NonEmptyStr
     question: NonEmptyStr
-    payload: Dict = Field(default_factory=dict)  # small, user-facing facts + exemplars
+    payload: dict = Field(default_factory=dict)  # small, user-facing facts + exemplars
     created_at: NonEmptyStr
 
 
@@ -121,6 +121,6 @@ class HumanReviewDecision(BaseModel):
 
     review_id: NonEmptyStr
     decision: Literal["approve", "reject", "edit"]  # edit = user supplies corrected params/rules
-    notes: Optional[NonEmptyStr] = None
-    edits: Dict = Field(default_factory=dict)  # e.g. {"subject_id_rule": {...}}
+    notes: NonEmptyStr | None = None
+    edits: dict = Field(default_factory=dict)  # e.g. {"subject_id_rule": {...}}
     decided_at: NonEmptyStr

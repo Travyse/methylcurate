@@ -1,6 +1,5 @@
 import pytest
-
-from methylcurate.api.session import SessionStore, RunSession
+from methylcurate.api.session import RunSession, SessionStore
 
 
 class TestSessionStore:

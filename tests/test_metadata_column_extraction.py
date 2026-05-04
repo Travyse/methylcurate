@@ -1,15 +1,14 @@
 import inspect
 
-import pytest
-
 
 class TestGetCustomModelsReturnsFourTuple:
     def test_return_type_is_a_tuple(self):
         """_get_custom_models should return a 4-tuple (the annotation may be absent,
         but callers unpack 4 values). Test that it returns exactly 4 items."""
-        from methylcurate.tools.geo.metadata_column_extraction import _get_custom_models
-        from methylcurate.contracts.geo import GEOMetadataExtractionInput
         from unittest.mock import MagicMock, patch
+
+        from methylcurate.contracts.geo import GEOMetadataExtractionInput
+        from methylcurate.tools.geo.metadata_column_extraction import _get_custom_models
 
         fake_input = MagicMock(spec=GEOMetadataExtractionInput)
         fake_input.title = ["test"]

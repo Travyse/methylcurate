@@ -1,15 +1,15 @@
 __all__ = []
 
+
 import GEOparse
-import pandas as pd
-from typing import List
+
 from ...contracts.geo import GeoSampleLevelMetadataBatch
 
 # Deterministic way: sample some values from each column, if I find those that satisfy regex that tests for cg##### or rs#####, I win.
 # Check for percentage cg in each column, the column that is above 90% is the CpG column. Stop at the first one.
 
 
-def _get_gpl_features(gpl_id: str, destdir: str) -> List[str]:
+def _get_gpl_features(gpl_id: str, destdir: str) -> list[str]:
     """Retrieve the list of CpG probe IDs for a GEO platform record.
 
     Downloads the GPL record and scans its table columns for a column
@@ -49,7 +49,7 @@ def _get_gpl_features(gpl_id: str, destdir: str) -> List[str]:
     return features
 
 
-def find_common_cpgs(dataset_metadata: List[GeoSampleLevelMetadataBatch]) -> set:
+def find_common_cpgs(dataset_metadata: list[GeoSampleLevelMetadataBatch]) -> set:
     """Compute the intersection of CpG probes across all platforms in a dataset.
 
     Collects every unique GPL platform referenced by any sample, fetches

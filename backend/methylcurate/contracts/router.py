@@ -1,8 +1,9 @@
 from typing import Literal, get_args
+
 from pydantic import BaseModel, Field, field_validator
-from typing import List, Dict, Optional
+
+from ..agent.registry.nodes import PARAM_SCHEMAS
 from ..utils.helper import NonEmptyStr
-from ..agent.registry.nodes import GRAPH_BUILDERS, PARAM_SCHEMAS
 
 SubgraphName = Literal["geo_retrieval", "harmonization", "quality_control", "benchmarking"]
 
@@ -25,7 +26,7 @@ class RouterOutput(BaseModel):
     """
 
     subgraph: SubgraphName
-    params: Dict = Field(default_factory=dict, description="Parameters for the selected subgraph")
+    params: dict = Field(default_factory=dict, description="Parameters for the selected subgraph")
     confidence: float = Field(
         ...,
         ge=0.0,
@@ -36,11 +37,11 @@ class RouterOutput(BaseModel):
         default=False,
         description="Whether the router needs clarification from the user. Set true if confidence is <= 0.5.",
     )
-    clarification_question: Optional[NonEmptyStr] = Field(
+    clarification_question: NonEmptyStr | None = Field(
         default=None,
         description="Clarification question to ask the user if needs_clarification is true. The goal of the question is to improve your ability to route correctly.",
     )
-    reasons: List[NonEmptyStr] = Field(
+    reasons: list[NonEmptyStr] = Field(
         default_factory=list, description="List of reasons for the routing decision, useful for explainability."
     )
 

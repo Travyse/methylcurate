@@ -7,26 +7,26 @@ __all__ = [
 ]
 
 import os
-import pandas as pd
-from datetime import datetime, timezone
-from ....contracts.common import ArtifactRef
-from langgraph.types import interrupt, Command
-from langchain_core.runnables import RunnableConfig
-from typing import Dict, Any, List
+from datetime import UTC, datetime
+from typing import Any
+
 from langchain_core.messages import ToolMessage
-from ....utils.helper import (
-    get_accession_codes,
-    consolidate_artifacts,
-    set_step_status,
-    _get_supplementary_file_id,
-    update_progress_tracker,
-    check_step_completion,
-    read_feather,
-)
+from langchain_core.runnables import RunnableConfig
+from langgraph.types import Command, interrupt
+
+from ....contracts.common import ArtifactRef
 from ....contracts.geo import GEODownloadBatchInput
-from ....contracts.geo import Concept as GeoConcept
-from ...state.models import GeoIngestionSubgraphState, GeoDatasetState, GEOIngestionConfig
-from ....tools.geo import download_geo_datasets, parallel_downloads, get_platform_metadata
+from ....tools.geo import download_geo_datasets, get_platform_metadata, parallel_downloads
+from ....utils.helper import (
+    _get_supplementary_file_id,
+    check_step_completion,
+    consolidate_artifacts,
+    get_accession_codes,
+    read_feather,
+    set_step_status,
+    update_progress_tracker,
+)
+from ...state.models import GeoDatasetState, GeoIngestionSubgraphState
 
 
 def _cancel_downstream_steps(return_dict, accession_code):
@@ -50,14 +50,14 @@ def _cancel_downstream_steps(return_dict, accession_code):
 # ----------------------------
 
 
-def start_geo_subgraph(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> Dict[str, Any]:
+def start_geo_subgraph(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> dict[str, Any]:
     return_dict = {}
     return_dict["main_messages"] = [update_progress_tracker(state)]
     return_dict["messages"] = [update_progress_tracker(state)]
     return Command(update=return_dict)
 
 
-def geo_download_node(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> Dict[str, Any]:
+def geo_download_node(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> dict[str, Any]:
     """
     Goal is to download GEO datasets based on accession codes in the state. Return dict should update the config and datasets.
     """
@@ -130,7 +130,7 @@ def geo_download_node(state: GeoIngestionSubgraphState, *, config: RunnableConfi
     return Command(update=return_dict)
 
 
-def _check_downloads_succeeded(return_dict: Dict[str, Any]) -> Dict[str, Any]:
+def _check_downloads_succeeded(return_dict: dict[str, Any]) -> dict[str, Any]:
     accession_code = list(return_dict["datasets"].keys())
     if len(accession_code) != 1:
         raise ValueError(
@@ -167,7 +167,7 @@ def _check_downloads_succeeded(return_dict: Dict[str, Any]) -> Dict[str, Any]:
     return return_dict
 
 
-def check_downloads_succeeded(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> Dict[str, Any]:
+def check_downloads_succeeded(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     unstarted_accession_codes = sorted(
         [accession_code for accession_code in accession_codes if not state.datasets.get(accession_code, False)]
@@ -191,7 +191,7 @@ def check_downloads_succeeded(state: GeoIngestionSubgraphState, *, config: Runna
     return Command(update=return_dict)
 
 
-def _check_is_methylation_dataset(platform_metadata: Dict[str, any] = {}):
+def _check_is_methylation_dataset(platform_metadata: dict[str, any] = {}):
     if not platform_metadata:
         return False
     gpl_whitelist = ["GPL29753", "GPL33022", "GPL21145", "GPL18809", "GPL8490"]
@@ -204,7 +204,7 @@ def _check_is_methylation_dataset(platform_metadata: Dict[str, any] = {}):
     return False
 
 
-def _check_platforms_used(return_dict: Dict[str, Any]) -> Dict[str, Any]:
+def _check_platforms_used(return_dict: dict[str, Any]) -> dict[str, Any]:
     # Check that each GEO dataset is a DNA methylation dataset
     for accession_code in return_dict["datasets"].keys():
         platform_metadata = return_dict["datasets"][accession_code].get("platform_metadata", {})
@@ -226,7 +226,7 @@ def _check_platforms_used(return_dict: Dict[str, Any]) -> Dict[str, Any]:
     return return_dict
 
 
-def check_platforms_used(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> Dict[str, Any]:
+def check_platforms_used(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     unstarted_accession_codes = sorted(
         [accession_code for accession_code in accession_codes if not state.datasets.get(accession_code, False)]
@@ -250,7 +250,7 @@ def check_platforms_used(state: GeoIngestionSubgraphState, *, config: RunnableCo
     return Command(update=return_dict)
 
 
-def _check_if_data_present(artifacts: List[Any], return_dict: Dict[str, Any]) -> bool:
+def _check_if_data_present(artifacts: list[Any], return_dict: dict[str, Any]) -> bool:
     accession_code = list(return_dict["datasets"].keys())[0]
     methylation_data_path = next(
         (a for a in artifacts if a.accession_code == accession_code and a.kind == "preqc_methylation_data"), None
@@ -278,7 +278,7 @@ def _check_if_data_present(artifacts: List[Any], return_dict: Dict[str, Any]) ->
                     },
                     additional_kwargs={
                         "name": "geoSupplementaryFileSelection",
-                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "created_at": datetime.now(UTC).isoformat(),
                     },
                 ).model_dump()
             )
@@ -356,7 +356,7 @@ def _check_if_data_present(artifacts: List[Any], return_dict: Dict[str, Any]) ->
     return return_dict
 
 
-async def check_data_presence(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> Dict[str, Any]:
+async def check_data_presence(state: GeoIngestionSubgraphState, *, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     download_completion = check_step_completion("download_soft", state.datasets, accession_codes)
     valid_check_completion = check_step_completion("check_valid_dataset", state.datasets, accession_codes)

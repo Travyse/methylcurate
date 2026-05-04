@@ -2,8 +2,8 @@ import base64
 import gzip
 import io
 
-import pytest
 import pandas as pd
+import pytest
 
 
 def _make_csv_data(rows: list[tuple[str, ...]], columns: list[str]) -> str:

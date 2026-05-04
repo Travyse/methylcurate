@@ -7,31 +7,30 @@ __all__ = [
     "sex_harmonization_node",
 ]
 
-import os
 import json
+import os
+from datetime import UTC, datetime
+
 import pandas as pd
-from datetime import datetime, timezone
-from langgraph.types import Command
 from langchain_core.runnables import RunnableConfig
-from typing import Dict, Any, List, Optional
+from langgraph.types import Command
 
 from ...contracts.common import ArtifactRef
 from ...contracts.harmonize import LabelMappingSet
-from ..state.models import HarmonizationIngestionConfig, HarmonizationSubgraphState
 from ...tools.harmonize import (
-    _harmonize_ontology_labels,
     _harmonize_ontology_group_labels,
+    _harmonize_ontology_labels,
     _harmonize_sex_labels,
     construct_raw_to_harmonized_label_mapping,
 )
 from ...utils.helper import (
-    get_accession_codes,
     check_step_completion,
-    update_harmonization_progress_tracker,
     compute_sha256,
     consolidate_artifacts,
+    get_accession_codes,
+    update_harmonization_progress_tracker,
 )
-from ...utils.examples import generate_metadata_harmonization_examples
+from ..state.models import HarmonizationSubgraphState
 
 
 def _find_artifact_by_kind(accession_code, kind, artifacts):
@@ -81,7 +80,7 @@ def _save_artifact_pair(return_dict, accession_code, guessed, harmonized, kind_p
                 "kind": f"{kind_prefix}_label_guessing",
                 "sha256": compute_sha256(guessed_path, is_path=True),
                 "bytes": os.path.getsize(guessed_path),
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
             }
         ),
         ArtifactRef.model_validate(
@@ -91,7 +90,7 @@ def _save_artifact_pair(return_dict, accession_code, guessed, harmonized, kind_p
                 "kind": f"{kind_prefix}_label_harmonization",
                 "sha256": compute_sha256(harmonized_path, is_path=True),
                 "bytes": os.path.getsize(harmonized_path),
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
             }
         ),
     ]
@@ -102,16 +101,16 @@ def _save_artifact_pair(return_dict, accession_code, guessed, harmonized, kind_p
     return artifacts
 
 
-def _get_metadata_cache(accession_code: str, artifacts: List[ArtifactRef]):
+def _get_metadata_cache(accession_code: str, artifacts: list[ArtifactRef]):
     """Return the metadata cache dict for an accession code, or None."""
     artifact = _find_artifact_by_kind(accession_code, "metadata_cache", artifacts)
     if artifact is not None:
-        with open(artifact.path, "r") as f:
+        with open(artifact.path) as f:
             return json.load(f)
     return None
 
 
-def _get_sample_metadata(accession_code: str, artifacts: List[ArtifactRef]) -> Optional[pd.DataFrame]:
+def _get_sample_metadata(accession_code: str, artifacts: list[ArtifactRef]) -> pd.DataFrame | None:
     """Return sample metadata DataFrame for an accession code, or None."""
     artifact = _find_artifact_by_kind(accession_code, "dataset_metadata", artifacts)
     if artifact is not None:
@@ -119,28 +118,28 @@ def _get_sample_metadata(accession_code: str, artifacts: List[ArtifactRef]) -> O
     return None
 
 
-def _get_extraction_protocol(accession_code: str, artifacts: List[ArtifactRef]):
+def _get_extraction_protocol(accession_code: str, artifacts: list[ArtifactRef]):
     """Return the extraction protocol dict for an accession code, or None."""
     artifact = _find_artifact_by_kind(accession_code, "metadata_extraction_protocol", artifacts)
     if artifact is not None:
-        with open(artifact.path, "r") as f:
+        with open(artifact.path) as f:
             return json.load(f)
     return None
 
 
-def _get_guess_results(target_type: str, accession_code: str, artifacts: List[ArtifactRef]) -> LabelMappingSet:
+def _get_guess_results(target_type: str, accession_code: str, artifacts: list[ArtifactRef]) -> LabelMappingSet:
     """Return the label guessing LabelMappingSet, or raise ValueError if absent."""
     artifact = _find_artifact_by_kind(accession_code, f"{target_type}_label_guessing", artifacts)
     if artifact is not None:
-        return LabelMappingSet.model_validate(json.load(open(artifact.path, "r")))
+        return LabelMappingSet.model_validate(json.load(open(artifact.path)))
     raise ValueError(f"No harmonization results found for {target_type} and accession code {accession_code}")
 
 
-def _get_harmonization_results(target_type: str, accession_code: str, artifacts: List[ArtifactRef]) -> LabelMappingSet:
+def _get_harmonization_results(target_type: str, accession_code: str, artifacts: list[ArtifactRef]) -> LabelMappingSet:
     """Return the label harmonization LabelMappingSet, or raise ValueError if absent."""
     artifact = _find_artifact_by_kind(accession_code, f"{target_type}_label_harmonization", artifacts)
     if artifact is not None:
-        return LabelMappingSet.model_validate(json.load(open(artifact.path, "r")))
+        return LabelMappingSet.model_validate(json.load(open(artifact.path)))
     raise ValueError(f"No harmonization results found for {target_type} and accession code {accession_code}")
 
 
@@ -313,7 +312,7 @@ async def higher_level_disease_mapping_node(state: HarmonizationSubgraphState, *
                     "kind": "disease_harmonization_mapping",
                     "sha256": compute_sha256(harmonization_result_path, is_path=True),
                     "bytes": os.path.getsize(harmonization_result_path),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 }
             )
         )
@@ -485,7 +484,7 @@ async def higher_level_tissue_mapping_node(state: HarmonizationSubgraphState, *,
                     "kind": "tissue_harmonization_mapping",
                     "sha256": compute_sha256(harmonization_result_path, is_path=True),
                     "bytes": os.path.getsize(harmonization_result_path),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 }
             )
         )
@@ -611,7 +610,7 @@ async def sex_harmonization_node(state: HarmonizationSubgraphState, *, config: R
                 "kind": "sex_label_harmonization",
                 "sha256": compute_sha256(harmonized_sex_labels_path, is_path=True),
                 "bytes": os.path.getsize(harmonized_sex_labels_path),
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
             }
         )
     )

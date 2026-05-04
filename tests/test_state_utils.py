@@ -3,19 +3,19 @@ import pytest
 
 class TestHarmonizationDatasetStateResolves:
     def test_get_dataset_for_subgraph_returns_harmonizationdatasetstate(self):
-        from methylcurate.agent.state.utils import get_dataset_for_subgraph
         from methylcurate.agent.state.models import HarmonizationDatasetState
+        from methylcurate.agent.state.utils import get_dataset_for_subgraph
 
         result = get_dataset_for_subgraph("harmonization")
         assert result is HarmonizationDatasetState
 
     def test_get_dataset_for_subgraph_covers_all_cases(self):
-        from methylcurate.agent.state.utils import get_dataset_for_subgraph
         from methylcurate.agent.state.models import (
+            DatasetQualityControlState,
             GeoDatasetState,
             HarmonizationDatasetState,
-            DatasetQualityControlState,
         )
+        from methylcurate.agent.state.utils import get_dataset_for_subgraph
 
         assert get_dataset_for_subgraph("geo_retrieval") is GeoDatasetState
         assert get_dataset_for_subgraph("harmonization") is HarmonizationDatasetState

@@ -1,8 +1,9 @@
-import os
-from pydantic import BaseModel, Field, model_validator, conlist, ConfigDict, create_model
-from typing import Literal, Optional, List, Dict, Annotated, Union, Any, Tuple, get_args
-from .common import ArtifactRef, StepStatus, HumanReviewRequest, HumanReviewDecision
+from typing import Annotated, Any, Literal, Optional, get_args
+
+from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
+
 from ..utils.helper import NonEmptyStr
+from .common import ArtifactRef
 
 # ----------------------------
 # GEO Download Contracts
@@ -40,7 +41,7 @@ class GEODownloadBatchInput(BaseModel):
         geo_downloads (List[GEODownloadInput]): A list of GEO download inputs.
     """
 
-    geo_downloads: List[GEODownloadInput] = Field(..., description="List of GEO download inputs")
+    geo_downloads: list[GEODownloadInput] = Field(..., description="List of GEO download inputs")
 
 
 class GEODownloadResult(BaseModel):
@@ -61,14 +62,14 @@ class GEODownloadResult(BaseModel):
     """
 
     accession: NonEmptyStr = Field(..., description="GSE accession, e.g. GSE40279")
-    artifact: Optional[ArtifactRef] = Field(
+    artifact: ArtifactRef | None = Field(
         ..., description="Reference to the downloaded artifact, if download was successful"
     )
     status: Literal["success", "skipped", "failed", "resolved"] = Field(
         ..., description="Overall status of the download attempt"
     )
-    error: Optional[NonEmptyStr] = Field(..., description="Error message if status is failed")
-    warnings: List[NonEmptyStr] = Field(default_factory=list)
+    error: NonEmptyStr | None = Field(..., description="Error message if status is failed")
+    warnings: list[NonEmptyStr] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _check_consistency(self):
@@ -98,9 +99,9 @@ class GEODownloadBatchResult(BaseModel):
         warnings (List[NonEmptyStr]): List of warning messages, if any.
     """
 
-    results: List[GEODownloadResult]
+    results: list[GEODownloadResult]
     batch_status: Literal["success", "partial", "failed"]
-    warnings: List[NonEmptyStr] = Field(default_factory=list)
+    warnings: list[NonEmptyStr] = Field(default_factory=list)
 
 
 # ----------------------------
@@ -129,14 +130,14 @@ class GEOMetadataExtractionInput(BaseModel):
     """
 
     artifact: ArtifactRef = Field(..., description="Reference to the GEO SOFT file artifact to extract metadata from")
-    title: List[List[NonEmptyStr]] = Field(..., description="List of example titles from GEO metadata")
-    source_name_ch1: List[List[NonEmptyStr]] = Field(..., description="List of example source names from GEO metadata")
-    description: List[List[NonEmptyStr]] = Field(..., description="List of example descriptions from GEO metadata")
-    characteristics_ch1: List[Dict[NonEmptyStr, Any]] = Field(
+    title: list[list[NonEmptyStr]] = Field(..., description="List of example titles from GEO metadata")
+    source_name_ch1: list[list[NonEmptyStr]] = Field(..., description="List of example source names from GEO metadata")
+    description: list[list[NonEmptyStr]] = Field(..., description="List of example descriptions from GEO metadata")
+    characteristics_ch1: list[dict[NonEmptyStr, Any]] = Field(
         ..., description="List of example characteristics from GEO metadata"
     )
-    relation: Optional[List[List[NonEmptyStr]]] = Field(None, description="List of example relations from GEO metadata")
-    platform_id: Optional[List[List[NonEmptyStr]]] = Field(
+    relation: list[list[NonEmptyStr]] | None = Field(None, description="List of example relations from GEO metadata")
+    platform_id: list[list[NonEmptyStr]] | None = Field(
         None, description="List of example platform IDs from GEO metadata"
     )
 
@@ -155,7 +156,7 @@ class GEOMetadataExtractionBatchInput(BaseModel):
         datasets (List[GEOMetadataExtractionInput]): List of sample metadata inputs.
     """
 
-    datasets: List[GEOMetadataExtractionInput] = Field(..., description="List of sample metadata inputs")
+    datasets: list[GEOMetadataExtractionInput] = Field(..., description="List of sample metadata inputs")
 
 
 class ExtractionRuleBase(BaseModel):
@@ -181,7 +182,7 @@ class ExtractionRuleBase(BaseModel):
             "If omitted, defaults to 0."
         ),
     )
-    normalization: List[Literal["strip", "lower", "digits_only"]] = Field(
+    normalization: list[Literal["strip", "lower", "digits_only"]] = Field(
         default_factory=lambda: ["strip"], description="Normalization pipeline"
     )
 
@@ -222,7 +223,7 @@ class CharacteristicsExtractionRule(ExtractionRuleBase):
         ...,
         description="The key inside the target key:value string in characteristics_ch1, e.g. 'age' in 'age: 45 years'",
     )
-    control_value: Optional[NonEmptyStr] = Field(
+    control_value: NonEmptyStr | None = Field(
         None,
         description="This only set for extraction rules for disease_status. This identifies how the dataset encodes the control samples, e.g. 'healthy' or 'control'.",
     )
@@ -245,7 +246,7 @@ class OtherExtractionRule(ExtractionRuleBase):
 
 
 ExtractionRule = Annotated[
-    Union[CharacteristicsExtractionRule, OtherExtractionRule, DefaultValue],
+    CharacteristicsExtractionRule | OtherExtractionRule | DefaultValue,
     Field(discriminator="field_name"),
 ]
 
@@ -263,7 +264,7 @@ class FieldResolutionBase(BaseModel):
     model_config = ConfigDict(extra="forbid")  # critical: prevents “rest of attrs should not be present”
     status: ResolutionStatus
     confidence: float = Field(..., ge=0.0, le=1.0, description="Model confidence in this extraction")
-    notes: List[NonEmptyStr] = Field(
+    notes: list[NonEmptyStr] = Field(
         min_length=1, description="Evidence for the extraction rule and any notes about the resolution"
     )
 
@@ -280,15 +281,15 @@ class MissingResolution(FieldResolutionBase):
     """
 
     status: Literal["missing"]
-    candidate_field_names: List[
+    candidate_field_names: list[
         Literal["title", "source_name_ch1", "description", "characteristics_ch1", "relation", "platform_id"]
     ] = Field(..., min_length=6, description="Fields checked and found no extractable evidence for this concept.")
-    candidate_key_names: List[str] = Field(
+    candidate_key_names: list[str] = Field(
         ...,
         min_length=1,
         description="Key names in characteristics_ch1 checked and found no extractable evidence for this concept. Must include every possible key name.",
     )
-    absence_evidence: List[NonEmptyStr] = Field(
+    absence_evidence: list[NonEmptyStr] = Field(
         ...,
         min_length=1,
         description="Must be verbatim substrings copied from the input values, not analyst commentary. Never write 'no field contains…'",
@@ -305,7 +306,7 @@ class ErrorResolution(FieldResolutionBase):
     """
 
     status: Literal["error"]
-    error: Optional[NonEmptyStr] = Field(..., description="Error message if status is 'error'")
+    error: NonEmptyStr | None = Field(..., description="Error message if status is 'error'")
 
 
 class ResolvedResolution(FieldResolutionBase):
@@ -321,11 +322,11 @@ class ResolvedResolution(FieldResolutionBase):
     model_config = ConfigDict(extra="forbid")
     status: Literal["resolved"]
     extraction: ExtractionRule = Field(..., description="The rule used to extract this concept")
-    units: Optional[NonEmptyStr] = Field(None, description="Units if applicable, e.g. 'years' for age")
+    units: NonEmptyStr | None = Field(None, description="Units if applicable, e.g. 'years' for age")
 
 
 FieldResolution = Annotated[
-    Union[ResolvedResolution, MissingResolution, ErrorResolution],
+    ResolvedResolution | MissingResolution | ErrorResolution,
     Field(discriminator="status"),
 ]
 
@@ -360,7 +361,7 @@ class GEOMetadataExtractionResult(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid")
-    artifact: Optional[ArtifactRef] = Field(
+    artifact: ArtifactRef | None = Field(
         ..., description="Reference to the saved json file containing the metadata schema"
     )
     subject_id: FieldResolution = Field(..., description="Resolution details for subject_id concept")
@@ -371,10 +372,10 @@ class GEOMetadataExtractionResult(BaseModel):
     condition: FieldResolution = Field(..., description="Resolution details for condition concept")
     disease_status: FieldResolution = Field(..., description="Resolution details for disease_status concept")
     platform: FieldResolution = Field(..., description="Resolution details for platform concept")
-    error: Optional[NonEmptyStr] = Field(..., description="Error message if execution_status is 'failed'")
+    error: NonEmptyStr | None = Field(..., description="Error message if execution_status is 'failed'")
 
 
-def build_dynamic_result_model(allowed_keys: Tuple[str, ...]):
+def build_dynamic_result_model(allowed_keys: tuple[str, ...]):
     """
     Returns a GEOMetadataExtractionResult-like model whose schema constrains:
     CharacteristicsExtractionRule.key_name ∈ allowed_keys
@@ -418,7 +419,7 @@ def build_dynamic_result_model(allowed_keys: Tuple[str, ...]):
 
     # 2) Dynamic ExtractionRule union
     ExtractionRuleDyn = Annotated[
-        Union[CharacteristicsExtractionRuleDyn, OtherExtractionRule, DefaultValue],
+        CharacteristicsExtractionRuleDyn | OtherExtractionRule | DefaultValue,
         Field(discriminator="field_name"),
     ]
 
@@ -438,11 +439,11 @@ def build_dynamic_result_model(allowed_keys: Tuple[str, ...]):
         __config__=ConfigDict(extra="forbid"),
         status=(Literal["missing"], Field(..., description="The resolution status for this concept.")),
         candidate_field_names=(
-            List[Literal["title", "source_name_ch1", "description", "characteristics_ch1", "relation", "platform_id"]],
+            list[Literal["title", "source_name_ch1", "description", "characteristics_ch1", "relation", "platform_id"]],
             Field(..., min_length=6, description="Fields checked and found no extractable evidence for this concept."),
         ),
         candidate_key_names=(
-            List[KeyName],
+            list[KeyName],
             Field(
                 ...,
                 min_length=len(get_args(KeyName)),
@@ -450,7 +451,7 @@ def build_dynamic_result_model(allowed_keys: Tuple[str, ...]):
             ),
         ),
         absence_evidence=(
-            List[NonEmptyStr],
+            list[NonEmptyStr],
             Field(
                 ...,
                 min_length=1,
@@ -461,7 +462,7 @@ def build_dynamic_result_model(allowed_keys: Tuple[str, ...]):
 
     # 4) Dynamic FieldResolution union
     FieldResolutionDyn = Annotated[
-        Union[ResolvedResolutionDyn, MissingResolutionDyn],
+        ResolvedResolutionDyn | MissingResolutionDyn,
         Field(discriminator="status"),
     ]
 
@@ -493,7 +494,7 @@ def build_dynamic_result_model(allowed_keys: Tuple[str, ...]):
     return GEOMetadataExtractionResultDyn, FieldResolutionDyn, FieldResolutionEnvelopeDyn
 
 
-def build_dynamic_resolution_correction_model(allowed_concepts: Tuple[str, ...], field_resolution_dyn: Any):
+def build_dynamic_resolution_correction_model(allowed_concepts: tuple[str, ...], field_resolution_dyn: Any):
     """
     Build a dynamic Pydantic model for resolution correction based on allowed concepts.
 
@@ -518,7 +519,7 @@ def build_dynamic_resolution_correction_model(allowed_concepts: Tuple[str, ...],
     return ResolutionCorrectionDyn
 
 
-def build_dynamic_control_identification_model(allowed_values: Tuple[str, ...]):
+def build_dynamic_control_identification_model(allowed_values: tuple[str, ...]):
     """
     Build a dynamic Pydantic model for control identification based on allowed values.
 
@@ -543,7 +544,7 @@ def build_dynamic_control_identification_model(allowed_values: Tuple[str, ...]):
     return ControlIdentificationModel
 
 
-def build_dynamic_constrained_resolution_model(allowed_keys: Tuple[str, ...], target_concept: str):
+def build_dynamic_constrained_resolution_model(allowed_keys: tuple[str, ...], target_concept: str):
     """
     Build a dynamic Pydantic model for constrained resolution based on allowed keys.
 
@@ -586,7 +587,7 @@ def build_dynamic_constrained_resolution_model(allowed_keys: Tuple[str, ...], ta
 
     # 2) Dynamic ExtractionRule union
     ExtractionRuleDyn = Annotated[
-        Union[CharacteristicsExtractionRuleDyn, OtherExtractionRuleDyn, DefaultValue],
+        CharacteristicsExtractionRuleDyn | OtherExtractionRuleDyn | DefaultValue,
         Field(discriminator="field_name"),
     ]
 
@@ -617,10 +618,10 @@ class ResolvedColumnExtraction(BaseModel):
 
     status: Literal["resolved"]
     pattern: NonEmptyStr = Field(..., description="A regular expression pattern to apply to extract the target value.")
-    column_evidence: List[NonEmptyStr] = Field(
+    column_evidence: list[NonEmptyStr] = Field(
         min_length=1, description="Columns checked that prove the accuracy of this pattern."
     )
-    evidence: List[NonEmptyStr] = Field(
+    evidence: list[NonEmptyStr] = Field(
         min_length=1, description="Evidence for the extraction rule and any notes about the resolution"
     )
 
@@ -636,10 +637,10 @@ class MissingColumnExtraction(BaseModel):
     """
 
     status: Literal["missing"]
-    candidate_columns: List[NonEmptyStr] = Field(
+    candidate_columns: list[NonEmptyStr] = Field(
         ..., min_length=1, description="Columns checked and found no extractable evidence for this concept."
     )
-    absence_evidence: List[NonEmptyStr] = Field(
+    absence_evidence: list[NonEmptyStr] = Field(
         ...,
         min_length=1,
         description="Must be verbatim substrings copied from the input values, not analyst commentary. Never write 'no column contains…'",
@@ -656,23 +657,23 @@ class ErrorColumnExtraction(BaseModel):
     """
 
     status: Literal["error"]
-    notes: List[NonEmptyStr] = Field(
+    notes: list[NonEmptyStr] = Field(
         min_length=1, description="Evidence for the extraction rule and any notes about the resolution"
     )
 
 
 ColumnExtraction = Annotated[
-    Union[ResolvedColumnExtraction, MissingColumnExtraction, ErrorColumnExtraction],
+    ResolvedColumnExtraction | MissingColumnExtraction | ErrorColumnExtraction,
     Field(discriminator="status"),
 ]
 
 ResolveOrError = Annotated[
-    Union[ResolvedColumnExtraction, ErrorColumnExtraction],
+    ResolvedColumnExtraction | ErrorColumnExtraction,
     Field(discriminator="status"),
 ]
 
 MissingOrResolved = Annotated[
-    Union[ResolvedColumnExtraction, MissingColumnExtraction],
+    ResolvedColumnExtraction | MissingColumnExtraction,
     Field(discriminator="status"),
 ]
 
@@ -726,9 +727,9 @@ class LexFeat(BaseModel):
         ...,
         description="Normalized version of the string for easier comparison, e.g. lowercased, split camelCase, and stripped of special characters",
     )
-    tokens: Tuple[str, ...] = Field(..., description="Individual tokens extracted from the normalized string")
-    nums: Tuple[str, ...] = Field(..., description="Numeric tokens extracted from the string")
-    words: Tuple[str, ...] = Field(..., description="Non-numeric tokens extracted from the string")
+    tokens: tuple[str, ...] = Field(..., description="Individual tokens extracted from the normalized string")
+    nums: tuple[str, ...] = Field(..., description="Numeric tokens extracted from the string")
+    words: tuple[str, ...] = Field(..., description="Non-numeric tokens extracted from the string")
 
 
 class GEOSampleLevelMetadata(BaseModel):
@@ -748,24 +749,24 @@ class GEOSampleLevelMetadata(BaseModel):
     """
 
     sample_name: NonEmptyStr = Field(..., description="The sample name as listed in the GEO SOFT file, e.g. GSM12345")
-    subject_id: Optional[NonEmptyStr] = Field(
+    subject_id: NonEmptyStr | None = Field(
         None, description="The subject ID associated with this sample, if available"
     )
-    age: Optional[float] = Field(None, description="The age of the subject in years, if available")
-    tissue: Optional[NonEmptyStr] = Field(None, description="The tissue type associated with this sample, if available")
-    cell_type: Optional[NonEmptyStr] = Field(
+    age: float | None = Field(None, description="The age of the subject in years, if available")
+    tissue: NonEmptyStr | None = Field(None, description="The tissue type associated with this sample, if available")
+    cell_type: NonEmptyStr | None = Field(
         None, description="The cell type associated with this sample, if available"
     )
-    status: Optional[NonEmptyStr] = Field(
+    status: NonEmptyStr | None = Field(
         None, description="The disease status associated with this sample, if available"
     )
-    sex: Optional[NonEmptyStr] = Field(
+    sex: NonEmptyStr | None = Field(
         None, description="The sex of the subject associated with this sample, if available"
     )
-    platform: Optional[NonEmptyStr] = Field(
+    platform: NonEmptyStr | None = Field(
         None, description="The platform ID associated with this sample, if available"
     )
-    gpl: Optional[List[NonEmptyStr]] = Field(None, description="The GPL IDs associated with this sample, if available")
+    gpl: list[NonEmptyStr] | None = Field(None, description="The GPL IDs associated with this sample, if available")
 
 
 class GeoSampleLevelMetadataBatch(BaseModel):
@@ -778,7 +779,7 @@ class GeoSampleLevelMetadataBatch(BaseModel):
     """
 
     accession: NonEmptyStr = Field(..., description="The GEO Series accession, e.g. GSE12345")
-    samples: List[GEOSampleLevelMetadata] = Field(
+    samples: list[GEOSampleLevelMetadata] = Field(
         ..., description="List of sample-level metadata entries for this GEO Series"
     )
 
@@ -801,7 +802,7 @@ class FieldCoverage(BaseModel):
         ..., ge=0.0, le=1.0, description="Parse rate for this field among samples where it is present"
     )
     unique_values: int = Field(..., description="Number of unique values observed for this field")
-    examples: List[NonEmptyStr] = Field(default_factory=list, description="Example values observed for this field")
+    examples: list[NonEmptyStr] = Field(default_factory=list, description="Example values observed for this field")
 
 
 class MetadataSummary(BaseModel):
@@ -824,8 +825,8 @@ class MetadataSummary(BaseModel):
     """
 
     accession: NonEmptyStr = Field(..., description="The GEO Series accession, e.g. GSE12345")
-    platform: List[NonEmptyStr] = Field(..., description="The platform(s) associated with this GEO Series")
-    gpl: List[NonEmptyStr] = Field(..., description="The GPL(s) associated with this GEO Series")
+    platform: list[NonEmptyStr] = Field(..., description="The platform(s) associated with this GEO Series")
+    gpl: list[NonEmptyStr] = Field(..., description="The GPL(s) associated with this GEO Series")
     n_samples: int = Field(..., description="Total number of samples in this GEO Series")
     subject_id: FieldCoverage = Field(..., description="Coverage details for subject_id field")
     age: FieldCoverage = Field(..., description="Coverage details for age field")
@@ -834,7 +835,7 @@ class MetadataSummary(BaseModel):
     tissue: FieldCoverage = Field(..., description="Coverage details for tissue field")
     cell_type: FieldCoverage = Field(..., description="Coverage details for cell_type field")
     disease_status: FieldCoverage = Field(..., description="Coverage details for disease_status field")
-    warnings: List[NonEmptyStr] = Field(
+    warnings: list[NonEmptyStr] = Field(
         default_factory=list, description="List of warnings related to metadata coverage"
     )
 

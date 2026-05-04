@@ -1,15 +1,12 @@
 __all__ = ["classify_geo_error"]
+import ftplib
+import gzip
 import socket
 import ssl
 import urllib.error
-import ftplib
-import gzip
-import os
-
-from typing import Tuple
 
 
-def classify_geo_error(e: Exception) -> Tuple[str, str, str]:
+def classify_geo_error(e: Exception) -> tuple[str, str, str]:
     """
     Returns:
         category: machine-readable error class

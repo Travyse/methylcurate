@@ -1,8 +1,9 @@
 __all__ = ["detect_data_type", "convert_data_type"]
-import pandas as pd
+
 import numpy as np
-from typing import List, Tuple
-from ...contracts.qc import PreprocessDataInput, PreprocessDataResult, PreprocessClippingInput
+import pandas as pd
+
+from ...contracts.qc import PreprocessClippingInput, PreprocessDataInput, PreprocessDataResult
 
 
 def detect_data_type(data_matrix: pd.DataFrame) -> str:  # TODO Fix the input
@@ -53,7 +54,7 @@ def _convert_m_to_beta(m_matrix: np.ndarray) -> np.ndarray:
 
 def convert_data_type(
     data_conversion_input: PreprocessDataInput, data_df: pd.DataFrame
-) -> Tuple[PreprocessDataResult, pd.DataFrame]:
+) -> tuple[PreprocessDataResult, pd.DataFrame]:
     """Convert methylation data between beta-value and M-value representations.
 
     When the source and target types differ the appropriate conversion

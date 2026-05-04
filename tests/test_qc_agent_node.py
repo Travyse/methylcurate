@@ -12,6 +12,6 @@ def test_qc_agent_node_imports_resolve_or_fail_on_known_deps():
     try:
         module = importlib.import_module("methylcurate.agent.nodes.qc")
         assert "quality_control_node" in dir(module)
-    except ModuleNotFoundError as e:
+    except ModuleNotFoundError:
         tb = traceback.format_exc()
         assert "preprocess" not in tb, f"Import references non-existent 'preprocess' module:\n{tb}"

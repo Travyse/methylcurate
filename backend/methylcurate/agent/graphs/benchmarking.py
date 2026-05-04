@@ -1,14 +1,15 @@
 __all__ = ["build_benchmarking_graph"]
-from langgraph.graph.state import StateGraph, START, END
-from typing import Any
-from ..state.models import BenchmarkingSubgraphState
+
+from langgraph.graph.state import END, START, StateGraph
+
 from ...utils.helper import get_accession_codes
 from ..nodes.benchmarking import (
-    clock_retrieval_node,
     benchmarking_node,
-    task_computation_node,
+    clock_retrieval_node,
     summarize_benchmarking_results,
+    task_computation_node,
 )
+from ..state.models import BenchmarkingSubgraphState
 
 
 def route_clock_retrieval_node(state: BenchmarkingSubgraphState) -> str:

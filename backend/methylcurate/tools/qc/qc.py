@@ -5,26 +5,26 @@
 # Probes on sex chromosomes removed
 
 __all__ = []
+
 import numpy as np
 import pandas as pd
-from joblib import Parallel, delayed
-from sklearn.impute import SimpleImputer, KNNImputer
-from typing import List, Tuple, Dict, Any
+from sklearn.impute import KNNImputer, SimpleImputer
+
 from ...contracts.qc import (
-    SampleLevelQCInput,
-    SampleLevelQCResult,
     CpGLevelQCInput,
     CpGLevelQCResult,
     DNAmQCInput,
     DNAmQCResult,
     InterarrayCorrelationQCInput,
     InterarrayCorrelationQCResult,
+    SampleLevelQCInput,
+    SampleLevelQCResult,
 )
 
 
 def handle_sample_level_missingness(
     qc_input: SampleLevelQCInput, data_df: pd.DataFrame
-) -> Tuple[SampleLevelQCResult, pd.DataFrame]:
+) -> tuple[SampleLevelQCResult, pd.DataFrame]:
     """Filter samples whose missing-value rate exceeds the configured cutoff.
 
     Args:
@@ -46,7 +46,7 @@ def handle_sample_level_missingness(
 
 def handle_cpg_level_missingness(
     qc_input: CpGLevelQCInput, data_df: pd.DataFrame
-) -> Tuple[CpGLevelQCResult, pd.DataFrame]:
+) -> tuple[CpGLevelQCResult, pd.DataFrame]:
     """Filter CpG probes with high missingness and impute remaining gaps.
 
     Probes exceeding the missingness cutoff are dropped.  Surviving
@@ -85,7 +85,7 @@ def handle_cpg_level_missingness(
     return state_result, data_df_filtered
 
 
-def maximum_dnam_filter(qc_input: DNAmQCInput, data_df: pd.DataFrame) -> Tuple[DNAmQCResult, pd.DataFrame]:
+def maximum_dnam_filter(qc_input: DNAmQCInput, data_df: pd.DataFrame) -> tuple[DNAmQCResult, pd.DataFrame]:
     """Keep only samples whose maximum DNAm value exceeds the cutoff.
 
     Args:
@@ -109,7 +109,7 @@ def maximum_dnam_filter(qc_input: DNAmQCInput, data_df: pd.DataFrame) -> Tuple[D
 
 def interarray_correlation(
     qc_input: InterarrayCorrelationQCInput, data_df: pd.DataFrame
-) -> Tuple[InterarrayCorrelationQCResult, pd.DataFrame]:
+) -> tuple[InterarrayCorrelationQCResult, pd.DataFrame]:
     """Filter samples whose mean inter-array correlation falls below the cutoff.
 
     Computes the full pairwise sample correlation matrix, derives each

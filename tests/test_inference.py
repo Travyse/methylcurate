@@ -1,9 +1,8 @@
 import inspect
-import tempfile
-import pandas as pd
-import numpy as np
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
+import numpy as np
+import pandas as pd
 import pytest
 
 
@@ -86,8 +85,8 @@ class TestNBootstrapsRespected:
         in the shuffled_labels list comprehension rather than range(1000).
         """
         from methylcurate.tools.clocks.inference import (
-            bootstrap_welch_one_sided_aac_gt_hc,
             bootstrap_aa1_test,
+            bootstrap_welch_one_sided_aac_gt_hc,
         )
 
         for func in (bootstrap_welch_one_sided_aac_gt_hc, bootstrap_aa1_test):

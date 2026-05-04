@@ -1,25 +1,24 @@
 __all__ = ["download_geo_datasets", "_family_soft_path", "_check_supplementary_files", "parallel_downloads"]
+import json
 import os
 import time
-import json
-import shutil
-import GEOparse
-from tqdm import tqdm
-import pandas as pd
-from joblib import Parallel, delayed
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, Literal
 from urllib.parse import urlparse, urlunparse
-import requests
-from requests.exceptions import ChunkedEncodingError, ConnectionError, ReadTimeout, Timeout, HTTPError
 
-from typing import Literal, List, Any, Dict
+import GEOparse
+import pandas as pd
+import requests
+from joblib import Parallel, delayed
+from tqdm import tqdm
+
 from ...agent.state.models import GEOIngestionConfig
 from ...contracts.common import ArtifactRef
-from ...contracts.geo import GEODownloadResult, GEODownloadBatchInput, GEODownloadBatchResult
-from .extract_sample_level_metadata import _merge_to_dataframe
+from ...contracts.geo import GEODownloadBatchInput, GEODownloadBatchResult, GEODownloadResult
 from ...utils.exception_handling import classify_geo_error
 from ...utils.helper import compute_sha256, write_feather
+from .extract_sample_level_metadata import _merge_to_dataframe
 
 
 def _family_soft_path(output_dir: str, accession: str) -> str:
@@ -35,7 +34,7 @@ def _family_soft_path(output_dir: str, accession: str) -> str:
     return os.path.join(output_dir, f"{accession}_family.soft.gz")
 
 
-def _cache_metadata(gse: Any) -> Dict[str, Any]:
+def _cache_metadata(gse: Any) -> dict[str, Any]:
     """Extract and cache per-sample and dataset-level metadata from a GEOparse GSE object.
 
     Collects sample metadata for each GSM, top-level dataset fields (title, summary,
@@ -130,7 +129,7 @@ def _download_geo_dataset(accession: str, output_dir: str):
         No exceptions are propagated; errors are captured in the returned
         ``GEODownloadResult`` with ``status="failed"``.
     """
-    started_at = datetime.now(timezone.utc).isoformat()
+    started_at = datetime.now(UTC).isoformat()
 
     # Ensure output directory exists
     artifacts = []
@@ -154,7 +153,7 @@ def _download_geo_dataset(accession: str, output_dir: str):
                     "accession_code": accession,
                     "sha256": compute_sha256(cached_soft_path, is_path=True),
                     "bytes": os.path.getsize(cached_soft_path),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 }
             )
         )
@@ -170,7 +169,7 @@ def _download_geo_dataset(accession: str, output_dir: str):
             write_feather(methylation_data, methylation_data_path, index_name="subject_id")
             supplementary_files = {accession: _check_supplementary_files(g)}
         else:
-            metadata = json.load(open(metadata_path, "r"))
+            metadata = json.load(open(metadata_path))
             possible_supplementary_keys = [k for k in metadata["dataset_metadata"].keys() if "supplement" in k.lower()]
             supplementary_files = set()
             for supplementary_key in possible_supplementary_keys:
@@ -189,7 +188,7 @@ def _download_geo_dataset(accession: str, output_dir: str):
                         "accession_code": accession,
                         "sha256": compute_sha256(metadata_path, is_path=True),
                         "bytes": os.path.getsize(metadata_path),
-                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "created_at": datetime.now(UTC).isoformat(),
                     }
                 ),
                 ArtifactRef.model_validate(
@@ -199,7 +198,7 @@ def _download_geo_dataset(accession: str, output_dir: str):
                         "accession_code": accession,
                         "sha256": compute_sha256(methylation_data_path, is_path=True),
                         "bytes": os.path.getsize(methylation_data_path),
-                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "created_at": datetime.now(UTC).isoformat(),
                     }
                 ),
             ]
@@ -232,7 +231,7 @@ def _download_geo_dataset(accession: str, output_dir: str):
                             "accession_code": accession,
                             "sha256": compute_sha256(cached_soft_path, is_path=True),
                             "bytes": os.path.getsize(cached_soft_path),
-                            "created_at": datetime.now(timezone.utc).isoformat(),
+                            "created_at": datetime.now(UTC).isoformat(),
                         }
                     )
                 )
@@ -255,7 +254,7 @@ def _download_geo_dataset(accession: str, output_dir: str):
                                 "accession_code": accession,
                                 "sha256": compute_sha256(metadata_path, is_path=True),
                                 "bytes": os.path.getsize(metadata_path),
-                                "created_at": datetime.now(timezone.utc).isoformat(),
+                                "created_at": datetime.now(UTC).isoformat(),
                             }
                         ),
                         ArtifactRef.model_validate(
@@ -265,7 +264,7 @@ def _download_geo_dataset(accession: str, output_dir: str):
                                 "accession_code": accession,
                                 "sha256": compute_sha256(methylation_data_path, is_path=True),
                                 "bytes": os.path.getsize(methylation_data_path),
-                                "created_at": datetime.now(timezone.utc).isoformat(),
+                                "created_at": datetime.now(UTC).isoformat(),
                             }
                         ),
                     ]
@@ -307,10 +306,10 @@ def download_geo_datasets(config: GEOIngestionConfig, batch: GEODownloadBatchInp
       - continues on errors (partial success allowed)
     """
     # TODO: Restructure this to download in batches of 5 or so (I can configure this)
-    results: List[GEODownloadResult] = []
-    artifacts: List[ArtifactRef] = [x.model_dump() for x in config.artifacts]
+    results: list[GEODownloadResult] = []
+    artifacts: list[ArtifactRef] = [x.model_dump() for x in config.artifacts]
 
-    results: List[Any] = Parallel(n_jobs=-1)(
+    results: list[Any] = Parallel(n_jobs=-1)(
         delayed(_download_geo_dataset)(item.accession, os.path.join(config.output_root, item.accession))
         for item in batch.geo_downloads
     )
@@ -336,7 +335,7 @@ def download_geo_datasets(config: GEOIngestionConfig, batch: GEODownloadBatchInp
     else:
         batch_status = "partial"
 
-    warnings: List[str] = []
+    warnings: list[str] = []
     if batch_status == "partial":
         warnings.append("Some accessions failed; inspect per-accession results.")
 
@@ -443,7 +442,7 @@ def download(
                 "accession_code": accession_code,
                 "sha256": compute_sha256(cache_download_path, is_path=True),
                 "bytes": os.path.getsize(cache_download_path),
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
             }
         )
 
@@ -478,7 +477,7 @@ def download(
                         "accession_code": accession_code,
                         "sha256": compute_sha256(cache_download_path, is_path=True),
                         "bytes": os.path.getsize(cache_download_path),
-                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "created_at": datetime.now(UTC).isoformat(),
                     }
                 )
                 return artifact
@@ -495,8 +494,8 @@ def download(
 
 
 def parallel_downloads(
-    accession_code: str, urls: List[str], destdir: str, chunk_size: int = 1024 * 1024
-) -> Dict[str, List[ArtifactRef]]:
+    accession_code: str, urls: list[str], destdir: str, chunk_size: int = 1024 * 1024
+) -> dict[str, list[ArtifactRef]]:
     """Download multiple supplementary files in parallel for a single accession.
 
     Dispatches each URL to :func:`download` using ``joblib.Parallel`` with

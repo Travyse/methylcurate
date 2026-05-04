@@ -14,39 +14,40 @@ __all__ = [
     "_extract_column_for_concept_disease_status",
     "_extract_column_for_concept_age",
 ]
-import os
 import asyncio
 import json
+import os
 import uuid
-from datetime import datetime, timezone
-from typing import Dict, List, Any, get_args
+from datetime import UTC, datetime
+from typing import Any, get_args
+
 from greenery import parse
 from greenery.rxelems import Pattern
-
-from pydantic import ValidationError
 from langchain_core.exceptions import OutputParserException
-from langchain_core.messages import HumanMessage, AnyMessage, AIMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
+from pydantic import ValidationError
+
 from ...agent.graphs.deps import Deps
 from ...contracts.common import ArtifactRef
 from ...contracts.geo import (
+    Concept,
+    ErrorResolution,
+    FieldResolution,
+    FieldResolutionEnvelope,
     GEOMetadataExtractionInput,
     GEOMetadataExtractionResult,
-    ErrorResolution,
-    FieldResolutionEnvelope,
-    FieldResolution,
-    Concept,
-    build_dynamic_result_model,
-    build_dynamic_resolution_correction_model,
     build_dynamic_control_identification_model,
+    build_dynamic_resolution_correction_model,
+    build_dynamic_result_model,
 )
 from ...utils.helper import compute_sha256
 from ...utils.prompting import (
-    generate_metadata_column_user_query,
-    generate_metadata_column_user_query_alt,
-    generate_immediate_single_column_feedback,
     generate_column_feedback_loop_prompt,
     generate_identify_control_value_prompt,
+    generate_immediate_single_column_feedback,
+    generate_metadata_column_user_query,
+    generate_metadata_column_user_query_alt,
     generate_missing_age_check_prompt,
 )
 
@@ -81,10 +82,10 @@ async def _invoke_llm_with_retry(
         if all retries are exhausted.
     """
     import asyncio
-    from pydantic import ValidationError
+
     from langchain_core.exceptions import OutputParserException
-    from ...agent.graphs.deps import Deps
-    from langchain_core.messages import HumanMessage
+    from pydantic import ValidationError
+
 
     deps = config["configurable"]["deps"]
     llm = deps.deterministic_llm
@@ -98,10 +99,10 @@ async def _invoke_llm_with_retry(
                 timeout=timeout,
             )
             break
-        except asyncio.TimeoutError:
+        except TimeoutError:
             retries += 1
             continue
-        except OutputParserException as e:
+        except OutputParserException:
             if feedback_fn is not None:
                 messages, should_continue = await feedback_fn(messages, config, retries)
                 if not should_continue:
@@ -187,7 +188,7 @@ def _get_custom_models(user_input: GEOMetadataExtractionInput):
     return GEOMetadataExtractionResultDyn, FieldResolutionDyn, FieldResolutionEnvelopeDyn, key_names
 
 
-def _get_parse_rate(metadata_summary: Dict[str, Any] = None) -> Dict[str, float]:
+def _get_parse_rate(metadata_summary: dict[str, Any] = None) -> dict[str, float]:
     """Extract per-concept parse rates from a metadata summary dictionary.
 
     For each ``Concept`` whose entry in the summary is not a list, reads the
@@ -211,7 +212,7 @@ def _get_parse_rate(metadata_summary: Dict[str, Any] = None) -> Dict[str, float]
     return parse_rates
 
 
-def _get_extraction_resolutions(extraction_result: Any) -> Dict[Concept, Any]:
+def _get_extraction_resolutions(extraction_result: Any) -> dict[Concept, Any]:
     """Extract per-concept ``FieldResolution`` objects from a raw extraction result.
 
     The result may be either a dictionary or an object with attribute access.
@@ -241,7 +242,7 @@ def _get_extraction_resolutions(extraction_result: Any) -> Dict[Concept, Any]:
     return resolutions
 
 
-def _check_extraction_patterns(resolutions: Dict[str, Any]) -> List[Concept]:
+def _check_extraction_patterns(resolutions: dict[str, Any]) -> list[Concept]:
     """Flag concepts whose extraction patterns embed their own key names.
 
     Iterates over resolved concepts sourced from ``characteristics_ch1`` and
@@ -275,12 +276,12 @@ def _check_extraction_patterns(resolutions: Dict[str, Any]) -> List[Concept]:
 
 
 async def _extract_column_for_concept_age(
-    resolutions: Dict[str, Any],
+    resolutions: dict[str, Any],
     config: RunnableConfig,
     user_input: GEOMetadataExtractionInput,
-    messages: List[AnyMessage],
+    messages: list[AnyMessage],
     resolution_model: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Attempt to resolve a missing ``age`` column via an LLM clarification check.
 
     Constructs a prompt that asks the LLM to re-examine the metadata for age
@@ -307,7 +308,7 @@ async def _extract_column_for_concept_age(
         id=uuid.uuid4().hex,
         content=generate_missing_age_check_prompt(user_input=user_input),
         additional_kwargs={
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     )
     prompt_messages = messages + [clarification_message]
@@ -322,8 +323,8 @@ async def _extract_column_for_concept_age(
 
 
 async def _extract_column_for_concept_disease_status(
-    resolutions: Dict[str, Any], config: RunnableConfig, parsed_disease_statuses: List[str]
-) -> Dict[str, Any]:
+    resolutions: dict[str, Any], config: RunnableConfig, parsed_disease_statuses: list[str]
+) -> dict[str, Any]:
     """Identify the control value among disease statuses via an LLM call.
 
     Builds a dynamic control identification model from the set of parsed
@@ -360,7 +361,7 @@ async def _extract_column_for_concept_disease_status(
             json_format=json.dumps(ControlIdentificationModel.model_json_schema(), indent=2),
         ),
         additional_kwargs={
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     )
 
@@ -374,7 +375,7 @@ async def _extract_column_for_concept_disease_status(
             )
             resolutions["disease_status"].extraction.control_value = resolved.control_value
             break
-        except asyncio.TimeoutError:
+        except TimeoutError:
             retries += 1
             continue
         except OutputParserException as e:
@@ -382,7 +383,7 @@ async def _extract_column_for_concept_disease_status(
                 id=uuid.uuid4().hex,
                 content=f"The previous output from the LLM failed to parse with error: {e}. Please reformat the output to match the expected format and ensure that all required fields are included.",
                 additional_kwargs={
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 },
             )
             call_messages += [human_message]
@@ -390,7 +391,7 @@ async def _extract_column_for_concept_disease_status(
         except ValidationError as e:
             print(f"\n\nValidation error for concept disease_status: {e}. Setting resolution to error with notes.")
             break
-        except Exception as e:
+        except Exception:
             retries += 1
             continue
 
@@ -398,13 +399,13 @@ async def _extract_column_for_concept_disease_status(
 
 
 async def _extract_column_for_concept_misformatted(
-    misformatted_concepts: List[Concept],
-    messages: List[AnyMessage],
+    misformatted_concepts: list[Concept],
+    messages: list[AnyMessage],
     config: RunnableConfig,
     resolution_model: Any,
-    resolutions: Dict[str, Any],
+    resolutions: dict[str, Any],
     resolution_model_envelope: Any,
-) -> Dict[Concept, FieldResolution]:
+) -> dict[Concept, FieldResolution]:
     """Re-extract columns for concepts flagged with misformatted patterns.
 
     Generates a targeted feedback prompt that describes which concepts have
@@ -444,7 +445,7 @@ async def _extract_column_for_concept_misformatted(
         id=uuid.uuid4().hex,
         content=generate_immediate_single_column_feedback(**prompt_params),
         additional_kwargs={
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     )
     new_messages = [messages[0]] + [clarification_message]
@@ -460,7 +461,7 @@ async def _extract_column_for_concept_misformatted(
             for concept in misformatted_concepts:
                 new_resolutions[concept] = getattr(resolved, concept)
             break
-        except asyncio.TimeoutError:
+        except TimeoutError:
             retries += 1
             continue
         except OutputParserException as e:
@@ -468,7 +469,7 @@ async def _extract_column_for_concept_misformatted(
                 id=uuid.uuid4().hex,
                 content=f"The previous output from the LLM failed to parse with error: {e}. Please reformat the output to match the expected format and ensure that all required fields are included.",
                 additional_kwargs={
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 },
             )
             resolved: Any = await asyncio.wait_for(
@@ -489,23 +490,23 @@ async def _extract_column_for_concept_misformatted(
                 print(f"\n\nValidation error for concept {concept}: {e}. Setting resolution to error with notes.")
                 new_resolutions[concept] = error_resolution
             break
-        except Exception as e:
+        except Exception:
             retries += 1
             continue
     return new_resolutions
 
 
 async def _extract_column_for_concept_poor_parsing(
-    poorly_parsed_concepts: List[Concept],
-    messages: Dict[str, List[AnyMessage]],
+    poorly_parsed_concepts: list[Concept],
+    messages: dict[str, list[AnyMessage]],
     config: RunnableConfig,
     resolution_model: Any,
-    parse_rates: Dict[str, float],
+    parse_rates: dict[str, float],
     user_input: GEOMetadataExtractionInput,
-    resolutions: Dict[str, Any],
+    resolutions: dict[str, Any],
     resolution_model_envelope: Any,
-    failed_parsing_info: Dict[str, Any],
-) -> Dict[Concept, FieldResolution]:
+    failed_parsing_info: dict[str, Any],
+) -> dict[Concept, FieldResolution]:
     """Re-extract columns for concepts whose parse rate is below 1.0.
 
     Builds a feedback-loop prompt that includes parse rate metrics and
@@ -575,7 +576,7 @@ async def _extract_column_for_concept_poor_parsing(
             for concept in poorly_parsed_concepts:
                 new_resolutions[concept] = getattr(resolved, concept)
             break
-        except asyncio.TimeoutError:
+        except TimeoutError:
             retries += 1
             continue
         except OutputParserException as e:
@@ -583,7 +584,7 @@ async def _extract_column_for_concept_poor_parsing(
                 id=uuid.uuid4().hex,
                 content=f"The previous output from the LLM failed to parse with error: {e}. Please reformat the output to match the expected format and ensure that all required fields are included.",
                 additional_kwargs={
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 },
             )
             resolved: Any = await asyncio.wait_for(
@@ -604,7 +605,7 @@ async def _extract_column_for_concept_poor_parsing(
                 print(f"\n\nValidation error for concept {concept}: {e}. Setting resolution to error with notes.")
                 new_resolutions[concept] = error_resolution
             break
-        except Exception as e:
+        except Exception:
             retries += 1
             continue
     return new_resolutions
@@ -614,15 +615,15 @@ async def _extract_column_for_concept_with_retry(
     extraction_result: Any,
     count: int = 0,
     retries: int = 2,
-    parse_rates: Dict[str, float] = None,
+    parse_rates: dict[str, float] = None,
     formatting_only: bool = False,
-    resolutions: Dict[str, Any] = None,
+    resolutions: dict[str, Any] = None,
     config: RunnableConfig = None,
-    messages: List[AnyMessage] = None,
+    messages: list[AnyMessage] = None,
     user_input: GEOMetadataExtractionInput = None,
-    failed_parsing_info: Dict[str, Any] = None,
-    parsed_disease_statuses: List[str] = None,
-) -> Dict[Concept, Any]:
+    failed_parsing_info: dict[str, Any] = None,
+    parsed_disease_statuses: list[str] = None,
+) -> dict[Concept, Any]:
     """Orchestrate iterative refinement of extraction resolutions with retries.
 
     This is the main feedback-loop coordinator.  On each call it:
@@ -728,7 +729,7 @@ async def _extract_column_for_concept_with_retry(
 
 
 async def _extract_all_columns(
-    messages: List[AnyMessage],
+    messages: list[AnyMessage],
     config: RunnableConfig,
     result_model: Any,
 ) -> GEOMetadataExtractionResult:
@@ -774,7 +775,7 @@ async def _extract_all_columns(
             ):
                 resolutions["disease_status"].extraction.pattern = "([\\s\\S]*)"
             break
-        except asyncio.TimeoutError:
+        except TimeoutError:
             retries += 1
             continue
         except OutputParserException as e:
@@ -783,7 +784,7 @@ async def _extract_all_columns(
                 id=uuid.uuid4().hex,
                 content=f"The previous output from the LLM failed to parse with error: {e}. Please reformat the output to match the expected format and ensure that all required fields are included.",
                 additional_kwargs={
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 },
             )
             call_messages += [human_message]
@@ -816,11 +817,11 @@ async def _extract_all_columns(
 
 async def extract_metadata_columns_alt(
     user_input: GEOMetadataExtractionInput,
-    return_dict: Dict[str, Any],
+    return_dict: dict[str, Any],
     config: RunnableConfig,
     output_root: str,
     accession_code: str,
-    llm_messages: List[AnyMessage],
+    llm_messages: list[AnyMessage],
 ) -> GEOMetadataExtractionResult:
     """Extract metadata columns using the alternative all-at-once LLM strategy.
 
@@ -852,7 +853,7 @@ async def extract_metadata_columns_alt(
         id=uuid.uuid4().hex,
         content=generate_metadata_column_user_query_alt(user_input=user_input, key_names=key_names_str),
         additional_kwargs={
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     )
     return_dict["llm_messages"].append(human_message)
@@ -887,10 +888,10 @@ async def extract_metadata_columns_alt(
                     "accession_code": accession_code,
                     "sha256": compute_sha256(artifact_path, is_path=True),
                     "bytes": os.path.getsize(artifact_path),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 }
             )
-        except Exception as e:
+        except Exception:
             execution_status = "failed"
             artifact = None
 
@@ -899,7 +900,7 @@ async def extract_metadata_columns_alt(
     return return_dict
 
 
-async def _extract_column_for_concept(messages: List[AnyMessage], config: RunnableConfig) -> FieldResolution:
+async def _extract_column_for_concept(messages: list[AnyMessage], config: RunnableConfig) -> FieldResolution:
     """Extract a single metadata column resolution for one concept via the LLM.
 
     Calls the deterministic LLM with the provided message history and validates
@@ -938,7 +939,7 @@ async def _extract_column_for_concept(messages: List[AnyMessage], config: Runnab
 
 async def extract_metadata_columns(
     user_input: GEOMetadataExtractionInput,
-    return_dict: Dict[str, Any],
+    return_dict: dict[str, Any],
     config: RunnableConfig,
     output_root: str,
     accession_code: str,
@@ -965,7 +966,7 @@ async def extract_metadata_columns(
         The updated ``return_dict`` after recording the extraction result.
     """
 
-    def _check_execution_status(resolutions: Dict[Concept, FieldResolution]) -> str:
+    def _check_execution_status(resolutions: dict[Concept, FieldResolution]) -> str:
         status = "succeeded"
         resolution_statuses = [r.status for r in resolutions.values()]
         if all(s == "error" for s in resolution_statuses):
@@ -979,7 +980,7 @@ async def extract_metadata_columns(
             id=uuid.uuid4().hex,
             content=generate_metadata_column_user_query(concept=concept, user_input=user_input),
             additional_kwargs={
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
             },
         )
         return_dict["messages"].append(human_message)
@@ -1005,10 +1006,10 @@ async def extract_metadata_columns(
                     "accession_code": accession_code,
                     "sha256": compute_sha256(artifact_path, is_path=True),
                     "bytes": os.path.getsize(artifact_path),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 }
             )
-        except Exception as e:
+        except Exception:
             execution_status = "failed"
             artifact = None
 

@@ -1,19 +1,18 @@
 import base64
 import gzip
 import io
-from typing import List
 
 from .schemas import FilePayload
 
 
-def _append_accessions_to_text(user_text: str, accessions: List[str]) -> str:
+def _append_accessions_to_text(user_text: str, accessions: list[str]) -> str:
     if accessions:
         return f"{user_text}\nDatasets of Interest: {', '.join(accessions)}"
     return user_text
 
 
-def _extract_accessions_from_files(files_raw: List[dict]) -> List[str]:
-    accessions: List[str] = []
+def _extract_accessions_from_files(files_raw: list[dict]) -> list[str]:
+    accessions: list[str] = []
     try:
         import pandas as pd
     except ImportError:

@@ -1,8 +1,6 @@
 import inspect
-import pandas as pd
-import numpy as np
 
-import pytest
+import pandas as pd
 
 
 class TestQcParamNames:
@@ -45,8 +43,8 @@ class TestQcParamNames:
 
 class TestEmptyDataGuards:
     def test_handle_cpg_level_empty_returns_gracefully(self):
-        from methylcurate.tools.qc.qc import handle_cpg_level_missingness
         from methylcurate.contracts.qc import CpGLevelQCInput, ImputationInput
+        from methylcurate.tools.qc.qc import handle_cpg_level_missingness
 
         empty_df = pd.DataFrame()
         qc_input = CpGLevelQCInput(
@@ -58,8 +56,8 @@ class TestEmptyDataGuards:
         assert filtered_df.empty
 
     def test_maximum_dnam_filter_empty_returns_gracefully(self):
-        from methylcurate.tools.qc.qc import maximum_dnam_filter
         from methylcurate.contracts.qc import DNAmQCInput
+        from methylcurate.tools.qc.qc import maximum_dnam_filter
 
         empty_df = pd.DataFrame()
         qc_input = DNAmQCInput(dnam_cutoff=0.96)
@@ -68,8 +66,8 @@ class TestEmptyDataGuards:
         assert filtered_df.empty
 
     def test_interarray_correlation_empty_returns_gracefully(self):
-        from methylcurate.tools.qc.qc import interarray_correlation
         from methylcurate.contracts.qc import InterarrayCorrelationQCInput
+        from methylcurate.tools.qc.qc import interarray_correlation
 
         empty_df = pd.DataFrame()
         qc_input = InterarrayCorrelationQCInput(correlation_cutoff=0.9)

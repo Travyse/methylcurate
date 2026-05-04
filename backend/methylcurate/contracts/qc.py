@@ -1,9 +1,9 @@
 __all__ = []
 
-from pydantic import BaseModel, PrivateAttr, field_serializer, Field
-from typing import Literal, Optional, List, Annotated, Union
-import numpy as np
-import pandas as pd
+from typing import Literal, Union
+
+from pydantic import BaseModel, Field
+
 from ..utils.helper import NonEmptyStr
 
 # ----------------------------
@@ -20,8 +20,8 @@ class PreprocessClippingInput(BaseModel):
         - upper_bound: The upper bound for clipping (inclusive).
     """
 
-    lower_bound: Optional[float] = Field(ge=0.0, le=1.0, description="Lower bound for clipping (inclusive)")
-    upper_bound: Optional[float] = Field(ge=0.0, le=1.0, description="Upper bound for clipping (inclusive)")
+    lower_bound: float | None = Field(ge=0.0, le=1.0, description="Lower bound for clipping (inclusive)")
+    upper_bound: float | None = Field(ge=0.0, le=1.0, description="Upper bound for clipping (inclusive)")
 
 
 class PreprocessDataInput(BaseModel):
@@ -34,9 +34,9 @@ class PreprocessDataInput(BaseModel):
         - clipping: Choice to apply clipping before conversion.
     """
 
-    from_type: Optional[Literal["beta", "m"]] = Field(None, description="The current data type of the input data")
+    from_type: Literal["beta", "m"] | None = Field(None, description="The current data type of the input data")
     to_type: Literal["beta", "m"] = Field(..., description="The desired data type to convert to")
-    clipping: Optional[PreprocessClippingInput] = Field(None, description="Choice to apply clipping before conversion")
+    clipping: PreprocessClippingInput | None = Field(None, description="Choice to apply clipping before conversion")
 
 
 class PreprocessDataResult(BaseModel):
@@ -76,7 +76,7 @@ class SampleLevelQCResult(BaseModel):
         - removed_samples: List of sample IDs removed during QC.
     """
 
-    removed_samples: List[NonEmptyStr] = Field(default_factory=list, description="List of sample IDs removed during QC")
+    removed_samples: list[NonEmptyStr] = Field(default_factory=list, description="List of sample IDs removed during QC")
 
 
 class SimpleImputerModelInput(BaseModel):
@@ -126,7 +126,7 @@ class ImputationInput(BaseModel):
     """
 
     strategy: Literal["stratify", "whole"] = Field("whole", description="Imputation strategy to use")
-    stratify_by: Optional[NonEmptyStr] = Field(None, description="Column name to stratify by if strategy is 'stratify'")
+    stratify_by: NonEmptyStr | None = Field(None, description="Column name to stratify by if strategy is 'stratify'")
     imputation_model: ImputerModelInput = Field(
         default_factory=lambda: SimpleImputerModelInput(),
         description="Imputer model to use for handling missing values",
@@ -160,7 +160,7 @@ class CpGLevelQCResult(BaseModel):
         - missing_before_imputation: Fraction of missing values before imputation.
     """
 
-    removed_cpgs: List[NonEmptyStr] = Field(default_factory=list, description="List of CpG IDs removed during QC")
+    removed_cpgs: list[NonEmptyStr] = Field(default_factory=list, description="List of CpG IDs removed during QC")
     missing_before_imputation: float = Field(
         0.0, ge=0.0, le=1.0, description="Fraction of missing values before imputation"
     )
@@ -185,7 +185,7 @@ class DNAmQCResult(BaseModel):
         - removed_samples: List of sample IDs removed during DNAm QC.
     """
 
-    removed_samples: List[NonEmptyStr] = Field(
+    removed_samples: list[NonEmptyStr] = Field(
         default_factory=list, description="List of sample IDs removed during DNAm QC"
     )
 
@@ -211,6 +211,6 @@ class InterarrayCorrelationQCResult(BaseModel):
         - removed_samples: List of sample IDs removed during inter-array correlation QC.
     """
 
-    removed_samples: List[NonEmptyStr] = Field(
+    removed_samples: list[NonEmptyStr] = Field(
         default_factory=list, description="List of sample IDs removed during inter-array correlation QC"
     )

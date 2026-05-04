@@ -64,8 +64,8 @@ class TestHarmonizeReturnTypes:
 
 class TestConstructRawMappingHandlesMissing:
     def test_mapping_with_missing_target_does_not_stopiteration(self):
+        from methylcurate.contracts.harmonize import BestGuessMapping, LabelMappingSet, MissingMapping, MondoMapping
         from methylcurate.tools.harmonize.harmonize_field import construct_raw_to_harmonized_label_mapping
-        from methylcurate.contracts.harmonize import LabelMappingSet, MondoMapping, BestGuessMapping, MissingMapping
 
         guessed = LabelMappingSet(
             mappings=[
@@ -77,7 +77,6 @@ class TestConstructRawMappingHandlesMissing:
                 MissingMapping(
                     ontology="missing",
                     source_label="missing_label",
-                    target_label="missing_label",
                 ),
             ]
         )
@@ -97,8 +96,8 @@ class TestConstructRawMappingHandlesMissing:
         assert len(result.mappings) == 2
 
     def test_empty_guess_and_selection_does_not_crash(self):
-        from methylcurate.tools.harmonize.harmonize_field import construct_raw_to_harmonized_label_mapping
         from methylcurate.contracts.harmonize import LabelMappingSet
+        from methylcurate.tools.harmonize.harmonize_field import construct_raw_to_harmonized_label_mapping
 
         guessed = LabelMappingSet(mappings=[])
         selection = LabelMappingSet(mappings=[])
@@ -134,11 +133,12 @@ class TestBestGuessNotesConstant:
 
 class TestHarmonizationConcept:
     def test_harmonization_concept_exists(self):
-        from methylcurate.contracts.harmonize import HarmonizationConcept
         import typing
+
+        from methylcurate.contracts.harmonize import HarmonizationConcept
 
         assert typing.get_origin(HarmonizationConcept) is typing.Literal
 
     def test_concept_not_accessible_as_concept(self):
         with pytest.raises(ImportError):
-            from methylcurate.contracts.harmonize import Concept
+            from methylcurate.contracts.harmonize import Concept  # noqa: F401

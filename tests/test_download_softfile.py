@@ -1,9 +1,8 @@
-import os
-import tempfile
 import inspect
-import pandas as pd
+import tempfile
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
 import pytest
 
 

@@ -1,16 +1,16 @@
-import os
 import asyncio
-
+import os
 from dataclasses import dataclass
-from typing import Any, Dict, List
-from pydantic import ValidationError
+from typing import Any
+
 from langchain_core.messages import ToolMessage
 from langgraph.types import Command  # <-- critical for resume with interrupt()
+from pydantic import ValidationError
 
-from ..state.models import DatasetQualityControlState
-from ..state.utils import make_subgraph_state, make_full_subgraph_state, _append_user_message
 from ...utils.helper import consolidate_artifacts
 from ..graphs.deps import Deps
+from ..state.models import DatasetQualityControlState
+from ..state.utils import _append_user_message, make_full_subgraph_state, make_subgraph_state
 
 MAIN_RECURSION_LIMIT = 500
 SUBGRAPH_RECURSION_LIMIT = 10000
@@ -49,7 +49,7 @@ def node_from_event(ev: dict) -> str | None:
 @dataclass
 class StreamEvent:
     type: str
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
 
 
 class StreamingRunner:
@@ -61,7 +61,7 @@ class StreamingRunner:
       - Durable state lives in SQLite checkpointer keyed by thread_id.
     """
 
-    def __init__(self, *, main_graph, subgraphs: Dict[str, Any], checkpointer, deps: Deps):
+    def __init__(self, *, main_graph, subgraphs: dict[str, Any], checkpointer, deps: Deps):
         self.main_graph = main_graph
         self.subgraphs = subgraphs
         self.checkpointer = checkpointer
@@ -85,7 +85,7 @@ class StreamingRunner:
 
         raise RuntimeError("Main graph does not support update_state/aupdate_state; cannot persist artifacts safely.")
 
-    async def _persist_main_dataset_statuses(self, thread_id: str, dataset_statuses: Dict[str, Any]):
+    async def _persist_main_dataset_statuses(self, thread_id: str, dataset_statuses: dict[str, Any]):
         cfg = self._cfg(thread_id)
 
         if hasattr(self.main_graph, "aupdate_state"):
@@ -114,7 +114,7 @@ class StreamingRunner:
     # ----------------------------
     # Config helper
     # ----------------------------
-    def _cfg(self, thread_id: str, *, recursion_limit: int = 100) -> Dict[str, Any]:
+    def _cfg(self, thread_id: str, *, recursion_limit: int = 100) -> dict[str, Any]:
         return {
             "recursion_limit": recursion_limit,
             "configurable": {"thread_id": thread_id, "deps": self.deps},
@@ -189,14 +189,14 @@ class StreamingRunner:
     def is_interrupt_event(self, ev: Any) -> bool:
         return self._extract_interrupt(ev) is not None
 
-    def interrupt_payload(self, ev: Any) -> Dict[str, Any]:
+    def interrupt_payload(self, ev: Any) -> dict[str, Any]:
         intr = self._extract_interrupt(ev)
         if intr is None:
             return {"raw": str(ev)}
         return intr if isinstance(intr, dict) else {"value": intr}
 
     async def _load_or_create_sub_state(
-        self, subgraph: Any, subgraph_name: str, run_id: str, thread_id: str, params: Dict[str, Any]
+        self, subgraph: Any, subgraph_name: str, run_id: str, thread_id: str, params: dict[str, Any]
     ):
         # Load from checkpoint if supported
         sub_state = None
@@ -212,7 +212,7 @@ class StreamingRunner:
             accessions = [x for x in accessions if x not in sub_state.config.accessions]
             sub_state.config.accessions += accessions
             sub_state.config.accessions = sorted(list(set(sub_state.config.accessions)))
-        except ValidationError as e:
+        except ValidationError:
             sub_state = make_subgraph_state(subgraph_name, run_id=run_id, params=params)
 
         artifacts = params.get("artifacts", [])
@@ -249,7 +249,7 @@ class StreamingRunner:
 
         return None
 
-    def _populate_main_datasets(self, artifacts: List[Any]) -> Dict[str, Any]:
+    def _populate_main_datasets(self, artifacts: list[Any]) -> dict[str, Any]:
         accession_codes = sorted(set(a.accession_code for a in artifacts if hasattr(a, "accession_code")))
         step_statuses = {accession_code: {} for accession_code in accession_codes}
         all_geo_completed = [a for a in artifacts if a.kind == "preqc_methylation_data"]

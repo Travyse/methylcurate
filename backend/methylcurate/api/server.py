@@ -1,26 +1,24 @@
 # api/server.py
 import asyncio
 import json
-import time
 import os
+import sqlite3
 import traceback
-from datetime import datetime
 from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import Any, Literal
 from uuid import uuid4
-from typing import Optional, Any, Dict, List, Literal
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from pydantic import BaseModel
 
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-import sqlite3
-
-from .session import SessionStore
-from .file_parser import _append_accessions_to_text, _extract_accessions_from_files
-from ..agent.state.utils import make_main_state
 from ..agent.registry.services import build_services_with_checkpointer
+from ..agent.state.utils import make_main_state
+from .file_parser import _append_accessions_to_text, _extract_accessions_from_files
+from .session import SessionStore
 
 
 # ----------------------------
@@ -38,7 +36,7 @@ def sse_event(event: str, data: Any) -> bytes:
         bytes: The SSE message as bytes.
     """
     # assistant-ui parseSse() reads `event:` and `data:`
-    return (f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n").encode("utf-8")
+    return (f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n").encode()
 
 
 def sse_keepalive() -> bytes:
@@ -73,7 +71,7 @@ class ThreadStateResponse(BaseModel):
         values (Dict[str, Any]): The state values of the thread.
     """
 
-    values: Dict[str, Any]
+    values: dict[str, Any]
 
 
 class StreamRequest(BaseModel):
@@ -88,9 +86,9 @@ class StreamRequest(BaseModel):
 
     # assistant-ui sends:
     # { input: { messages: [...] } | null, command: ..., streamMode: ["messages","updates"] }
-    input: Optional[Dict[str, Any]] = None
-    command: Optional[Dict[str, Any]] = None
-    streamMode: Optional[List[str]] = None
+    input: dict[str, Any] | None = None
+    command: dict[str, Any] | None = None
+    streamMode: list[str] | None = None
 
 
 class ThreadListItem(BaseModel):
@@ -106,8 +104,8 @@ class ThreadListItem(BaseModel):
 
     thread_id: str
     status: Literal["regular", "archived"] = "regular"
-    title: Optional[str] = None
-    updatedAt: Optional[datetime] = None  # or str/float if you prefer
+    title: str | None = None
+    updatedAt: datetime | None = None  # or str/float if you prefer
 
 
 class ThreadListResponse(BaseModel):
@@ -118,7 +116,7 @@ class ThreadListResponse(BaseModel):
         threads (List[ThreadListItem]): A list of threads.
     """
 
-    threads: List[ThreadListItem]
+    threads: list[ThreadListItem]
 
 
 # ----------------------------
@@ -236,7 +234,7 @@ async def list_threads(_: Request):
             {
                 "thread_id": thread_id,
                 "status": "regular",
-                "title": f"{messages[-1].content[:8]}..." if messages else f"Empty Thread",
+                "title": f"{messages[-1].content[:8]}..." if messages else "Empty Thread",
                 "updatedAt": messages[-1].additional_kwargs.get("created_at") if messages else None,
             }
         )
@@ -376,7 +374,6 @@ async def stream_thread(thread_id: str, req: StreamRequest, request: Request):
     session = store.get(thread_id) if store.exists(thread_id) else store.create(thread_id)
 
     if session.main_state is None:
-        from ..agent.state.models import MainState
 
         session.main_state = make_main_state(run_id=thread_id, default_output_root=request.app.state.output_dir)
 
@@ -465,7 +462,7 @@ async def stream_thread(thread_id: str, req: StreamRequest, request: Request):
 
             try:
                 ev = await asyncio.wait_for(session.queue.get(), timeout=15)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 yield sse_keepalive()
                 continue
 

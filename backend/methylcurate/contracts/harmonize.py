@@ -1,7 +1,7 @@
 __all__ = ["HumanReadableConceptInput", "create_ontology_mapping_model"]
-from pydantic import BaseModel, Field, model_validator, conlist, ConfigDict, create_model
-from typing import Literal, Optional, List, Dict, Annotated, Union, Any, Tuple, get_args
-from ..utils.helper import NonEmptyStr
+from typing import Annotated, Literal, Optional
+
+from pydantic import BaseModel, Field, create_model
 
 HarmonizationConcept = Literal["tissue", "cell_type", "sex", "disease_status"]
 
@@ -20,21 +20,21 @@ class HumanReadableConceptInput(BaseModel):
     """
 
     dataset_title: str = Field(..., description="A concise title describing the dataset that is being harmonized")
-    dataset_summary: Optional[str] = Field(
+    dataset_summary: str | None = Field(
         None,
         description="A description of the dataset being harmonized, including any relevant context that may assist in understanding the metadata.",
     )
-    dataset_overall_design: Optional[str] = Field(
+    dataset_overall_design: str | None = Field(
         None,
         description="A description of the overall design of the dataset, including any relevant context that may assist in understanding the metadata.",
     )
     metadata_field_name: str = Field(
         ..., description="The name of the metadata field that this concept was extracted from."
     )
-    metadata_field_key_name: Optional[str] = Field(
+    metadata_field_key_name: str | None = Field(
         None, description="The key name of the metadata field that this concept was extracted from, if applicable."
     )
-    concepts: List[str] = Field(
+    concepts: list[str] = Field(
         ...,
         description="A list of human readable concepts that were extracted from the metadata for a particular field. Each concept includes the original label and any relevant context.",
     )
@@ -48,7 +48,7 @@ class BaseMapping(BaseModel):
     - notes: Additional notes or context about the mapping.
     """
 
-    notes: Optional[str] = Field(None, description="Additional notes or context about the mapping")
+    notes: str | None = Field(None, description="Additional notes or context about the mapping")
 
 
 class MondoMapping(BaseMapping):
@@ -148,7 +148,7 @@ class MissingMapping(BaseMapping):
 
 
 OntologicalMapping = Annotated[
-    Union[MondoMapping, UberonMapping, CLMapping, PATOMapping, BestGuessMapping, MissingMapping],
+    MondoMapping | UberonMapping | CLMapping | PATOMapping | BestGuessMapping | MissingMapping,
     Field(discriminator="ontology"),
 ]
 
@@ -165,12 +165,12 @@ class LabelMappingSet(BaseModel):
 
 
 def create_ontology_mapping_model(
-    allowed_source_labels: List[str],
+    allowed_source_labels: list[str],
     ontology_literal: str,
     ontology_name: str,
-    allowed_target_labels: Optional[List[str]] = None,
+    allowed_target_labels: list[str] | None = None,
     high_level: bool = False,
-) -> Tuple[BaseModel, BaseModel]:
+) -> tuple[BaseModel, BaseModel]:
     """
     Creates a dynamic ontology mapping model based on the provided parameters.
 
@@ -189,7 +189,7 @@ def create_ontology_mapping_model(
             f"LabelMappingSetModel__{ontology_name}__{abs(hash((allowed_source_labels, allowed_target_labels)))}",
             __base__=BaseModel,
             mappings=(
-                List[PATOMapping],
+                list[PATOMapping],
                 Field(
                     ...,
                     min=len(allowed_source_labels),
@@ -250,14 +250,14 @@ def create_ontology_mapping_model(
     )
 
     OntologicalMappingOrMissingDyn = Annotated[
-        Union[OntologyMappingDyn, MissingMapping], Field(discriminator="ontology")
+        OntologyMappingDyn | MissingMapping, Field(discriminator="ontology")
     ]
 
     LabelMappingSetDyn = create_model(
         f"LabelMappingSetModel__{ontology_literal}__{abs(hash((allowed_source_labels, allowed_target_labels)))}",
         __base__=BaseModel,
         mappings=(
-            List[OntologicalMappingOrMissingDyn],
+            list[OntologicalMappingOrMissingDyn],
             Field(
                 ...,
                 min=len(allowed_source_labels),
@@ -315,7 +315,7 @@ class UberonConcept(BaseOntologyConcept):
 
 
 OntologyConcept = Annotated[
-    Union[MondoConcept, CLConcept, UberonConcept],
+    MondoConcept | CLConcept | UberonConcept,
     Field(discriminator="ontology"),
 ]
 

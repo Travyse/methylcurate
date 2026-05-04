@@ -1,7 +1,7 @@
 # api/session.py
 import asyncio
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Any
+from typing import Any
 
 
 @dataclass
@@ -19,9 +19,9 @@ class RunSession:
 
     run_id: str
     queue: asyncio.Queue = field(default_factory=asyncio.Queue)
-    task: Optional[asyncio.Task] = None
+    task: asyncio.Task | None = None
     main_state: Any = None
-    pending_interrupt: Optional[dict] = None
+    pending_interrupt: dict | None = None
 
 
 class SessionStore:
@@ -33,7 +33,7 @@ class SessionStore:
     """
 
     def __init__(self):
-        self._sessions: Dict[str, RunSession] = {}
+        self._sessions: dict[str, RunSession] = {}
 
     def create(self, run_id: str) -> RunSession:
         """

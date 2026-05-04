@@ -7,39 +7,37 @@ __all__ = [
     "generate_summary_data",
 ]
 
-import re
 import os
+import re
 import time
-import requests
+from datetime import UTC, datetime
+from itertools import chain
+from typing import Any, get_args
+
 import GEOparse
 import pandas as pd
-from itertools import chain
-from datetime import datetime, timezone
-from typing import List, Optional, Tuple, Any, Dict, get_args
+import requests
+
+from ...agent.state.models import GeoDatasetState, GEOIngestionConfig
+from ...contracts.common import ArtifactRef
 from ...contracts.geo import (
     Concept,
-    GEOMetadataExtractionResult,
-    FieldResolution,
-    GEOSampleLevelMetadata,
     ExtractionRule,
-)
-from ...contracts.geo import (
-    GEOSampleLevelMetadata,
-    GeoSampleLevelMetadataBatch,
     FieldCoverage,
+    FieldResolution,
+    GEOMetadataExtractionResult,
+    GeoSampleLevelMetadataBatch,
     MetadataSummary,
-    GEODownloadResult,
 )
-from ...contracts.common import StepStatus, ArtifactRef
 from ...utils.helper import compute_sha256, consolidate_artifacts
-from ...agent.state.models import GeoDatasetState, GEOIngestionConfig
+
 # Just grab all characteristics_ch1 fields?
 # Allow for users to ask: "Which field contains particular phenotype data" such as sex, specific diseases, Braak stage, etc.
 
 
 def get_sample_data(
     accession_code: str, gsm_table: pd.DataFrame = None, gsm_name: str = None, value_col: str = "VALUE"
-) -> Optional[pd.DataFrame]:
+) -> pd.DataFrame | None:
     """Filter sample data by detection P-value if available.
 
     If the sample table contains columns with "detection" in their name, rows
@@ -67,7 +65,7 @@ def get_sample_data(
     return sample_data
 
 
-def cpg_union(data_rows: List[List[Any]], col_rows: List[List[str]]) -> Tuple[List[List[Any]], List[str]]:
+def cpg_union(data_rows: list[list[Any]], col_rows: list[list[str]]) -> tuple[list[list[Any]], list[str]]:
     """Align heterogeneous row-column pairs to a unified superset of columns.
 
     Each entry in ``data_rows`` and ``col_rows`` is aligned so that all output
@@ -91,8 +89,8 @@ def cpg_union(data_rows: List[List[Any]], col_rows: List[List[str]]) -> Tuple[Li
 
 
 def apply_extraction_rule(
-    field_values: List[str], rule: ExtractionRule
-) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+    field_values: list[str], rule: ExtractionRule
+) -> tuple[str | None, dict[str, Any] | None]:
     """Apply an extraction rule to a list of raw field values.
 
     Currently supports ``"regex"`` extraction rules. When the target field is
@@ -144,7 +142,7 @@ def apply_extraction_rule(
     return None, None
 
 
-def _get_platform_title_from_gsm(gpl: str, max_retries: int = 3) -> Optional[str]:
+def _get_platform_title_from_gsm(gpl: str, max_retries: int = 3) -> str | None:
     """Fetch the platform title for a GPL accession from NCBI GEO.
 
     Args:
@@ -173,7 +171,7 @@ def _get_platform_title_from_gsm(gpl: str, max_retries: int = 3) -> Optional[str
     return None
 
 
-def _get_platform_gpl_from_accession_code(accession_code: str, max_retries: int = 3) -> Optional[str]:
+def _get_platform_gpl_from_accession_code(accession_code: str, max_retries: int = 3) -> str | None:
     """Extract the platform GPL identifier from a GEO series accession page.
 
     Args:
@@ -202,7 +200,7 @@ def _get_platform_gpl_from_accession_code(accession_code: str, max_retries: int 
     return None
 
 
-def get_platform_gpls(gse: Any = None, accession_code: str = None) -> List[str]:
+def get_platform_gpls(gse: Any = None, accession_code: str = None) -> list[str]:
     """Return the platform GPL identifiers for a GEO dataset.
 
     Args:
@@ -222,7 +220,7 @@ def get_platform_gpls(gse: Any = None, accession_code: str = None) -> List[str]:
     return [platform]
 
 
-def get_platform_title(gse: Any = None, accession_code: str = None) -> Optional[str]:
+def get_platform_title(gse: Any = None, accession_code: str = None) -> str | None:
     """Return the human-readable platform title(s) for a GEO dataset.
 
     Resolves GPL identifiers via ``get_platform_gpls`` and fetches each
@@ -246,7 +244,7 @@ def get_platform_title(gse: Any = None, accession_code: str = None) -> Optional[
     return ", ".join(platform_set)
 
 
-def get_platform_metadata(gse: Any = None, accession_code: str = None) -> Dict[str, Any]:
+def get_platform_metadata(gse: Any = None, accession_code: str = None) -> dict[str, Any]:
     """Return platform metadata for a GEO dataset.
 
     Fetches the first platform's GPL identifier and title as a dictionary.
@@ -270,7 +268,7 @@ def get_platform_metadata(gse: Any = None, accession_code: str = None) -> Dict[s
     return platform_metadata[platform]
 
 
-def _merge_to_dataframe(rows: List[Any], col_names: List[str], index_col: Optional[str] = None) -> pd.DataFrame:
+def _merge_to_dataframe(rows: list[Any], col_names: list[str], index_col: str | None = None) -> pd.DataFrame:
     """Merge heterogeneous rows and column-name lists into a unified DataFrame.
 
     Delegates to ``cpg_union`` to align columns and then constructs a
@@ -299,7 +297,7 @@ def _merge_to_dataframe(rows: List[Any], col_names: List[str], index_col: Option
     return df
 
 
-def get_field_value(gsm_metadata: dict, resolution: FieldResolution) -> Tuple[Optional[str], Optional[str], bool]:
+def get_field_value(gsm_metadata: dict, resolution: FieldResolution) -> tuple[str | None, str | None, bool]:
     """Extract a metadata field value from GSM metadata using a field resolution.
 
     If the resolution status is ``"missing"`` or ``"error"``, a failure tuple
@@ -389,10 +387,10 @@ def extract_dataset_metadata(
     metadata_dict: Any,
     metadata_extraction_result: GEOMetadataExtractionResult,
     overwrite_artifact: bool,
-    gpls: Optional[List[str]] = None,
-    platform: Optional[List[str]] = None,
-    return_dict: Dict[str, Any] = None,
-) -> Dict[str, Any]:
+    gpls: list[str] | None = None,
+    platform: list[str] | None = None,
+    return_dict: dict[str, Any] = None,
+) -> dict[str, Any]:
     """Extract sample-level metadata for a GEO dataset and write artifacts.
 
     Iterates over all GSM samples and applies field resolutions for disease
@@ -420,7 +418,7 @@ def extract_dataset_metadata(
 
     def get_resolution(
         metadata_extraction_result: GEOMetadataExtractionResult, concept: Concept
-    ) -> Optional[FieldResolution]:
+    ) -> FieldResolution | None:
         if hasattr(metadata_extraction_result, "resolutions"):
             return metadata_extraction_result.resolutions.get(concept, None)
         else:
@@ -525,7 +523,7 @@ def extract_dataset_metadata(
                     "kind": "dataset_metadata",
                     "sha256": compute_sha256(metadata_dataframe_output_path, is_path=True),
                     "bytes": os.path.getsize(metadata_dataframe_output_path),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 }
             )
         else:
@@ -537,7 +535,7 @@ def extract_dataset_metadata(
                         "kind": "dataset_metadata",
                         "sha256": compute_sha256(metadata_dataframe_output_path, is_path=True),
                         "bytes": os.path.getsize(metadata_dataframe_output_path),
-                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "created_at": datetime.now(UTC).isoformat(),
                     }
                 )
         return_dict["config"]["artifacts"] = consolidate_artifacts(
@@ -554,11 +552,11 @@ def extract_dataset_metadata(
 def generate_summary_data(
     metadata: pd.DataFrame,
     accession_code: str,
-    platforms: List[str],
-    gpls: List[str],
-    failed_parsing_info: Dict[str, List[Any]],
-    return_dict: Dict[str, Any],
-) -> Dict[str, Any]:
+    platforms: list[str],
+    gpls: list[str],
+    failed_parsing_info: dict[str, list[Any]],
+    return_dict: dict[str, Any],
+) -> dict[str, Any]:
     """Generate a metadata coverage summary for a dataset.
 
     Computes per-field coverage statistics (subject ID, age, sex, tissue,
@@ -621,7 +619,7 @@ def generate_summary_data(
     return return_dict
 
 
-def get_all_methylation_data(state_config: GEOIngestionConfig, state: GeoDatasetState) -> Dict[str, Any]:
+def get_all_methylation_data(state_config: GEOIngestionConfig, state: GeoDatasetState) -> dict[str, Any]:
     """Extract all methylation beta values from a GEO dataset.
 
     Loads the GEO SOFT file from the download artifact, iterates over all GSM
@@ -667,7 +665,7 @@ def get_all_methylation_data(state_config: GEOIngestionConfig, state: GeoDataset
                 "kind": "preqc_methylation_data",
                 "sha256": compute_sha256(methylation_dataframe_output_path, is_path=True),
                 "bytes": os.path.getsize(methylation_dataframe_output_path),
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
             }
         )
         return_dict["artifacts"] += [methylation_artifact]
@@ -680,7 +678,7 @@ def get_all_methylation_data(state_config: GEOIngestionConfig, state: GeoDataset
                     "kind": "preqc_methylation_data",
                     "sha256": compute_sha256(methylation_dataframe_output_path, is_path=True),
                     "bytes": os.path.getsize(methylation_dataframe_output_path),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 }
             )
             return_dict["artifacts"] += [methylation_artifact]

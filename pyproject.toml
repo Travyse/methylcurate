@@ -36,6 +36,7 @@ dependencies = [
   "pyaging",
   "pyarrow",
   "pydantic",
+  "pytz",
   "rapidfuzz",
   "requests",
   "rich",

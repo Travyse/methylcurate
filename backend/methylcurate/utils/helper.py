@@ -19,25 +19,26 @@ __all__ = [
     "update_harmonization_progress_tracker",
     "get_correct_methylation_data",
 ]
-import re
-import json
-from pathlib import Path
-import random
 import hashlib
-import uuid
+import json
+import random
+import re
 import time
+import uuid
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Annotated, Any
+
 import pandas as pd
 import pyarrow.feather as feather
 from langchain_core.messages import ToolMessage
-from datetime import datetime, timezone
-from typing import List, Dict, Any, Annotated, Optional
 from pydantic import Field
 
 # Seed everything
 COMPLETION_LIST = {"completed", "failed", "canceled"}
 
 
-def check_step_completion(step: str, datasets: Dict[str, Any], accession_codes: List[str]):
+def check_step_completion(step: str, datasets: dict[str, Any], accession_codes: list[str]):
     """
     Checks if a specific step is completed for all given accession codes.
 
@@ -53,7 +54,7 @@ def check_step_completion(step: str, datasets: Dict[str, Any], accession_codes: 
     return all(status in COMPLETION_LIST for status in statuses)
 
 
-def sample_values(values: List[str], max_examples: int = 12) -> List[str]:
+def sample_values(values: list[str], max_examples: int = 12) -> list[str]:
     """
     Samples a subset of values from a list, up to a maximum number of examples.
 
@@ -71,7 +72,7 @@ def sample_values(values: List[str], max_examples: int = 12) -> List[str]:
     return [str(v) for v in values_subset]
 
 
-def json_extraction(raw: str, default_response: Dict) -> dict:
+def json_extraction(raw: str, default_response: dict) -> dict:
     """
     Extracts a JSON object from a raw string. If extraction fails, returns a default response.
 
@@ -142,7 +143,7 @@ def compute_sha256(content: str, is_path: bool = False) -> str:
 
 
 def get_correct_methylation_data(
-    artifacts: List[Any], accession_code: str, artifact_kind: str = "preqc_methylation_data"
+    artifacts: list[Any], accession_code: str, artifact_kind: str = "preqc_methylation_data"
 ) -> Any:
     """
     Retrieves the correct methylation data artifact for a given accession code.
@@ -175,7 +176,7 @@ def get_correct_methylation_data(
         )
 
 
-def get_accession_codes(state: Any) -> List[str]:
+def get_accession_codes(state: Any) -> list[str]:
     """
     Retrieves the accession codes from the state.
 
@@ -190,7 +191,7 @@ def get_accession_codes(state: Any) -> List[str]:
     )
 
 
-def set_step_status(status="running", step=None, error=None, warnings=None) -> Dict[str, Any]:
+def set_step_status(status="running", step=None, error=None, warnings=None) -> dict[str, Any]:
     """
     Sets the status of a step and updates its timestamps.
 
@@ -206,13 +207,13 @@ def set_step_status(status="running", step=None, error=None, warnings=None) -> D
     if step is not None:
         step["status"] = status
         step["finished_at"] = (
-            datetime.now(timezone.utc).isoformat() if status in ("completed", "failed", "canceled") else None
+            datetime.now(UTC).isoformat() if status in ("completed", "failed", "canceled") else None
         )
         return step
     return {
         "status": status,
-        "started_at": datetime.now(timezone.utc).isoformat(),
-        "finished_at": datetime.now(timezone.utc).isoformat()
+        "started_at": datetime.now(UTC).isoformat(),
+        "finished_at": datetime.now(UTC).isoformat()
         if status in ("completed", "failed", "canceled")
         else None,
         "error": error,
@@ -220,7 +221,7 @@ def set_step_status(status="running", step=None, error=None, warnings=None) -> D
     }
 
 
-def retrieve_status_counts(accession_codes: List[str], datasets: Dict[str, Any], step: str) -> Dict[str, int]:
+def retrieve_status_counts(accession_codes: list[str], datasets: dict[str, Any], step: str) -> dict[str, int]:
     """
     Retrieves the count of datasets in each status category for a specific step.
 
@@ -271,7 +272,7 @@ def retrieve_status_counts(accession_codes: List[str], datasets: Dict[str, Any],
     }
 
 
-def _generate_todo_description(status: str, status_counts: Dict[str, int], description_default: str = None) -> str:
+def _generate_todo_description(status: str, status_counts: dict[str, int], description_default: str | None = None) -> str | None:
     """
     Generates a description for a todo item based on the status and status counts.
 
@@ -346,7 +347,7 @@ def _generate_step_actions(step: str):
         ]
 
 
-def _generate_description_default(step: str, status: str, counts: Dict[str, int]) -> str:
+def _generate_description_default(step: str, status: str, counts: dict[str, int]) -> str:
     """
     Generates the default description for a todo item based on the step and status.
 
@@ -373,6 +374,7 @@ def _generate_description_default(step: str, status: str, counts: Dict[str, int]
             return "If there are supplementary files, use the learned metadata schema to extract and format the data for downstream use..."
     else:
         return f"{counts['completed']} succeeded, {counts['failed']} failed, {counts['canceled']} canceled."
+    return f"Working on {step}..."
 
 
 def _generate_todo_label(
@@ -380,8 +382,8 @@ def _generate_todo_label(
     past_tense: str,
     present_tense: str,
     num_datasets: int,
-    counts: Dict[str, int],
-    default_message: str = None,
+    counts: dict[str, int],
+    default_message: str | None = None,
 ) -> str:
     """
     Generates the label for a todo item based on the status and counts.
@@ -406,7 +408,7 @@ def _generate_todo_label(
         return f"{default_message}"
 
 
-def _generate_todo_status(counts: Dict[str, int], num_datasets: int) -> str:
+def _generate_todo_status(counts: dict[str, int], num_datasets: int) -> str:
     """
     Generates the status for a todo item based on the counts and total number of datasets.
 
@@ -426,8 +428,8 @@ def _generate_todo_status(counts: Dict[str, int], num_datasets: int) -> str:
 
 
 def generate_todo_entry(
-    step: str, counts: Dict[str, int], num_datasets: int, other_counts: Dict[str, Dict[str, int]]
-) -> Dict[str, Any]:
+    step: str, counts: dict[str, int], num_datasets: int, other_counts: dict[str, dict[str, int]]
+) -> dict[str, Any]:
     """
     Generates a todo entry for a specific step based on the counts and total number of datasets.
 
@@ -536,7 +538,7 @@ def populate_todos(state: Any):
     return todos
 
 
-def _get_status_id(messages: List[Any], retrieval: str) -> str:
+def _get_status_id(messages: list[Any], retrieval: str) -> str:
     """
     Generates a unique status ID based on the user query and retrieval type.
     Args:
@@ -587,7 +589,7 @@ def update_progress_tracker(state: Any) -> ToolMessage:
         },
         additional_kwargs={
             "name": "geoRetrievalProgress",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     )
     return message
@@ -630,7 +632,7 @@ def update_small_progress_tracker(state: Any, retrieval: str) -> ToolMessage:
         },
         additional_kwargs={
             "name": "qcProgress",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     )
     return message
@@ -648,7 +650,7 @@ def benchmarking_progress(state: Any) -> ToolMessage:
     """
     accession_codes = sorted(state.datasets.keys())
     hash = _get_status_id(state.messages, "benchmarking")
-    current_time = datetime.now(timezone.utc).isoformat()
+    current_time = datetime.now(UTC).isoformat()
     previous_message = next((m for m in state.main_messages if m.tool_call_id == hash), None)
     previous_time = previous_message.additional_kwargs["created_at"] if previous_message else current_time
     num_clocks_retrieved = sum(
@@ -736,7 +738,7 @@ def qc_progress(state: Any) -> ToolMessage:
     """
     accession_codes = sorted(state.datasets.keys())
     hash = _get_status_id(state.messages, "quality_control")
-    current_time = datetime.now(timezone.utc).isoformat()
+    current_time = datetime.now(UTC).isoformat()
     previous_message = next((m for m in state.main_messages if m.tool_call_id == hash), None)
     previous_time = previous_message.additional_kwargs["created_at"] if previous_message else current_time
     num_datasets_qcd = sum(
@@ -774,7 +776,7 @@ def qc_progress(state: Any) -> ToolMessage:
     return message
 
 
-def _get_supplementary_file_id(supplementary_files: List[str], accession_code: Any) -> str:
+def _get_supplementary_file_id(supplementary_files: list[str], accession_code: Any) -> str:
     """
     Generate a unique ID for a supplementary file based on its content and the accession code.
 
@@ -824,7 +826,7 @@ def generate_run_id() -> str:
     return f"{ts}-{rnd}"
 
 
-def consolidate_artifacts(original_artifacts: List[Any], new_artifacts: List[Any]) -> List[Any]:
+def consolidate_artifacts(original_artifacts: list[Any], new_artifacts: list[Any]) -> list[Any]:
     """
     Combine two lists of ArtifactRef, deduplicating by (path, kind).
     New artifacts take precedence over original ones.
@@ -836,7 +838,7 @@ def consolidate_artifacts(original_artifacts: List[Any], new_artifacts: List[Any
     Returns:
         List[Any]: The consolidated list of artifacts.
     """
-    artifact_map: Dict[tuple[str, str], Any] = {}
+    artifact_map: dict[tuple[str, str], Any] = {}
     for artifact in original_artifacts + new_artifacts:
         key = (artifact.path, artifact.kind)  # Formerly sha256
         artifact_map[key] = artifact
@@ -873,7 +875,7 @@ def read_feather(path: str, index_name: str = "subject_id") -> pd.DataFrame:
 
 
 def load_metadata_aligned_methylation_data(
-    accession_code: str, artifacts: List[Any], methylation_data_type: str = "preqc_methylation_data"
+    accession_code: str, artifacts: list[Any], methylation_data_type: str = "preqc_methylation_data"
 ) -> pd.DataFrame:
     """
     Load metadata-aligned methylation data for a given accession code.
@@ -926,9 +928,10 @@ def _generate_harmonization_todo_id(step: str) -> str:
         return "5"
     elif step == "harmonize_sex_labels":
         return "6"
+    raise ValueError(f"Unknown harmonization step: {step}")
 
 
-def _generate_harmonization_step_actions(step: str) -> List[str]:
+def _generate_harmonization_step_actions(step: str) -> list[str]:
     """
     Generate the actions for a harmonization step.
 
@@ -950,9 +953,10 @@ def _generate_harmonization_step_actions(step: str) -> List[str]:
         return ["Harmonizing", "Harmonized", "Harmonizing cell type labels..."]
     elif step == "harmonize_sex_labels":
         return ["Harmonizing", "Harmonized", "Harmonizing sex labels..."]
+    raise ValueError(f"Unknown harmonization step: {step}")
 
 
-def _generate_harmonization_description_default(step: str, status: str, counts: Dict[str, int]) -> str:
+def _generate_harmonization_description_default(step: str, status: str, counts: dict[str, int]) -> str:
     """
     Generate the default description for a harmonization step based on its status and counts.
 
@@ -979,11 +983,12 @@ def _generate_harmonization_description_default(step: str, status: str, counts: 
             return "Harmonizing raw sex labels..."
     else:
         return f"{counts['completed']} succeeded, {counts['failed']} failed, {counts['canceled']} canceled."
+    return f"Working on {step}..."
 
 
 def generate_harmonization_todo_entry(
-    step: str, counts: Dict[str, int], num_datasets: int, other_counts: Dict[str, Dict[str, int]]
-) -> Dict[str, Any]:
+    step: str, counts: dict[str, int], num_datasets: int, other_counts: dict[str, dict[str, int]]
+) -> dict[str, Any]:
     """
     Generate a harmonization todo entry based on the given step, counts, and other counts.
 
@@ -1120,7 +1125,7 @@ def update_harmonization_progress_tracker(state: Any) -> ToolMessage:
         },
         additional_kwargs={
             "name": "geoRetrievalProgress",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     )
     return message
@@ -1129,7 +1134,7 @@ def update_harmonization_progress_tracker(state: Any) -> ToolMessage:
 CURRENT_FILE = Path(__file__).resolve()
 
 
-def find_project_root_with_data(start: Path = CURRENT_FILE, marker_dir: str = "data") -> Optional[Path]:
+def find_project_root_with_data(start: Path = CURRENT_FILE, marker_dir: str = "data") -> Path | None:
     """
     Walk up parents and return the first directory that contains `marker_dir`.
     Returns None if not found.

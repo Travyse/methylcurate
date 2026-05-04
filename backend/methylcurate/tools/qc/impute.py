@@ -1,11 +1,11 @@
 __all__ = []
-import pandas as pd
-from pydantic import BaseModel, Field
-from typing import Literal, Optional, List, Dict, Type
-from sklearn.impute import SimpleImputer, KNNImputer
-from ...contracts.qc import ImputerModelInput, ImputationInput
 
-ESTIMATOR_REGISTRY: Dict[str, Type] = {
+import pandas as pd
+from sklearn.impute import KNNImputer, SimpleImputer
+
+from ...contracts.qc import ImputationInput, ImputerModelInput
+
+ESTIMATOR_REGISTRY: dict[str, type] = {
     "simple": SimpleImputer,
     "knn": KNNImputer,
 }

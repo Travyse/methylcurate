@@ -1,35 +1,32 @@
 __all__ = ["quality_control_plan_node", "quality_control_node"]
 
-from dataclasses import Field
-import os
-import json
 import hashlib
-import pandas as pd
-from datetime import datetime, timezone
-from langchain_core.runnables import RunnableConfig
-from langgraph.types import interrupt, Command
-from typing import Dict, Any, List, Optional
-from ...utils.logging import setup_logger
-from ...utils.helper import (
-    get_accession_codes,
-    consolidate_artifacts,
-    update_small_progress_tracker,
-    load_metadata_aligned_methylation_data,
-    read_feather,
-    qc_progress,
-)
-from ..state.models import QualityControlSubgraphState, DatasetQualityControlState
-from ...tools.qc.workflow import run_all_qc
+import os
+from datetime import UTC, datetime
+
 from langchain_core.messages import ToolMessage
-from ...tools.qc.data_type_conversion import detect_data_type
+from langchain_core.runnables import RunnableConfig
+from langgraph.types import Command
+
 from ...contracts.qc import (
-    PreprocessDataInput,
-    DNAmQCInput,
     CpGLevelQCInput,
-    SampleLevelQCInput,
-    InterarrayCorrelationQCInput,
+    DNAmQCInput,
     ImputationInput,
+    InterarrayCorrelationQCInput,
+    PreprocessDataInput,
+    SampleLevelQCInput,
 )
+from ...tools.qc.data_type_conversion import detect_data_type
+from ...tools.qc.workflow import run_all_qc
+from ...utils.helper import (
+    consolidate_artifacts,
+    get_accession_codes,
+    load_metadata_aligned_methylation_data,
+    qc_progress,
+    read_feather,
+)
+from ...utils.logging import setup_logger
+from ..state.models import DatasetQualityControlState, QualityControlSubgraphState
 
 
 def _get_data_conversion_input_or_default(
@@ -178,7 +175,7 @@ def quality_control_node(state: QualityControlSubgraphState, *, config: Runnable
     logger.info(f"\nQC Node: Processing accession code {accession_code} with data at {geo_data_path}")
     if geo_data_path is None:
         logger.info(f"Error: Missing preqc_methylation_data artifact for accession {accession_code}")
-        state.errors.append("Missing preqc_methylation_data artifact for accession {}".format(accession_code))
+        state.errors.append(f"Missing preqc_methylation_data artifact for accession {accession_code}")
         return_dict["datasets"][accession_code]["steps"]["quality_control"]["status"] = "failed"
         return Command(update=return_dict)
 
@@ -291,7 +288,7 @@ def quality_control_summarization_node(state: QualityControlSubgraphState) -> Qu
     m = hashlib.sha256()
     for accession_code in sorted(accession_codes):
         m.update(accession_code.encode("utf-8"))
-    m.update("Quality Control".encode("utf-8"))
+    m.update(b"Quality Control")
     hash = m.hexdigest()
 
     payload["message"] = (
@@ -304,7 +301,7 @@ def quality_control_summarization_node(state: QualityControlSubgraphState) -> Qu
         artifact=payload,
         additional_kwargs={
             "name": "geoDatasetSummary",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     )
 

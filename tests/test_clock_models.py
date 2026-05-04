@@ -1,7 +1,7 @@
 """Tests for clock_models.py shared utilities and class behavior."""
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import pytest
 
 

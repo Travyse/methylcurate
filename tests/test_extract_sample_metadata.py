@@ -1,7 +1,7 @@
 import inspect
-import pandas as pd
-import numpy as np
 
+import numpy as np
+import pandas as pd
 import pytest
 
 
@@ -18,6 +18,7 @@ class TestGetFieldValueReturnsTuple:
 
     def test_missing_status_returns_none_none_false(self):
         from unittest.mock import MagicMock
+
         from methylcurate.tools.geo.extract_sample_level_metadata import get_field_value
 
         resolution = MagicMock()
@@ -47,13 +48,13 @@ class TestFieldCoverageNaming:
 
 class TestGetFieldCoverage:
     def test_computes_coverage_correctly(self):
+        from methylcurate.contracts.geo import GEOSampleLevelMetadata, GeoSampleLevelMetadataBatch
         from methylcurate.tools.geo.extract_sample_level_metadata import get_field_coverage
-        from methylcurate.contracts.geo import GeoSampleLevelMetadataBatch, GEOSampleLevelMetadata
 
         samples = [
-            GEOSampleLevelMetadata(sample_name="S1", Subject="S1", age=45.0),
-            GEOSampleLevelMetadata(sample_name="S2", Subject="S2", age=None),
-            GEOSampleLevelMetadata(sample_name="S3", Subject="S3", age=60.0),
+            GEOSampleLevelMetadata(sample_name="S1", subject_id="S1", age=45.0),
+            GEOSampleLevelMetadata(sample_name="S2", subject_id="S2", age=None),
+            GEOSampleLevelMetadata(sample_name="S3", subject_id="S3", age=60.0),
         ]
         batch = GeoSampleLevelMetadataBatch(accession="GSE1", samples=samples)
         coverage = get_field_coverage(batch, "age")

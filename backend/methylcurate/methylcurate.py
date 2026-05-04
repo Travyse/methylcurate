@@ -1,18 +1,17 @@
-import os
 import argparse
 import asyncio
-from dataclasses import dataclass
-import json
+import os
 import time
 import traceback
+from dataclasses import dataclass
+from typing import Any
 from uuid import uuid4
 
-from typing import Dict, Any
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-from .api.session import SessionStore
 from .agent.registry.services import build_services_with_checkpointer
 from .agent.state.utils import make_main_state
+from .api.session import SessionStore
 
 
 # ----------------------------
@@ -38,15 +37,15 @@ def openai_chunk(run_id: str, content: str) -> dict:
 class CLIConfig:
     checkpoints_db: str
     default_output_root: str
-    params: Dict[str, Any]
+    params: dict[str, Any]
 
 
-def _parse_kv_params(items: list[str]) -> Dict[str, str]:
+def _parse_kv_params(items: list[str]) -> dict[str, str]:
     """
     Parse repeatable --param key=value flags into a dict.
     Last writer wins if the same key is repeated.
     """
-    out: Dict[str, str] = {}
+    out: dict[str, str] = {}
     for item in items:
         if "=" not in item:
             raise SystemExit(f"--param must be key=value, got: {item!r}")
@@ -119,7 +118,6 @@ async def chat_loop(cfg: CLIConfig):
             session = store.get(run_id) if store.exists(run_id) else store.create(run_id)
 
             if session.main_state is None:
-                from .agent.state.models import MainState
 
                 session.main_state = make_main_state(run_id=run_id, default_output_root=cfg.default_output_root)
 

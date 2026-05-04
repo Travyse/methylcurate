@@ -1,10 +1,10 @@
 # agent/registry/services.py
 
-from ..runtime.chat_runner import StreamingRunner
-from ..llm.client import LLMClient, LLMConfig
+from ..graphs.deps import Deps
 from ..graphs.router import build_main_graph
 from ..graphs.subgraphs import build_subgraphs
-from ..graphs.deps import Deps
+from ..llm.client import LLMClient, LLMConfig
+from ..runtime.chat_runner import StreamingRunner
 
 
 def build_services_with_checkpointer(checkpointer) -> tuple[StreamingRunner, Deps]:

@@ -1,6 +1,7 @@
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import END, START, StateGraph
+
+from ..nodes.router import clarify_router_node, router_node
 from ..state.models import MainState
-from ..nodes.router import router_node, clarify_router_node
 
 
 def route_after_router(state: MainState):

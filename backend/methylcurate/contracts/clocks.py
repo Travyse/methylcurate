@@ -1,7 +1,8 @@
 __all__ = []
 
+from typing import Literal
+
 from pydantic import BaseModel
-from typing import Literal, Optional, List
 
 # Call pyaging here to get the clock names. Filter by metadata for humans and methylation. Then remove any mention of CpGPT
 
@@ -62,7 +63,7 @@ class PredictionInput(BaseModel):
         imputer_strategy (Literal["mean", "median", "constant", "knn"]): The strategy to use for imputing missing data, with a default value of "knn".
     """
 
-    clock_list: List[MethylationAgingClock]
+    clock_list: list[MethylationAgingClock]
     imputer_strategy: Literal["mean", "median", "constant", "knn"] = "knn"
 
 
@@ -93,4 +94,4 @@ class PredictionResult(BaseModel):
         clock_results (List[ClockPredictionResult]): A list of prediction results for each methylation aging clock.
     """
 
-    clock_results: List[ClockPredictionResult]
+    clock_results: list[ClockPredictionResult]

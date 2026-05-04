@@ -4,40 +4,39 @@ __all__ = [
     "_harmonize_sex_labels",
     "construct_raw_to_harmonized_label_mapping",
 ]
-import re
-import json
-import uuid
 import asyncio
-import requests
+import json
+import re
 import unicodedata
+import uuid
+from datetime import UTC, datetime
+from typing import Any
+
 import pandas as pd
-from datetime import datetime, timezone
-from pydantic import ValidationError
+import requests
 from langchain_core.exceptions import OutputParserException
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
-from typing import Dict, Any, List, Tuple, get_args
-from langchain_core.messages import HumanMessage, AnyMessage, SystemMessage
+from pydantic import ValidationError
+
 from ...agent.graphs.deps import Deps
 from ...contracts.harmonize import (
-    HumanReadableConceptInput,
-    create_ontology_mapping_model,
-    LabelMappingSet,
-    MissingMapping,
     BestGuessMapping,
+    HumanReadableConceptInput,
+    LabelMappingSet,
+    create_ontology_mapping_model,
 )
 from ...utils.examples import (
     generate_high_level_ontology_guess_examples,
+    generate_high_level_ontology_selection_examples,
     generate_ontology_guess_examples,
     generate_ontology_selection_examples,
-    generate_high_level_ontology_selection_examples,
 )
-from ...agent.state.models import HarmonizationSubgraphState
 from ...utils.prompting import (
-    generate_ontology_label_query,
-    generate_ontology_group_guess_user_query,
-    generate_ontology_label_selection_query,
     generate_high_level_ontology_label_selection_query,
-    generate_high_level_ontology_label_selection_system_prompt,
+    generate_ontology_group_guess_user_query,
+    generate_ontology_label_query,
+    generate_ontology_label_selection_query,
 )
 
 CALL_TIMEOUT = 180
@@ -59,7 +58,7 @@ CONTROL_BEST_GUESS_NOTES = (
 )
 
 
-def search_ontology_term(query: str, ontology: str = "mondo", k: int = 5) -> List[Dict[str, Any]]:
+def search_ontology_term(query: str, ontology: str = "mondo", k: int = 5) -> list[dict[str, Any]]:
     """Search the EBI Ontology Lookup Service for terms matching a query.
 
     Falls back to searching DOID if no results are found in Mondo.
@@ -96,7 +95,7 @@ def search_ontology_term(query: str, ontology: str = "mondo", k: int = 5) -> Lis
 
 
 def gather_concept_context(
-    metadata_dict: Dict[str, Any], extraction_protocol: Dict[str, Any], unique_concept_labels: List[str]
+    metadata_dict: dict[str, Any], extraction_protocol: dict[str, Any], unique_concept_labels: list[str]
 ) -> HumanReadableConceptInput:
     """Assemble dataset context for LLM-assisted ontology label guessing.
 
@@ -152,7 +151,7 @@ def slugify(value, allow_unicode=False):
 
 
 # Possibly Remove this
-def create_slugified_concept_mapping(concepts: List[str]) -> Dict[str, str]:
+def create_slugified_concept_mapping(concepts: list[str]) -> dict[str, str]:
     """Create a mapping from original concept labels to their slugified forms.
 
     Args:
@@ -167,7 +166,7 @@ def create_slugified_concept_mapping(concepts: List[str]) -> Dict[str, str]:
     return slugified_mapping
 
 
-async def call_llm_structured_with_retries(messages: List[Any], config: RunnableConfig, ResultModel: Any = None) -> Any:
+async def call_llm_structured_with_retries(messages: list[Any], config: RunnableConfig, ResultModel: Any = None) -> Any:
     """Call an LLM with structured output, retrying on timeout or parse failure.
 
     Retries up to GLOBAL_RETRY_LIMIT times on timeout. On an OutputParserException,
@@ -195,7 +194,7 @@ async def call_llm_structured_with_retries(messages: List[Any], config: Runnable
                 deterministic_llm.acall_structured(messages, ResultModel), timeout=CALL_TIMEOUT
             )
             break
-        except asyncio.TimeoutError:
+        except TimeoutError:
             retries += 1
             continue
         except OutputParserException as e:
@@ -203,7 +202,7 @@ async def call_llm_structured_with_retries(messages: List[Any], config: Runnable
                 id=uuid.uuid4().hex,
                 content=f"The previous output from the LLM failed to parse with error: {e}. Please reformat the output to match the expected format and ensure that all required fields are included.",
                 additional_kwargs={
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 },
             )
             messages = messages + [human_message]
@@ -262,7 +261,7 @@ async def _guess_human_readable_labels(
         id=uuid.uuid4().hex,
         content=query_prompt,
         additional_kwargs={
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     )
     _, LabelMappingSetDyn = create_ontology_mapping_model(
@@ -275,7 +274,7 @@ async def _guess_human_readable_labels(
 
 
 async def _guess_human_readable_high_level_labels(
-    input_labels: List[str],
+    input_labels: list[str],
     guess_result: Any,
     config: RunnableConfig,
     ontology: str = "mondo",
@@ -308,7 +307,7 @@ async def _guess_human_readable_high_level_labels(
         id=uuid.uuid4().hex,
         content=query_prompt,
         additional_kwargs={
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     )
     _, LabelMappingSetDyn = create_ontology_mapping_model(
@@ -321,7 +320,7 @@ async def _guess_human_readable_high_level_labels(
 
 
 async def _select_best_ontology_labels(
-    ontology_label_dict: Dict[str, Any],
+    ontology_label_dict: dict[str, Any],
     guess_input: HumanReadableConceptInput,
     guess_result: Any,
     config: RunnableConfig,
@@ -362,7 +361,7 @@ async def _select_best_ontology_labels(
         id=uuid.uuid4().hex,
         content=query_prompt,
         additional_kwargs={
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     )
     resolved = await call_llm_structured_with_retries([system_message, human_message], config, ResultModel=guess_result)
@@ -370,7 +369,7 @@ async def _select_best_ontology_labels(
 
 
 async def _select_best_high_level_ontology_labels(
-    ontology_label_dict: Dict[str, Any], guess_result: Any, config: RunnableConfig, ontology: str = "mondo"
+    ontology_label_dict: dict[str, Any], guess_result: Any, config: RunnableConfig, ontology: str = "mondo"
 ) -> Any:
     """Use an LLM to select the best high-level ontology category from candidates.
 
@@ -402,7 +401,7 @@ async def _select_best_high_level_ontology_labels(
         id=uuid.uuid4().hex,
         content=query_prompt,
         additional_kwargs={
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     )
     resolved = await call_llm_structured_with_retries([system_message, human_message], config, ResultModel=guess_result)
@@ -410,14 +409,14 @@ async def _select_best_high_level_ontology_labels(
 
 
 async def _harmonize_ontology_labels(
-    metadata_dict: Dict[str, Any],
-    extraction_protocol: Dict[str, Any],
+    metadata_dict: dict[str, Any],
+    extraction_protocol: dict[str, Any],
     sample_metadata: pd.DataFrame,
     config: RunnableConfig,
     ontology: str = "mondo",
     ontology_literal: str = "mondo",
     column_name: str = "disease_status",
-) -> Tuple[LabelMappingSet, LabelMappingSet, LabelMappingSet]:
+) -> tuple[LabelMappingSet, LabelMappingSet, LabelMappingSet]:
     """Harmonize raw dataset labels to ontology terms via LLM-guided mapping.
 
     Orchestrates a pipeline that (1) guesses human-readable labels from raw
@@ -554,8 +553,8 @@ async def _harmonize_ontology_labels(
 
 
 async def _harmonize_ontology_group_labels(
-    harmonized_labels: List[str], config: RunnableConfig, ontology: str = "mondo", ontology_literal: str = "mondo"
-) -> Tuple[LabelMappingSet, LabelMappingSet, LabelMappingSet]:
+    harmonized_labels: list[str], config: RunnableConfig, ontology: str = "mondo", ontology_literal: str = "mondo"
+) -> tuple[LabelMappingSet, LabelMappingSet, LabelMappingSet]:
     """Harmonize already-harmonized labels into high-level ontology categories.
 
     Takes a list of already-harmonized ontology labels and maps them to broader,
@@ -641,11 +640,11 @@ async def _harmonize_ontology_group_labels(
 
 
 async def _harmonize_sex_labels(
-    metadata_dict: Dict[str, Any],
-    extraction_protocol: Dict[str, Any],
+    metadata_dict: dict[str, Any],
+    extraction_protocol: dict[str, Any],
     sample_metadata: pd.DataFrame,
     config: RunnableConfig,
-) -> Tuple[LabelMappingSet, LabelMappingSet, LabelMappingSet]:
+) -> tuple[LabelMappingSet, LabelMappingSet, LabelMappingSet]:
     """Harmonize raw sex labels to "Male", "Female", or "Unknown/Other".
 
     Uses the PATO ontology context to map raw sex labels to a fixed set of

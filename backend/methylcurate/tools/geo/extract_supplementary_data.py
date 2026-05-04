@@ -4,50 +4,48 @@ __all__ = [
     "merge_formatted_supplementary_data",
     "_create_subject_id_mapping",
 ]
-import os
-import re
-import json
-import gzip
-import uuid
 import asyncio
-import pandas as pd
-import numpy as np
+import gzip
+import json
+import os
 import random
+import re
+import uuid
+from datetime import UTC, datetime
+from typing import Any
 
-from rapidfuzz import fuzz, process
-from datetime import datetime, timezone
-from typing import List, Any, Tuple, Optional, Dict
+import numpy as np
+import pandas as pd
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 from ollama._types import ResponseError
 from pydantic import ValidationError
-from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
-from ...agent.state.models import GEOIngestionConfig, GeoDatasetState, GeoIngestionSubgraphState
-from ...utils.helper import compute_sha256, consolidate_artifacts, write_feather
+from rapidfuzz import fuzz, process
+
+from ...agent.graphs.deps import Deps
+from ...agent.state.models import GeoDatasetState, GEOIngestionConfig, GeoIngestionSubgraphState
+from ...contracts.common import ArtifactRef
+from ...contracts.geo import (
+    ForcedSampleDataResolution,
+    LexFeat,
+    SampleDataResolution,
+)
 from ...utils.examples import (
     generate_column_interpretation_examples,
     generate_column_interpretation_examples_no_detection,
 )
+from ...utils.helper import compute_sha256, consolidate_artifacts, write_feather
 from ...utils.prompting import (
-    generate_infer_methylation_data_column_scheme_prompt,
     generate_infer_methylation_data_column_scheme_alt_prompt,
+    generate_infer_methylation_data_column_scheme_prompt,
 )
-from ...contracts.common import ArtifactRef
-from ...contracts.geo import (
-    SampleDataResolution,
-    LexFeat,
-    ErrorResolution,
-    ForcedSampleDataResolution,
-    GEOMetadataExtractionResult,
-    ResolvedResolution,
-)
-from .extract_sample_level_metadata import get_field_value, cpg_union, _merge_to_dataframe
-from langchain_core.runnables import RunnableConfig
-from ...agent.graphs.deps import Deps
+from .extract_sample_level_metadata import _merge_to_dataframe
 
 CALL_TIMEOUT = 180
 GLOBAL_RETRY_LIMIT = 5
 
 
-def _check_for_cpg_probes(sample_data: pd.DataFrame) -> Dict[str, bool]:
+def _check_for_cpg_probes(sample_data: pd.DataFrame) -> dict[str, bool]:
     """Determine whether CpG probes are in rows or columns.
 
     Counts how many indices and column headers contain "cg" and returns
@@ -93,8 +91,8 @@ def _check_for_detection_columns(sample_data: pd.DataFrame) -> bool:
 
 
 async def _process_detection_columns(
-    artifact: ArtifactRef, sample_data: pd.DataFrame, config: RunnableConfig, messages: List[AnyMessage]
-) -> Tuple[pd.DataFrame, ArtifactRef]:
+    artifact: ArtifactRef, sample_data: pd.DataFrame, config: RunnableConfig, messages: list[AnyMessage]
+) -> tuple[pd.DataFrame, ArtifactRef]:
     """Process methylation data with paired beta and detection p-value columns.
 
     Uses LLM-assisted column scheme resolution to identify beta and
@@ -198,8 +196,8 @@ async def _process_detection_columns(
 
 
 async def _process_detection_columns_alt(
-    artifact: ArtifactRef, sample_data: pd.DataFrame, config: RunnableConfig, messages: List[AnyMessage]
-) -> Tuple[pd.DataFrame, ArtifactRef]:
+    artifact: ArtifactRef, sample_data: pd.DataFrame, config: RunnableConfig, messages: list[AnyMessage]
+) -> tuple[pd.DataFrame, ArtifactRef]:
     """Alternative detection-column processing via per-subject pair extraction.
 
     Resolves column scheme with LLM, then processes each beta/detection
@@ -362,7 +360,7 @@ def _read_sample_data(file_path: str) -> pd.DataFrame:
     return sample_data
 
 
-def _generate_data_samples(sample_data: pd.DataFrame, seed: int = 0) -> Tuple[str, pd.DataFrame]:
+def _generate_data_samples(sample_data: pd.DataFrame, seed: int = 0) -> tuple[str, pd.DataFrame]:
     """Generate a random column subset for LLM prompts.
 
     Samples up to 15 columns with a reproducible seed and returns both
@@ -384,7 +382,7 @@ def _generate_data_samples(sample_data: pd.DataFrame, seed: int = 0) -> Tuple[st
     return sample_data_markdown, sample_data[sampled_columns].copy()
 
 
-def _check_pattern_performance(pattern: str, columns: List[str]) -> Tuple[set, set]:
+def _check_pattern_performance(pattern: str, columns: list[str]) -> tuple[set, set]:
     """Evaluate a regex pattern against a list of column names.
 
     Args:
@@ -404,10 +402,10 @@ def _check_pattern_performance(pattern: str, columns: List[str]) -> Tuple[set, s
 
 def _check_pattern_performance_change(
     prev_beta_pattern: str,
-    prev_detection_pattern: Optional[str],
+    prev_detection_pattern: str | None,
     current_beta_pattern: str,
-    current_detection_pattern: Optional[str],
-    columns: List[str],
+    current_detection_pattern: str | None,
+    columns: list[str],
 ) -> bool:
     """Check if pattern refinement changed what was matched.
 
@@ -450,12 +448,12 @@ async def _get_column_scheme(
     artifact: ArtifactRef,
     sample_data: pd.DataFrame,
     config: RunnableConfig,
-    messages: List[AIMessage] = [],
+    messages: list[AIMessage] = [],
     count=0,
-    prohibited_patterns: Optional[List[str]] = None,
-    prev_beta_pattern: Optional[str] = None,
-    prev_detection_pattern: Optional[str] = None,
-) -> Tuple[SampleDataResolution, ArtifactRef]:
+    prohibited_patterns: list[str] | None = None,
+    prev_beta_pattern: str | None = None,
+    prev_detection_pattern: str | None = None,
+) -> tuple[SampleDataResolution, ArtifactRef]:
     """Resolve beta/detection column patterns via LLM with iterative refinement.
 
     Sends sampled column data to the deterministic LLM for structured
@@ -512,14 +510,14 @@ async def _get_column_scheme(
             id=uuid.uuid4().hex,
             content=message,
             additional_kwargs={
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
             },
         )
         human_message = HumanMessage(
             id=uuid.uuid4().hex,
             content=f"Please find the resolution for the following DNA methylation data:\n{sample_data_markdown}",
             additional_kwargs={
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
             },
         )
         messages = [system_message, human_message]
@@ -532,10 +530,10 @@ async def _get_column_scheme(
                 deterministic_llm.acall_structured(messages, ForcedSampleDataResolution), timeout=CALL_TIMEOUT
             )
             break
-        except asyncio.TimeoutError:
+        except TimeoutError:
             retries += 1
             continue
-        except ResponseError as e:
+        except ResponseError:
             retries += 1
             continue
         except ValidationError as e:
@@ -566,7 +564,7 @@ async def _get_column_scheme(
             id=uuid.uuid4().hex,
             content=f"Attempt {count} resolution:\n {resolved.model_dump()}",
             additional_kwargs={
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
             },
         )
 
@@ -628,7 +626,7 @@ async def _get_column_scheme(
             correction_message = HumanMessage(
                 id=uuid.uuid4().hex,
                 content=base_prompt,
-                additional_kwargs={"created_at": datetime.now(timezone.utc).isoformat()},
+                additional_kwargs={"created_at": datetime.now(UTC).isoformat()},
             )
             return await _get_column_scheme(
                 artifact,
@@ -652,7 +650,7 @@ async def _get_column_scheme(
             "kind": "supplementary_file_methylation_data_column_scheme",
             "sha256": compute_sha256(column_scheme_path, is_path=True),
             "bytes": os.path.getsize(column_scheme_path),
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -661,11 +659,11 @@ async def _get_column_scheme(
 
 async def format_individual_methylation_data(
     accession_code: str,
-    return_dict: Dict[str, Any],
+    return_dict: dict[str, Any],
     config: RunnableConfig,
     artifact: ArtifactRef,
-    messages: List[AnyMessage],
-) -> Dict[str, Any]:
+    messages: list[AnyMessage],
+) -> dict[str, Any]:
     """Format a single supplementary methylation data file.
 
     Reads raw data, processes detection columns if present, shapes the
@@ -700,7 +698,7 @@ async def format_individual_methylation_data(
             "kind": "supplementary_file_methylation_data_formatted",
             "sha256": compute_sha256(methylation_dataframe_output_path, is_path=True),
             "bytes": os.path.getsize(methylation_dataframe_output_path),
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -739,8 +737,8 @@ def merge_formatted_supplementary_data(state: GeoIngestionSubgraphState, accessi
 
 
 async def format_methylation_data(
-    state_config: GEOIngestionConfig, state: GeoDatasetState, config: RunnableConfig, messages: List[AnyMessage]
-) -> Dict[str, Any]:
+    state_config: GEOIngestionConfig, state: GeoDatasetState, config: RunnableConfig, messages: list[AnyMessage]
+) -> dict[str, Any]:
     """Format all supplementary methylation files for a dataset.
 
     Iterates over every supplementary methylation data artifact for
@@ -789,7 +787,7 @@ async def format_methylation_data(
                 "kind": "preqc_methylation_data",
                 "sha256": compute_sha256(methylation_dataframe_output_path, is_path=True),
                 "bytes": os.path.getsize(methylation_dataframe_output_path),
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
             }
         )
     else:
@@ -801,7 +799,7 @@ async def format_methylation_data(
                     "kind": "preqc_methylation_data",
                     "sha256": compute_sha256(methylation_dataframe_output_path, is_path=True),
                     "bytes": os.path.getsize(methylation_dataframe_output_path),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 }
             )
     collected_artifacts.append(methylation_artifact)
@@ -843,7 +841,7 @@ def generate_lexical_features(name: str) -> LexFeat:
         s = WS_RE.sub(" ", s)
         return s.lower().strip()
 
-    def tokenize(s: str) -> List[str]:
+    def tokenize(s: str) -> list[str]:
         # Keep numbers as tokens
         t = normalize_text(s).split()
         return t
@@ -860,7 +858,7 @@ def generate_lexical_features(name: str) -> LexFeat:
     return featurize(name)
 
 
-def build_vocab(featsA: List[LexFeat], featsB: List[LexFeat], attr: str) -> Dict[str, int]:
+def build_vocab(featsA: list[LexFeat], featsB: list[LexFeat], attr: str) -> dict[str, int]:
     """Build a vocabulary index from a lexical feature attribute.
 
     Scans the given attribute (e.g. "words" or "nums") across both
@@ -874,7 +872,7 @@ def build_vocab(featsA: List[LexFeat], featsB: List[LexFeat], attr: str) -> Dict
     Returns:
         A dict mapping each unique token to its integer index.
     """
-    vocab: Dict[str, int] = {}
+    vocab: dict[str, int] = {}
     for f in featsA:
         for t in set(getattr(f, attr)):
             if t not in vocab:
@@ -886,7 +884,7 @@ def build_vocab(featsA: List[LexFeat], featsB: List[LexFeat], attr: str) -> Dict
     return vocab
 
 
-def incidence_matrix(feats: List[LexFeat], vocab: Dict[str, int], attr: str) -> np.ndarray:
+def incidence_matrix(feats: list[LexFeat], vocab: dict[str, int], attr: str) -> np.ndarray:
     """Build a binary incidence matrix for a lexical feature attribute.
 
     Each row corresponds to a feature and each column to a vocabulary
@@ -963,7 +961,7 @@ def token_count_penalty_matrix(featsA, featsB, gamma: float = 2.0) -> np.ndarray
     return np.exp(-gamma * rel).astype(np.float32)
 
 
-def lexical_score_matrix(A: List[str], B: List[str], workers: int = -1, no_count_penalty: bool = False) -> np.ndarray:
+def lexical_score_matrix(A: list[str], B: list[str], workers: int = -1, no_count_penalty: bool = False) -> np.ndarray:
     """Compute a lexical similarity matrix between two string lists.
 
     Combines token-sort-ratio fuzziness, word-level Jaccard, and
@@ -1020,7 +1018,7 @@ def lexical_score_matrix(A: List[str], B: List[str], workers: int = -1, no_count
 
 
 def extract_subject_column_mapping(
-    metadata_artifact: ArtifactRef, sample_data_df: pd.DataFrame, return_dict: Dict[str, Any]
+    metadata_artifact: ArtifactRef, sample_data_df: pd.DataFrame, return_dict: dict[str, Any]
 ) -> Any:
     """Map sample data indices to metadata subject IDs via lexical scoring.
 
@@ -1060,7 +1058,7 @@ def extract_subject_column_mapping(
             "kind": "subject_column_mapping",
             "sha256": compute_sha256(mapper_artifact_path, is_path=True),
             "bytes": os.path.getsize(mapper_artifact_path),
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
     )
     return_dict["config"]["artifacts"] = consolidate_artifacts(return_dict["config"]["artifacts"], [mapper_artifact])
@@ -1068,7 +1066,7 @@ def extract_subject_column_mapping(
     return return_dict
 
 
-def _extract_best_subject_id_fields(user_input: Any, sample_data: pd.DataFrame) -> Tuple[Optional[str], Optional[str]]:
+def _extract_best_subject_id_fields(user_input: Any, sample_data: pd.DataFrame) -> tuple[str | None, str | None]:
     """Identify which metadata field best matches sample data indices.
 
     Collects candidate values from all metadata fields (including
@@ -1137,7 +1135,7 @@ def _extract_best_subject_id_fields(user_input: Any, sample_data: pd.DataFrame) 
 
 
 def _create_subject_id_mapping(
-    accession_code: str, user_input: pd.DataFrame, metadata_dict: Dict[str, Any], sample_data: pd.DataFrame
+    accession_code: str, user_input: pd.DataFrame, metadata_dict: dict[str, Any], sample_data: pd.DataFrame
 ) -> pd.DataFrame:
     """Build a mapping table linking GEO samples to best subject IDs.
 
@@ -1162,7 +1160,7 @@ def _create_subject_id_mapping(
     # This is to map from the original subject id to the best subject id
     # I have the field name and key name, I need to extract that here
     def _extract_subject(
-        field_name: str, target_values: List[str], metadata_dict: Dict[str, Any], key_name: Optional[str] = None
+        field_name: str, target_values: list[str], metadata_dict: dict[str, Any], key_name: str | None = None
     ):
         subject = None
         candidate_subjects = []
@@ -1190,7 +1188,7 @@ def _create_subject_id_mapping(
                 )
         return subject
 
-    def _get_subject_column_values(source_values: List[str], target_values: List[str]) -> Any:
+    def _get_subject_column_values(source_values: list[str], target_values: list[str]) -> Any:
         score_matrix = lexical_score_matrix(source_values, target_values)
         best_j = np.argmax(score_matrix, axis=1)
         ordered_target_values = [target_values[j] for j in best_j]
