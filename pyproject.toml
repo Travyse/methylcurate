@@ -20,8 +20,31 @@ classifiers = [
 ]
 license = {text = "MIT"}
 dependencies = [
-  "typer",
+  "fastapi",
+  "GEOparse",
+  "greenery",
+  "jinja2",
+  "joblib",
+  "langchain-anthropic",
+  "langchain-core",
+  "langchain-ollama",
+  "langchain-openai",
+  "langgraph",
+  "numpy",
+  "ollama",
+  "pandas",
+  "pyaging",
+  "pyarrow",
+  "pydantic",
+  "rapidfuzz",
+  "requests",
   "rich",
+  "scikit-learn",
+  "scipy",
+  "statsmodels",
+  "torch",
+  "tqdm",
+  "typer",
 ]
 requires-python = ">= 3.12"
 
