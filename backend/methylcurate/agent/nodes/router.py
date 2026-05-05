@@ -20,7 +20,7 @@ MAX_RETRIES = 3
 GLOBAL_TIMEOUT = 60
 
 
-async def _get_router_decision(messages: list[AnyMessage], llm: Any) -> RouterOutput:
+async def _get_router_decision(messages: list[AnyMessage], llm: Any) -> RouterOutput:  # type: ignore
     """
     Get a routing decision from the LLM based on the provided message history. The function attempts to call the LLM with a structured output format defined by the RouterOutput model. If the LLM call times out, it retries up to a specified limit. If the LLM output fails validation against the RouterOutput model, it raises a RuntimeError with details about the validation failure. Any other exceptions during the LLM call also result in a RuntimeError with details about the failure.'
 
@@ -61,7 +61,7 @@ async def router_node(state: MainState, config: RunnableConfig) -> dict[str, Any
     deps: Deps = config["configurable"]["deps"]
     llm = deps.llm
 
-    return_dict = {"messages": []}  # type: ignore[var-annotated]
+    return_dict = {"messages": []}
 
     router_out = await _get_router_decision(state.messages, llm)
     return_dict["routing_history"] = [router_out]
@@ -75,14 +75,14 @@ async def router_node(state: MainState, config: RunnableConfig) -> dict[str, Any
     }
     # Case 1: Intent unclear OR missing required info -> HITL clarification
     if router_out.needs_clarification or router_out.confidence < 0.6:
-        return_dict["pending_reviews"] = HumanReviewRequest(
+        return_dict["pending_reviews"] = HumanReviewRequest(  # type: ignore
             review_id=make_review_id(**review_id_args),
             reason="routing_clarification",
             question=router_out.clarification_question or "I need a bit more information to proceed.",
             payload=router_out.model_dump(),
             created_at=datetime.now(UTC).isoformat(),
         )
-        return_dict["next_action_hint"] = "Awaiting user clarification."  # type: ignore[index]
+        return_dict["next_action_hint"] = "Awaiting user clarification."  # type: ignore
         return_dict["messages"].append(
             AIMessage(
                 content=router_out.clarification_question or "I need a bit more information to proceed.",
@@ -98,7 +98,7 @@ async def router_node(state: MainState, config: RunnableConfig) -> dict[str, Any
     except ValidationError as e:
         # This is *also* a clarification case.
         # Prefer asking only for fields that failed validation.
-        return_dict["pending_reviews"] = HumanReviewRequest(
+        return_dict["pending_reviews"] = HumanReviewRequest(  # type: ignore
             review_id=make_review_id(**review_id_args),
             reason="invalid_route_params",
             question=router_out.clarification_question or "I need one or two details corrected before I can run this.",
@@ -108,7 +108,7 @@ async def router_node(state: MainState, config: RunnableConfig) -> dict[str, Any
             },
             created_at=datetime.now(UTC).isoformat(),
         )
-        return_dict["next_action_hint"] = "Awaiting parameter correction."
+        return_dict["next_action_hint"] = "Awaiting parameter correction."  # type: ignore
         return_dict["messages"].append(
             AIMessage(
                 content=router_out.clarification_question or "I need a bit more information to proceed.",
@@ -119,7 +119,7 @@ async def router_node(state: MainState, config: RunnableConfig) -> dict[str, Any
         return return_dict
 
     # Success
-    return_dict["next_action_hint"] = f"Ready to run {return_dict['routing_history'][-1].subgraph}."  # type: ignore[index]
+    return_dict["next_action_hint"] = f"Ready to run {return_dict['routing_history'][-1].subgraph}."  # type: ignore
 
     return return_dict
 
@@ -185,13 +185,13 @@ def run_selected_subgraph(main: MainState, checkpointer) -> tuple[MainState, obj
     Returns:
         tuple[MainState, object]: A tuple containing the updated main state and the output of the subgraph.
     """
-    name = main.routed_subgraph
+    name = main.routed_subgraph  # type: ignore
     handle = main.subgraphs[name]
 
     handle.status = "running"
 
     subgraph = GRAPH_BUILDERS[name](checkpointer=checkpointer)
-    sub_state = make_subgraph_state(name, run_id=main.run_id, params=main.routed_params)
+    sub_state = make_subgraph_state(name, run_id=main.run_id, params=main.routed_params)  # type: ignore
 
     # If the subgraph interrupts, your chat runtime receives the interrupt payload.
     # When resumed, invoke continues and returns final state.

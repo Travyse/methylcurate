@@ -197,26 +197,26 @@ def create_ontology_mapping_model(
                 ),
             ),
         )
-        return PATOMapping, LabelMappingSetDyn
+        return PATOMapping, LabelMappingSetDyn  # type: ignore
 
-    allowed_source_labels = tuple(allowed_source_labels)
-    allowed_target_labels = tuple(allowed_target_labels) if allowed_target_labels is not None else None
+    allowed_source_labels = tuple(allowed_source_labels)  # type: ignore
+    allowed_target_labels = tuple(allowed_target_labels) if allowed_target_labels is not None else None  # type: ignore
 
     if allowed_target_labels is not None:
         params = {
             "ontology": (
-                Literal[ontology_literal],
+                Literal[ontology_literal],  # type: ignore
                 Field(
                     ...,
                     description=f"This represents the ontology that the mapping is using, in this case {ontology_name}",
                 ),
             ),
             "source_label": (
-                Literal[allowed_source_labels],
+                Literal[allowed_source_labels],  # type: ignore
                 Field(..., description=f"The input label to harmonize to the `{ontology_name}` ontology."),
             ),
             "target_label": (
-                Literal[allowed_target_labels],
+                Literal[allowed_target_labels],  # type: ignore
                 Field(..., description=f"The `{ontology_name}` ontology label that the source label maps to."),
             ),
             "notes": (str | None, Field(None, description="Additional notes or context about the mapping")),
@@ -229,21 +229,21 @@ def create_ontology_mapping_model(
         )
         params = {
             "ontology": (
-                Literal[ontology_literal],
+                Literal[ontology_literal],  # type: ignore
                 Field(
                     ...,
                     description=f"This represents the ontology that the mapping is using, in this case {ontology_name}",
                 ),
             ),
             "source_label": (
-                Literal[allowed_source_labels],
+                Literal[allowed_source_labels],  # type: ignore
                 Field(..., description=f"The input label to harmonize to the `{ontology_name}` ontology."),
             ),
             "target_label": (str, Field(..., description=target_label_description)),
             "notes": (str | None, Field(None, description="Additional notes or context about the mapping")),
         }
 
-    OntologyMappingDyn = create_model(
+    OntologyMappingDyn = create_model(  # type: ignore
         f"OntologyMappingModel__{ontology_literal}__{abs(hash((allowed_source_labels, allowed_target_labels)))}",
         __base__=BaseModel,
         **params,
@@ -263,7 +263,7 @@ def create_ontology_mapping_model(
             ),
         ),
     )
-    return OntologicalMappingOrMissingDyn, LabelMappingSetDyn
+    return OntologicalMappingOrMissingDyn, LabelMappingSetDyn  # type: ignore
 
 
 class BaseOntologyConcept(BaseModel):

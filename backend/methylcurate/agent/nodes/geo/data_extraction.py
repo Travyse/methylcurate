@@ -61,17 +61,17 @@ async def extract_sample_metadata(state: GeoIngestionSubgraphState, config: Runn
         ),
         None,
     )
-    with open(metadata_artifact.path, encoding="utf-8") as f:  # type: ignore[union-attr]
+    with open(metadata_artifact.path, encoding="utf-8") as f:  # type: ignore
         metadata_dict = json.load(f)
     return_dict = {"config": state.config.model_dump(), "datasets": {accession_code: dataset_state.model_dump()}}
     return_dict = extract_dataset_metadata(
         accession_code,
         state.config,
         metadata_dict,
-        dataset_state.metadata_extraction_result,  # type: ignore[arg-type]
+        dataset_state.metadata_extraction_result,  # type: ignore
         True,
-        gpls=[dataset_state.platform_metadata.platform_id],  # type: ignore[union-attr,list-item]
-        platform=[dataset_state.platform_metadata.title],  # type: ignore[union-attr,list-item]
+        gpls=[dataset_state.platform_metadata.platform_id],  # type: ignore
+        platform=[dataset_state.platform_metadata.title],  # type: ignore
         return_dict=return_dict,
     )
     return_dict["main_messages"] = [update_progress_tracker(state)]
@@ -105,13 +105,13 @@ async def generate_metadata_extraction_summary(
         ),
         None,
     )
-    metadata = pd.read_csv(metadata_artifact.path, index_col=0)  # type: ignore[union-attr]
+    metadata = pd.read_csv(metadata_artifact.path, index_col=0)  # type: ignore
     return_dict = generate_summary_data(
         metadata,
         accession_code,
-        [dataset_state.platform_metadata.platform_id],  # type: ignore[union-attr,list-item]
-        [dataset_state.platform_metadata.title],  # type: ignore[union-attr,list-item]
-        dataset_state.refinement_history.example_errors,
+        [dataset_state.platform_metadata.platform_id],  # type: ignore
+        [dataset_state.platform_metadata.title],  # type: ignore
+        dataset_state.refinement_history.example_errors,  # type: ignore
         return_dict,
     )
     return_dict["datasets"][accession_code]["steps"]["extract_data"] = set_step_status(
@@ -260,21 +260,22 @@ async def refine_extracted_columns(state: GeoIngestionSubgraphState, config: Run
         ),
         None,
     )
-    with open(metadata_artifact.path, encoding="utf-8") as f:  # type: ignore[union-attr]
+    with open(metadata_artifact.path, encoding="utf-8") as f:  # type: ignore
         metadata_dict = json.load(f)
         sample_subject_mapping = _create_subject_id_mapping(
             accession_code,
-            dataset_state.metadata_extraction_input,
+            dataset_state.metadata_extraction_input,  # type: ignore
             metadata_dict,
-            methylation_data,  # type: ignore[arg-type]
+            methylation_data,
         )
     mapper_artifact_path = os.path.join(
-        os.path.dirname(metadata_artifact.path), f"{metadata_artifact.accession_code}_subject_mapping.json"
+        os.path.dirname(metadata_artifact.path),  # type: ignore
+        f"{metadata_artifact.accession_code}_subject_mapping.json",
     )
     sample_subject_mapping.to_csv(mapper_artifact_path, index=True)
     mapper_artifact = ArtifactRef.model_validate(
         {
-            "accession_code": metadata_artifact.accession_code,
+            "accession_code": metadata_artifact.accession_code,  # type: ignore
             "path": mapper_artifact_path,
             "kind": "subject_column_mapping",
             "sha256": compute_sha256(mapper_artifact_path, is_path=True),

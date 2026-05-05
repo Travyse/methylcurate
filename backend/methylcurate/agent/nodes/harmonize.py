@@ -203,7 +203,12 @@ async def disease_harmonization_node(state: HarmonizationSubgraphState, config: 
         return Command(update=return_dict)
 
     guessed_disease_labels, _, harmonized_disease_labels = await _harmonize_ontology_labels(
-        metadata_cache, extraction_protocol, sample_metadata, config, ontology="mondo", column_name="Disease_Status"
+        metadata_cache,
+        extraction_protocol,
+        sample_metadata,  # type: ignore
+        config,
+        ontology="mondo",
+        column_name="Disease_Status",
     )
     _save_artifact_pair(
         return_dict,
@@ -288,14 +293,14 @@ async def higher_level_disease_mapping_node(state: HarmonizationSubgraphState, c
         proper_mapping = construct_raw_to_harmonized_label_mapping(disease_label_guessing, disease_label_mapping)
         for mapping in proper_mapping.mappings:
             harmonized_group_label = next(
-                group_mapping.target_label
+                group_mapping.target_label  # type: ignore
                 for group_mapping in proper_group_mapping.mappings
-                if group_mapping.source_label == mapping.target_label
+                if group_mapping.source_label == mapping.target_label  # type: ignore
             )
             rows.append(
                 {
                     "original_label": mapping.source_label,
-                    "harmonized_label": mapping.target_label,
+                    "harmonized_label": mapping.target_label,  # type: ignore
                     "harmonized_group_label": harmonized_group_label,
                 }
             )
@@ -372,7 +377,12 @@ async def tissue_harmonization_node(state: HarmonizationSubgraphState, config: R
         return Command(update=return_dict)
 
     guessed_tissue_labels, _, harmonized_tissue_labels = await _harmonize_ontology_labels(
-        metadata_cache, extraction_protocol, sample_metadata, config, ontology="uberon", column_name="Tissue"
+        metadata_cache,
+        extraction_protocol,
+        sample_metadata,  # type: ignore
+        config,
+        ontology="uberon",
+        column_name="Tissue",
     )
     _save_artifact_pair(
         return_dict,
@@ -455,7 +465,7 @@ async def higher_level_tissue_mapping_node(state: HarmonizationSubgraphState, co
         for mapping in proper_mapping.mappings:
             harmonized_group_label = next(
                 (
-                    group_mapping.target_label
+                    group_mapping.target_label  # type: ignore
                     for group_mapping in proper_group_mapping.mappings
                     if hasattr(mapping, "target_label") and group_mapping.source_label == mapping.target_label
                 ),
@@ -537,7 +547,12 @@ async def cell_type_harmonization_node(state: HarmonizationSubgraphState, config
         return_dict["datasets"][accession_code]["steps"]["map_cell_type_labels_to_ontology"]["status"] = "canceled"
         return Command(update=return_dict)
     guessed_cell_type_labels, _, harmonized_cell_type_labels = await _harmonize_ontology_labels(
-        metadata_cache, extraction_protocol, sample_metadata, config, ontology="cl", column_name="Cell_Type"
+        metadata_cache,
+        extraction_protocol,
+        sample_metadata,  # type: ignore
+        config,
+        ontology="cl",
+        column_name="Cell_Type",
     )
     _save_artifact_pair(
         return_dict,
@@ -594,7 +609,10 @@ async def sex_harmonization_node(state: HarmonizationSubgraphState, config: Runn
         return_dict["datasets"][accession_code]["steps"]["harmonize_sex_labels"]["status"] = "canceled"
         return Command(update=return_dict)
     _, _, harmonized_sex_labels = await _harmonize_sex_labels(
-        metadata_cache, extraction_protocol, sample_metadata, config
+        metadata_cache,
+        extraction_protocol,
+        sample_metadata,  # type: ignore
+        config,
     )
     artifacts = []
     harmonized_sex_labels_path = os.path.join(harmonization_dir, "harmonized_sex_labels.json")

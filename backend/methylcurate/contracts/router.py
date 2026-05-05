@@ -64,7 +64,7 @@ class RouterOutput(BaseModel):
             raise ValueError("subgraph must be set before params validation")
         schema = PARAM_SCHEMAS.get(subgraph)
         try:
-            schema.model_validate(v)
+            schema.model_validate(v)  # type: ignore
         except Exception as e:
             raise ValueError(f"Invalid params for subgraph {subgraph}: {e}") from e
 

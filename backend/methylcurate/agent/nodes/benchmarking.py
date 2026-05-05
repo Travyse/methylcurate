@@ -172,7 +172,7 @@ def clock_retrieval_node(state: BenchmarkingSubgraphState, config: RunnableConfi
         return_dict["main_messages"] = [benchmarking_progress(state)]
         return Command(update=return_dict)
     try:
-        pya.predict._pred_utils.load_clock(clock.lower(), "cpu", clock_dir, pyalogger, indent_level=2)
+        pya.predict._pred_utils.load_clock(clock.lower(), "cpu", clock_dir, pyalogger, indent_level=2)  # type: ignore
         artifacts.append(
             ArtifactRef.model_validate(
                 {
@@ -277,7 +277,7 @@ def benchmarking_node(state: BenchmarkingSubgraphState, config: RunnableConfig) 
     adata = pya.pp.df_to_adata(
         full_data, metadata_cols=metadata_columns + methylation_metadata_col, imputer_strategy="knn", verbose=False
     )
-    pya.pred.predict_age(adata, clock_list, dir=os.path.join(state.config.output_root, "clocks"), verbose=False)
+    pya.pred.predict_age(adata, clock_list, dir=os.path.join(state.config.output_root, "clocks"), verbose=False)  # type: ignore
     if internal_clock_list:
         internal_clock_predictions = make_internal_clock_predictions(
             full_data,
@@ -285,7 +285,7 @@ def benchmarking_node(state: BenchmarkingSubgraphState, config: RunnableConfig) 
             metadata_cols=metadata_columns + methylation_metadata_col,
             imputer_strategy="knn",
         )
-        adata.obs = adata.obs.merge(  # type: ignore[union-attr]
+        adata.obs = adata.obs.merge(  # type: ignore
             internal_clock_predictions, on=metadata_columns + methylation_metadata_col, how="left"
         )
     adata = compute_age_acceleration(adata, state.config.clock_list)

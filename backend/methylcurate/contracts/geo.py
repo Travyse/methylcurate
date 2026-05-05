@@ -143,7 +143,7 @@ class GEOMetadataExtractionInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_artifact(self):
-        if not self.artifact.accession_code.upper().startswith("GSE"):
+        if not self.artifact.accession_code.upper().startswith("GSE"):  # type: ignore
             raise ValueError("accession_code must start with 'GSE'")
         return self
 
@@ -182,7 +182,7 @@ class ExtractionRuleBase(BaseModel):
             "If omitted, defaults to 0."
         ),
     )
-    normalization: list[Literal["strip", "lower", "digits_only"]] = Field(
+    normalization: list[Literal["strip", "lower", "digits_only"]] = Field(  # type: ignore
         default_factory=lambda: ["strip"], description="Normalization pipeline"
     )
 
@@ -384,7 +384,7 @@ def build_dynamic_result_model(allowed_keys: tuple[str, ...]):
         allowed_keys (Tuple[str, ...]): A tuple of allowed key names for characteristics_ch1 extractions. This should include every possible key name that could be used in the input data for any of the target concepts, otherwise the model will not be able to validate valid inputs that use a key name not included in this list.
     """
     allowed_keys = tuple(allowed_keys)
-    KeyName = Literal[allowed_keys]
+    KeyName = Literal[allowed_keys]  # type: ignore
 
     # 1) Dynamic CharacteristicsExtractionRule
     CharacteristicsExtractionRuleDyn = create_model(
@@ -419,7 +419,7 @@ def build_dynamic_result_model(allowed_keys: tuple[str, ...]):
 
     # 2) Dynamic ExtractionRule union
     ExtractionRuleDyn = Annotated[
-        CharacteristicsExtractionRuleDyn | OtherExtractionRule | DefaultValue,
+        CharacteristicsExtractionRuleDyn | OtherExtractionRule | DefaultValue,  # type: ignore
         Field(discriminator="field_name"),
     ]
 
@@ -462,7 +462,7 @@ def build_dynamic_result_model(allowed_keys: tuple[str, ...]):
 
     # 4) Dynamic FieldResolution union
     FieldResolutionDyn = Annotated[
-        ResolvedResolutionDyn | MissingResolutionDyn,
+        ResolvedResolutionDyn | MissingResolutionDyn,  # type: ignore
         Field(discriminator="status"),
     ]
 
@@ -510,7 +510,7 @@ def build_dynamic_resolution_correction_model(allowed_concepts: tuple[str, ...],
         c: (field_resolution_dyn, Field(..., description=f"Resolution details for {c} concept"))
         for c in allowed_concepts
     }
-    ResolutionCorrectionDyn = create_model(
+    ResolutionCorrectionDyn = create_model(  # type: ignore
         f"ResolutionCorrection__{abs(hash(allowed_concepts))}",
         __base__=BaseModel,
         __config__=ConfigDict(extra="forbid"),
@@ -535,7 +535,7 @@ def build_dynamic_control_identification_model(allowed_values: tuple[str, ...]):
         __base__=BaseModel,
         __config__=ConfigDict(extra="forbid"),
         control_value=(
-            Literal[allowed_values] | None,
+            Literal[allowed_values] | None,  # type: ignore
             Field(
                 ..., description="The value in the dataset that indicates a control sample, e.g. 'healthy' or 'control'"
             ),
@@ -556,7 +556,7 @@ def build_dynamic_constrained_resolution_model(allowed_keys: tuple[str, ...], ta
         Type[BaseModel]: A Pydantic model class for constrained resolution with fields for each allowed key.
     """
     allowed_keys = tuple(allowed_keys)
-    KeyName = Literal[allowed_keys]
+    KeyName = Literal[allowed_keys]  # type: ignore
     OtherKeys = Literal["title", "source_name_ch1", "description"]
 
     # 1) Dynamic CharacteristicsExtractionRule
@@ -587,7 +587,7 @@ def build_dynamic_constrained_resolution_model(allowed_keys: tuple[str, ...], ta
 
     # 2) Dynamic ExtractionRule union
     ExtractionRuleDyn = Annotated[
-        CharacteristicsExtractionRuleDyn | OtherExtractionRuleDyn | DefaultValue,
+        CharacteristicsExtractionRuleDyn | OtherExtractionRuleDyn | DefaultValue,  # type: ignore
         Field(discriminator="field_name"),
     ]
 

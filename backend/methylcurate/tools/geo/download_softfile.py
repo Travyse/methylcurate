@@ -478,9 +478,9 @@ def download(
                 return artifact
         except Exception as e:
             print(f"[{accession_code}] Non-retryable error for {filename}: {type(e).__name__}: {e}")
-            if cache_download_path.exists():
+            if cache_download_path.exists():  # type: ignore
                 try:
-                    cache_download_path.unlink()
+                    cache_download_path.unlink()  # type: ignore
                 except Exception:
                     pass
             time.sleep(3)

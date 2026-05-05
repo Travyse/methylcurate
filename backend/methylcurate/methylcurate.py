@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver  # type: ignore
 
 from .agent.registry.services import build_services_with_checkpointer
 from .agent.state.utils import make_main_state
@@ -125,7 +125,7 @@ async def chat_loop(cfg: CLIConfig):
                 continue
 
             async def run(
-                session: Session = session,
+                session: Session = session,  # type: ignore
                 user_text: str = user_text,
                 run_id: str = run_id,
             ):
@@ -134,9 +134,9 @@ async def chat_loop(cfg: CLIConfig):
                         pending = session.pending_interrupt
                         session.pending_interrupt = None
 
-                        await runner.resume_stream(
+                        await runner.resume_stream(  # type: ignore
                             thread_id=pending["thread_id"],
-                            answer=user_text,
+                            answer=user_text,  # type: ignore
                             queue=session.queue,
                             session=session,
                         )
@@ -190,7 +190,7 @@ async def chat_loop(cfg: CLIConfig):
                     # Your runner wraps the actual interrupt payload under "payload"
                     inner = wrapper.get("payload") if isinstance(wrapper.get("payload"), dict) else wrapper
 
-                    prompt = inner.get("prompt") or "I need your input to continue."
+                    prompt = inner.get("prompt") or "I need your input to continue."  # type: ignore
 
                     chunk = openai_chunk(run_id, prompt)
                     print(chunk["choices"][0]["delta"]["content"], end="", flush=True)

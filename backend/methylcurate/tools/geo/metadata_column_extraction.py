@@ -187,7 +187,7 @@ def _get_custom_models(user_input: GEOMetadataExtractionInput):
     return GEOMetadataExtractionResultDyn, FieldResolutionDyn, FieldResolutionEnvelopeDyn, key_names
 
 
-def _get_parse_rate(metadata_summary: dict[str, Any] = None) -> dict[str, float]:
+def _get_parse_rate(metadata_summary: dict[str, Any] = None) -> dict[str, float]:  # type: ignore
     """Extract per-concept parse rates from a metadata summary dictionary.
 
     For each ``Concept`` whose entry in the summary is not a list, reads the
@@ -237,7 +237,7 @@ def _get_extraction_resolutions(extraction_result: Any) -> dict[str, Any]:
                 if isinstance(extraction_result, dict)
                 else getattr(extraction_result, concept, None)
             )
-            resolutions[concept] = FieldResolutionEnvelope(resolution=resolution).resolution
+            resolutions[concept] = FieldResolutionEnvelope(resolution=resolution).resolution  # type: ignore
     return resolutions
 
 
@@ -270,7 +270,7 @@ def _check_extraction_patterns(resolutions: dict[str, Any]) -> list[Concept]:
             #    if has_alternation_anywhere(pattern):
             #        flagged_patterns.append(concept)
             #        notes_flagged_patterns[concept] = f"The regular expression pattern '{pattern}' contains alternations, which violates the generic pattern requirement. Modify this pattern to remove all alternations and be simpler and more generic."
-    return flagged_patterns, notes_flagged_patterns
+    return flagged_patterns, notes_flagged_patterns  # type: ignore
 
 
 async def _extract_column_for_concept_age(
@@ -309,9 +309,9 @@ async def _extract_column_for_concept_age(
         },
     )
     prompt_messages = messages + [clarification_message]
-    FieldResolutionCorrectionDyn = build_dynamic_resolution_correction_model(["age"], resolution_model)
+    FieldResolutionCorrectionDyn = build_dynamic_resolution_correction_model(["age"], resolution_model)  # type: ignore
     try:
-        resolved: Any = await llm.acall_structured(prompt_messages, FieldResolutionCorrectionDyn)
+        resolved: Any = await llm.acall_structured(prompt_messages, FieldResolutionCorrectionDyn)  # type: ignore
         resolutions["age"] = resolved.age
     except ValidationError as e:
         print(f"\n\nValidation error for concept age: {e}. Setting resolution to error with notes.")
@@ -348,7 +348,7 @@ async def _extract_column_for_concept_disease_status(
         key_name = "N/A"
     else:
         key_name = resolutions["disease_status"].extraction.key_name
-    ControlIdentificationModel = build_dynamic_control_identification_model(parsed_disease_statuses)
+    ControlIdentificationModel = build_dynamic_control_identification_model(parsed_disease_statuses)  # type: ignore
     clarification_message = HumanMessage(
         id=uuid.uuid4().hex,
         content=generate_identify_control_value_prompt(
@@ -367,7 +367,8 @@ async def _extract_column_for_concept_disease_status(
     while retries < retry_limit:
         try:
             resolved: Any = await asyncio.wait_for(
-                llm.acall_structured(call_messages, ControlIdentificationModel), timeout=CALL_TIMEOUT
+                llm.acall_structured(call_messages, ControlIdentificationModel),  # type: ignore
+                timeout=CALL_TIMEOUT,
             )
             resolutions["disease_status"].extraction.control_value = resolved.control_value
             break
@@ -429,13 +430,13 @@ async def _extract_column_for_concept_misformatted(
     new_resolutions = resolutions
     prompt_params = {"misformatted_concepts": ", ".join(sorted([c for c in misformatted_concepts]))}
     prompt_bool_params = {f"is_{c}": True for c in misformatted_concepts}
-    prompt_bool_params.update({f"is_{c}": False for c in get_args(Concept) if c not in misformatted_concepts})
+    prompt_bool_params.update({f"is_{c}": False for c in get_args(Concept) if c not in misformatted_concepts})  # type: ignore
     prompt_target_resolutions = {f"{c}_resolution": resolutions[c].model_dump() for c in misformatted_concepts}
-    prompt_target_resolutions.update(
+    prompt_target_resolutions.update(  # type: ignore
         {f"{c}_resolution": resolutions[c].model_dump() for c in get_args(Concept) if c not in misformatted_concepts}
     )  # TODO: I can just make this in the first place without needing to do this
-    prompt_params.update(prompt_bool_params)
-    prompt_params.update(prompt_target_resolutions)
+    prompt_params.update(prompt_bool_params)  # type: ignore
+    prompt_params.update(prompt_target_resolutions)  # type: ignore
     clarification_message = HumanMessage(
         id=uuid.uuid4().hex,
         content=generate_immediate_single_column_feedback(**prompt_params),
@@ -444,14 +445,15 @@ async def _extract_column_for_concept_misformatted(
         },
     )
     new_messages = [messages[0]] + [clarification_message]
-    FieldResolutionCorrectionDyn = build_dynamic_resolution_correction_model(misformatted_concepts, resolution_model)
+    FieldResolutionCorrectionDyn = build_dynamic_resolution_correction_model(misformatted_concepts, resolution_model)  # type: ignore
 
     retry_limit = GLOBAL_RETRY_LIMIT
     retries = 0
     while retries < retry_limit:
         try:
             resolved: Any = await asyncio.wait_for(
-                llm.acall_structured(new_messages, FieldResolutionCorrectionDyn), timeout=CALL_TIMEOUT
+                llm.acall_structured(new_messages, FieldResolutionCorrectionDyn),  # type: ignore
+                timeout=CALL_TIMEOUT,
             )
             for concept in misformatted_concepts:
                 new_resolutions[concept] = getattr(resolved, concept)
@@ -467,15 +469,11 @@ async def _extract_column_for_concept_misformatted(
                     "created_at": datetime.now(UTC).isoformat(),
                 },
             )
-            resolved: Any = await asyncio.wait_for(
-                llm.acall_structured(new_messages + [human_message], FieldResolutionCorrectionDyn),
-                timeout=CALL_TIMEOUT,
-            )
-            for concept in misformatted_concepts:
-                new_resolutions[concept] = getattr(resolved, concept)
-            break
+            new_messages += [human_message]
+            retries += 1
+            continue
         except ValidationError as e:
-            for concept in sorted(misformatted_concepts):
+            for concept in sorted(poorly_parsed_concepts):
                 error_resolution = ErrorResolution(
                     status="error",
                     confidence=0.0,
@@ -488,12 +486,12 @@ async def _extract_column_for_concept_misformatted(
         except Exception:
             retries += 1
             continue
-    return new_resolutions
+    return new_resolutions  # type: ignore
 
 
 async def _extract_column_for_concept_poor_parsing(
     poorly_parsed_concepts: list[Concept],
-    messages: dict[str, list[AnyMessage]],
+    messages: list[AnyMessage],
     config: RunnableConfig,
     resolution_model: Any,
     parse_rates: dict[str, float],
@@ -536,36 +534,37 @@ async def _extract_column_for_concept_poor_parsing(
     new_resolutions = resolutions
     prompt_params = {"user_input": user_input.model_dump()}
     prompt_bool_params = {f"is_{c}": True for c in poorly_parsed_concepts}
-    prompt_bool_params.update({f"is_{c}": False for c in get_args(Concept) if c not in poorly_parsed_concepts})
+    prompt_bool_params.update({f"is_{c}": False for c in get_args(Concept) if c not in poorly_parsed_concepts})  # type: ignore
     prompt_parsing_rate_params = {f"{c}_rate": parse_rates[c] for c in poorly_parsed_concepts}
-    prompt_parsing_rate_params.update({f"{c}_rate": 0 for c in get_args(Concept) if c not in poorly_parsed_concepts})
+    prompt_parsing_rate_params.update({f"{c}_rate": 0 for c in get_args(Concept) if c not in poorly_parsed_concepts})  # type: ignore
     prompt_failed_parsing_info_params = {f"{c}_failed": failed_parsing_info[c] for c in poorly_parsed_concepts}
-    prompt_failed_parsing_info_params.update(
+    prompt_failed_parsing_info_params.update(  # type: ignore
         {f"{c}_failed": [] for c in get_args(Concept) if c not in poorly_parsed_concepts}
     )
     prompt_target_resolutions = {f"{c}_resolution": resolutions[c].model_dump() for c in poorly_parsed_concepts}
-    prompt_target_resolutions.update(
+    prompt_target_resolutions.update(  # type: ignore
         {f"{c}_resolution": resolutions[c].model_dump() for c in get_args(Concept) if c not in poorly_parsed_concepts}
     )
-    prompt_params.update(prompt_bool_params)
-    prompt_params.update(prompt_parsing_rate_params)
-    prompt_params.update(prompt_failed_parsing_info_params)
-    prompt_params.update(prompt_target_resolutions)
+    prompt_params.update(prompt_bool_params)  # type: ignore
+    prompt_params.update(prompt_parsing_rate_params)  # type: ignore
+    prompt_params.update(prompt_failed_parsing_info_params)  # type: ignore
+    prompt_params.update(prompt_target_resolutions)  # type: ignore
 
-    FieldResolutionCorrectionDyn = build_dynamic_resolution_correction_model(poorly_parsed_concepts, resolution_model)
+    FieldResolutionCorrectionDyn = build_dynamic_resolution_correction_model(poorly_parsed_concepts, resolution_model)  # type: ignore
     prompt_params["json_format"] = json.dumps(FieldResolutionCorrectionDyn.model_json_schema(), indent=2)
 
     clarification_message = HumanMessage(
         id=uuid.uuid4().hex, content=generate_column_feedback_loop_prompt(**prompt_params)
     )
-    new_messages = [messages[0]] + [clarification_message]
+    new_messages = [messages[0]] + [clarification_message]  # type: ignore
 
     retry_limit = GLOBAL_RETRY_LIMIT
     retries = 0
     while retries < retry_limit:
         try:
             resolved: Any = await asyncio.wait_for(
-                llm.acall_structured(new_messages, FieldResolutionCorrectionDyn), timeout=CALL_TIMEOUT
+                llm.acall_structured(new_messages, FieldResolutionCorrectionDyn),
+                timeout=CALL_TIMEOUT,  # type: ignore
             )
             for concept in poorly_parsed_concepts:
                 new_resolutions[concept] = getattr(resolved, concept)
@@ -582,7 +581,7 @@ async def _extract_column_for_concept_poor_parsing(
                 },
             )
             resolved: Any = await asyncio.wait_for(
-                llm.acall_structured(new_messages + [human_message], FieldResolutionCorrectionDyn),
+                llm.acall_structured(new_messages + [human_message], FieldResolutionCorrectionDyn),  # type: ignore
                 timeout=CALL_TIMEOUT,
             )
             for concept in poorly_parsed_concepts:
@@ -602,7 +601,7 @@ async def _extract_column_for_concept_poor_parsing(
         except Exception:
             retries += 1
             continue
-    return new_resolutions
+    return new_resolutions  # type: ignore
 
 
 async def _extract_column_for_concept_with_retry(
@@ -653,16 +652,16 @@ async def _extract_column_for_concept_with_retry(
         re-evaluate the workflow.
     """
     # Construct the message here
-    _, resolution_model, resolution_model_envelope, __ = _get_custom_models(user_input)
+    _, resolution_model, resolution_model_envelope, __ = _get_custom_models(user_input)  # type: ignore
     resolutions = _get_extraction_resolutions(extraction_result) if resolutions is None else resolutions
     flagged_concepts, flagged_concept_notes_raw = _check_extraction_patterns(resolutions)
     flagged_concept_notes = cast(dict[str, str], flagged_concept_notes_raw)
     for concept in flagged_concepts:
-        resolutions[concept].notes.append(flagged_concept_notes[concept])  # type: ignore[index]
+        resolutions[concept].notes.append(flagged_concept_notes[concept])
         resolutions[concept].units = None if concept != "age" else resolutions[concept].units
     re_run = False
     if (count >= retries) or (len(flagged_concepts) == 0 and formatting_only):
-        return resolutions, re_run  # type: ignore[return-value]
+        return resolutions, re_run  # type: ignore
 
     if len(flagged_concepts) > 0:
         print(
@@ -670,14 +669,14 @@ async def _extract_column_for_concept_with_retry(
         )
         # If there are misformatted concept patterns  attempt to return these patterns
         new_resolutions = await _extract_column_for_concept_misformatted(
-            flagged_concepts,
-            messages,
-            config,
+            flagged_concepts,  # type: ignore
+            messages,  # type: ignore
+            config,  # type: ignore
             resolution_model,
             resolutions,
-            resolution_model_envelope,  # type: ignore[arg-type]
+            resolution_model_envelope,
         )
-        resolutions.update(new_resolutions)
+        resolutions.update(new_resolutions)  # type: ignore
         new_resolutions, re_run = await _extract_column_for_concept_with_retry(
             extraction_result,
             count=count + 1,
@@ -698,34 +697,38 @@ async def _extract_column_for_concept_with_retry(
             c
             for c in get_args(Concept)
             if (extraction_result[c]["status"] == "resolved")
-            and (c in parse_rates)
-            and (parse_rates[c] > 0.0 and parse_rates[c] < 1.0)
-            and len(failed_parsing_info[c]) > 0
+            and (c in parse_rates)  # type: ignore
+            and (parse_rates[c] > 0.0 and parse_rates[c] < 1.0)  # type: ignore
+            and len(failed_parsing_info[c]) > 0  # type: ignore
         ]
         if len(flagged_concepts) > 0:
             new_resolutions = await _extract_column_for_concept_poor_parsing(
                 flagged_concepts,
-                messages,
-                config,
+                messages,  # type: ignore
+                config,  # type: ignore
                 resolution_model,
-                parse_rates,
-                user_input,
+                parse_rates,  # type: ignore
+                user_input,  # type: ignore
                 resolutions,
                 resolution_model_envelope,
-                failed_parsing_info,
+                failed_parsing_info,  # type: ignore
             )
-            resolutions.update(new_resolutions)
+            resolutions.update(new_resolutions)  # type: ignore
             re_run = True
 
         if resolutions["disease_status"].status == "resolved" and parsed_disease_statuses is not None:
-            resolutions = await _extract_column_for_concept_disease_status(resolutions, config, parsed_disease_statuses)
+            resolutions = await _extract_column_for_concept_disease_status(resolutions, config, parsed_disease_statuses)  # type: ignore
 
         if resolutions["age"].status == "missing":
             resolutions = await _extract_column_for_concept_age(
-                resolutions, config, user_input, messages, resolution_model
+                resolutions,
+                config,  # type: ignore
+                user_input,  # type: ignore
+                messages,
+                resolution_model,
             )
 
-    return resolutions, re_run  # type: ignore[return-value]
+    return resolutions, re_run  # type: ignore
 
 
 async def _extract_all_columns(
@@ -762,8 +765,8 @@ async def _extract_all_columns(
         try:
             resolved: Any = result_model.model_validate(
                 await asyncio.wait_for(
-                    llm.acall_structured(call_messages, result_model),
-                    timeout=CALL_TIMEOUT,  # type: ignore[arg-type]
+                    llm.acall_structured(call_messages, result_model),  # type: ignore
+                    timeout=CALL_TIMEOUT,
                 )
             )
             print(f"\n\nInitial extraction result: {resolved}\n\n")
@@ -794,7 +797,7 @@ async def _extract_all_columns(
             print(f"\n\nValidation error for extraction: {e}. Setting resolution to error with notes.")
             resolved = GEOMetadataExtractionResult(
                 artifact=None,
-                resolutions={
+                resolutions={  # type: ignore
                     concept: ErrorResolution(
                         status="error",
                         confidence=0.0,
@@ -803,7 +806,7 @@ async def _extract_all_columns(
                     )
                     for concept in get_args(Concept)
                 },
-                execution_status="failed",
+                execution_status="failed",  # type: ignore
                 error=f"LLM output failed validation: {e}",
             )
             break
@@ -812,7 +815,7 @@ async def _extract_all_columns(
             retries += 1
             continue
 
-    return resolved
+    return resolved  # type: ignore
 
 
 async def extract_metadata_columns_alt(
@@ -858,8 +861,12 @@ async def extract_metadata_columns_alt(
     )
     return_dict["llm_messages"].append(human_message)
     messages = [llm_messages[0], return_dict["llm_messages"][-1]]
-    extraction_result = await _extract_all_columns(
-        messages, llm_messages, config, GSESpecificMetadataExtractionResult, user_input
+    extraction_result = await _extract_all_columns(  # type: ignore[call-arg,arg-type]
+        messages,
+        llm_messages,
+        config,
+        GSESpecificMetadataExtractionResult,
+        user_input,
     )
 
     artifact = None
@@ -868,15 +875,15 @@ async def extract_metadata_columns_alt(
     if hasattr(extraction_result, "resolutions"):
         resolutions = extraction_result.resolutions
     else:
-        resolutions = {  # type: ignore[var-annotated]
+        resolutions = {
             key: getattr(extraction_result, key) for key in get_args(Concept) if hasattr(extraction_result, key)
         }
 
-    if all((r.status in ["resolved", "missing"]) and (r.confidence > 0.6) for r in resolutions.values()):  # type: ignore[union-attr]
+    if all((r.status in ["resolved", "missing"]) and (r.confidence > 0.6) for r in resolutions.values()):  # type: ignore
         try:
             with open(artifact_path, "w", encoding="utf-8") as f:
                 json.dump(
-                    {concept: resolution.model_dump() for concept, resolution in resolutions.items()},  # type: ignore[union-attr]
+                    {concept: resolution.model_dump() for concept, resolution in resolutions.items()},  # type: ignore
                     f,
                     ensure_ascii=False,
                     indent=2,
@@ -894,9 +901,9 @@ async def extract_metadata_columns_alt(
         except Exception:
             artifact = None
 
-    extraction_result.artifact = artifact
-    return_dict["datasets"][accession_code]["metadata_extraction_result"] = extraction_result.model_dump()
-    return return_dict
+    extraction_result.artifact = artifact  # type: ignore
+    return_dict["datasets"][accession_code]["metadata_extraction_result"] = extraction_result.model_dump()  # type: ignore
+    return return_dict  # type: ignore
 
 
 async def _extract_column_for_concept(messages: list[AnyMessage], config: RunnableConfig) -> FieldResolution:
@@ -920,12 +927,12 @@ async def _extract_column_for_concept(messages: list[AnyMessage], config: Runnab
 
     try:
         resolved: Any = FieldResolution.model_validate(
-            await llm.acall_structured(messages, FieldResolution)  # type: ignore[arg-type]
+            await llm.acall_structured(messages, FieldResolution)  # type: ignore
         )
     except ValidationError as e:
-        resolved = ErrorResolution(  # type: ignore[assignment]
-            units=None,
-            extraction=None,
+        resolved = ErrorResolution(
+            units=None,  # type: ignore
+            extraction=None,  # type: ignore
             confidence=0.0,
             status="error",
             notes=[],
@@ -992,7 +999,7 @@ async def extract_metadata_columns(
         try:
             with open(artifact_path, "w", encoding="utf-8") as f:
                 json.dump(
-                    {concept: resolution.model_dump() for concept, resolution in resolutions.items()},  # type: ignore[union-attr]
+                    {concept: resolution.model_dump() for concept, resolution in resolutions.items()},
                     f,
                     ensure_ascii=False,
                     indent=2,
@@ -1018,6 +1025,6 @@ async def extract_metadata_columns(
     }
     metadata_extraction_result_kwargs.update(resolutions)
     return_dict["datasets"][accession_code]["metadata_extraction_result"] = GEOMetadataExtractionResult(
-        **metadata_extraction_result_kwargs
+        **metadata_extraction_result_kwargs  # type: ignore
     ).model_dump()
-    return return_dict
+    return return_dict  # type: ignore

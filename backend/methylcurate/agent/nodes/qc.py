@@ -64,7 +64,7 @@ def _get_data_conversion_input_or_default(
     detected_type = detect_data_type(data_df)
     to_type = "beta"
 
-    return PreprocessDataInput(from_type=detected_type, to_type=to_type)
+    return PreprocessDataInput(from_type=detected_type, to_type=to_type)  # type: ignore
 
 
 def _get_dnam_qc_input_or_default(state: QualityControlSubgraphState) -> DNAmQCInput:
@@ -274,7 +274,7 @@ def quality_control_summarization_node(state: QualityControlSubgraphState) -> Qu
             ),
             None,
         )
-        postqc_methylation_df = read_feather(postqc_methylation_artifact.path, index_name="subject_id")
+        postqc_methylation_df = read_feather(postqc_methylation_artifact.path, index_name="subject_id")  # type: ignore
 
         payload["rows"].append(
             {

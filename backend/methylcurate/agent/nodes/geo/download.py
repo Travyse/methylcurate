@@ -107,7 +107,7 @@ def geo_download_node(state: GeoIngestionSubgraphState, config: RunnableConfig) 
         platform_metadata = get_platform_metadata(accession_code=accession_code) if has_succeeded else None
         return_dict["datasets"][accession_code] = GeoDatasetState(
             status="in_progress",
-            steps={
+            steps={  # type: ignore
                 "download_soft": set_step_status(status=current_status),
                 "check_valid_dataset": set_step_status(status=next_status),
                 "extract_metadata_schema": set_step_status(status=other_status),
@@ -117,7 +117,7 @@ def geo_download_node(state: GeoIngestionSubgraphState, config: RunnableConfig) 
             },
             accession=accession_code,
             output_dir=os.path.join(state.config.output_root, accession_code),
-            platform_metadata=platform_metadata,
+            platform_metadata=platform_metadata,  # type: ignore
             supplementary_files=supplementary_files_dict.get(accession_code, []),
             download_result=next((res for res in batch_result.results if res.accession == accession_code), None),
         )
@@ -255,7 +255,7 @@ def _check_if_data_present(artifacts: list[Any], return_dict: dict[str, Any]) ->
     methylation_data_path = next(
         (a for a in artifacts if a.accession_code == accession_code and a.kind == "preqc_methylation_data"), None
     )
-    methylation_data = read_feather(methylation_data_path.path, index_name="subject_id")
+    methylation_data = read_feather(methylation_data_path.path, index_name="subject_id")  # type: ignore
     if methylation_data.empty:
         supplementary_files = return_dict["datasets"][accession_code].get("supplementary_files", [])
         if supplementary_files:

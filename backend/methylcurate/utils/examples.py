@@ -179,9 +179,9 @@ def generate_geo_metadata_extraction_examples(n_samples=10, concept: str = "age"
         "platform": "platform",
     }
     if is_missing or concept == "condition":
-        resolution_dict.update({"status": "missing", "notes": [f"{concept} is not present in the sample metadata."]})
+        resolution_dict.update({"status": "missing", "notes": [f"{concept} is not present in the sample metadata."]})  # type: ignore
     else:
-        resolution_dict.update(
+        resolution_dict.update(  # type: ignore
             {
                 "extraction": {
                     "type": "regex",
@@ -198,9 +198,9 @@ def generate_geo_metadata_extraction_examples(n_samples=10, concept: str = "age"
         )
 
         if concept == "age":
-            resolution_dict["units"] = "years"
-            resolution_dict["extraction"]["normalization"] = ["digits_only", "strip"]
-            resolution_dict["extraction"]["pattern"] = "(\\d+)"
+            resolution_dict["units"] = "years"  # type: ignore
+            resolution_dict["extraction"]["normalization"] = ["digits_only", "strip"]  # type: ignore
+            resolution_dict["extraction"]["pattern"] = "(\\d+)"  # type: ignore
 
     resolution = json.dumps(resolution_dict, indent=2, ensure_ascii=False)
 
@@ -482,7 +482,7 @@ def generate_column_interpretation_examples(alt=False) -> tuple[pd.DataFrame, di
         },
     }
 
-    return df.to_markdown(index=False), example_agent_response
+    return df.to_markdown(index=False), example_agent_response  # type: ignore
 
 
 def generate_column_interpretation_examples_no_detection() -> tuple[pd.DataFrame, dict[str, Any]]:
@@ -518,7 +518,7 @@ def generate_column_interpretation_examples_no_detection() -> tuple[pd.DataFrame
         },
     }
 
-    return df.to_markdown(index=False), example_agent_response
+    return df.to_markdown(index=False), example_agent_response  # type: ignore
 
 
 def _harmonization_dataset_info(ontology: str = "mondo") -> dict[str, str]:

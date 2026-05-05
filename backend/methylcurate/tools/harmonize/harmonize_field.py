@@ -189,7 +189,7 @@ async def call_llm_structured_with_retries(messages: list[Any], config: Runnable
     resolved = None
     while retries < retry_limit:
         try:
-            resolved: Any = await asyncio.wait_for(llm.acall_structured(messages, ResultModel), timeout=CALL_TIMEOUT)
+            resolved: Any = await asyncio.wait_for(llm.acall_structured(messages, ResultModel), timeout=CALL_TIMEOUT)  # type: ignore
             break
         except TimeoutError:
             retries += 1
@@ -461,7 +461,7 @@ async def _harmonize_ontology_labels(
         )
         human_readable_ontology_labels.mappings.append(control_mapping)
         ontology_label_selection.mappings.append(other_mapping)
-        return human_readable_ontology_labels, {}, ontology_label_selection
+        return human_readable_ontology_labels, {}, ontology_label_selection  # type: ignore
 
     dataset_context = gather_concept_context(
         metadata_dict, extraction_protocol[column_name.lower()], unique_dataset_labels
@@ -546,7 +546,7 @@ async def _harmonize_ontology_labels(
                 }
             )
         )
-    return human_readable_ontology_labels, label_to_top_n_ontology, ontology_label_selection
+    return human_readable_ontology_labels, label_to_top_n_ontology, ontology_label_selection  # type: ignore
 
 
 async def _harmonize_ontology_group_labels(
@@ -633,7 +633,7 @@ async def _harmonize_ontology_group_labels(
             )
         )
     # TODO: Possibly set ontology of ontology_label_selection result to whatevers returned by the ols
-    return human_readable_ontology_labels, label_to_top_n_ontology, ontology_label_selection
+    return human_readable_ontology_labels, label_to_top_n_ontology, ontology_label_selection  # type: ignore
 
 
 async def _harmonize_sex_labels(
@@ -676,7 +676,7 @@ async def _harmonize_sex_labels(
     ontology_label_selection = await _select_best_ontology_labels(
         ontology_label_dict, dataset_context, OntologyGroupLabelMappingSetDyn, config, ontology="pato"
     )
-    return unique_dataset_labels, ontology_label_dict, ontology_label_selection
+    return unique_dataset_labels, ontology_label_dict, ontology_label_selection  # type: ignore
 
 
 def construct_raw_to_harmonized_label_mapping(
@@ -709,7 +709,8 @@ def construct_raw_to_harmonized_label_mapping(
             )
             continue
         best_guess_mapping = next(
-            (m for m in ontology_label_selection.mappings if m.source_label == mapping.target_label), None
+            (m for m in ontology_label_selection.mappings if m.source_label == mapping.target_label),
+            None,  # type: ignore
         )
         if best_guess_mapping is None:
             fixed_harmonized_label_mapping["mappings"].append(

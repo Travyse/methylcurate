@@ -141,4 +141,4 @@ class TestHarmonizationConcept:
 
     def test_concept_not_accessible_as_concept(self):
         with pytest.raises(ImportError):
-            from methylcurate.contracts.harmonize import Concept  # noqa: F401
+            from methylcurate.contracts.harmonize import Concept  # noqa: F401  # type: ignore

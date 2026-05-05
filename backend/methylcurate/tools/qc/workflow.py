@@ -78,27 +78,27 @@ def run_all_qc(
         - ``"artifacts"`` — a list of ``ArtifactRef`` objects
           describing the written QC output file.
     """
-    data_df = read_feather(data_path, index_name="subject_id")  # type: ignore[arg-type]
+    data_df = read_feather(data_path, index_name="subject_id")  # type: ignore
     logger.info(f"Initial data shape for accession {accession_code}: {data_df.shape}")
-    data_conversion_result, data_df = convert_data_type(data_conversion_input, data_df)  # type: ignore[arg-type]
-    sample_level_qc_result, data_df = handle_sample_level_missingness(sample_level_qc_input, data_df)  # type: ignore[arg-type]
+    data_conversion_result, data_df = convert_data_type(data_conversion_input, data_df)  # type: ignore
+    sample_level_qc_result, data_df = handle_sample_level_missingness(sample_level_qc_input, data_df)  # type: ignore
     logger.info(f"Data shape after sample level QC for accession {accession_code}: {data_df.shape}")
-    dnam_qc_result, data_df = maximum_dnam_filter(dnam_qc_input, data_df)  # type: ignore[arg-type]
+    dnam_qc_result, data_df = maximum_dnam_filter(dnam_qc_input, data_df)  # type: ignore
     logger.info(f"Data shape after DNAm QC for accession {accession_code}: {data_df.shape}")
-    cpg_level_qc_result, data_df = handle_cpg_level_missingness(cpg_level_qc_input, data_df)  # type: ignore[arg-type]
+    cpg_level_qc_result, data_df = handle_cpg_level_missingness(cpg_level_qc_input, data_df)  # type: ignore
     logger.info(f"Data shape after CpG level QC for accession {accession_code}: {data_df.shape}")
-    interarray_correlation_qc_result, data_df = interarray_correlation(interarray_correlation_qc_input, data_df)  # type: ignore[arg-type]
+    interarray_correlation_qc_result, data_df = interarray_correlation(interarray_correlation_qc_input, data_df)  # type: ignore
     logger.info(f"Data shape after interarray correlation QC for accession {accession_code}: {data_df.shape}")
 
-    write_feather(data_df, processed_path, index_name="subject_id")  # type: ignore[arg-type]
+    write_feather(data_df, processed_path, index_name="subject_id")  # type: ignore
     artifacts = [
         ArtifactRef.model_validate(
             {
                 "accession_code": accession_code,
                 "path": processed_path,
                 "kind": "postqc_methylation_data",
-                "sha256": compute_sha256(processed_path, is_path=True),  # type: ignore[arg-type]
-                "bytes": os.path.getsize(processed_path),  # type: ignore[arg-type]
+                "sha256": compute_sha256(processed_path, is_path=True),  # type: ignore
+                "bytes": os.path.getsize(processed_path),  # type: ignore
                 "created_at": datetime.now(UTC).isoformat(),
             }
         )

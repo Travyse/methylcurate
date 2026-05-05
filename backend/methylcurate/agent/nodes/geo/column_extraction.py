@@ -166,8 +166,8 @@ async def extract_metadata_schema(state: GeoIngestionSubgraphState, config: Runn
         }
     )
 
-    extraction_result.artifact = artifact  # type: ignore[union-attr]
-    return_dict["datasets"][accession_code]["metadata_extraction_result"] = extraction_result.model_dump()  # type: ignore[union-attr]
+    extraction_result.artifact = artifact  # type: ignore
+    return_dict["datasets"][accession_code]["metadata_extraction_result"] = extraction_result.model_dump()  # type: ignore
     return_dict["datasets"][accession_code]["steps"]["extract_metadata_schema"] = set_step_status(
         status="completed", step=return_dict["datasets"][accession_code]["steps"]["extract_metadata_schema"]
     )
@@ -210,28 +210,28 @@ async def check_column_extraction_rule_formatting(
     assert user_input is not None
 
     _, resolution_model, resolution_model_envelope, __ = _get_custom_models(user_input)
-    resolutions = _get_extraction_resolutions(extraction_result)  # type: ignore[var-annotated]
-    flagged_concepts, flagged_concept_notes_raw = _check_extraction_patterns(resolutions)  # type: ignore[arg-type]
+    resolutions = _get_extraction_resolutions(extraction_result)
+    flagged_concepts, flagged_concept_notes_raw = _check_extraction_patterns(resolutions)
     flagged_concept_notes = cast(dict[str, str], flagged_concept_notes_raw)
     for concept in flagged_concepts:
-        resolutions[concept].notes.append(flagged_concept_notes[concept])  # type: ignore[index,arg-type]
+        resolutions[concept].notes.append(flagged_concept_notes[concept])
         resolutions[concept].units = None if concept != "age" else resolutions[concept].units
 
     if len(flagged_concepts) > 0:
         new_resolutions = await _extract_column_for_concept_misformatted(
-            flagged_concepts,
+            flagged_concepts,  # type: ignore
             state.llm_messages,
             config,
             resolution_model,
             resolutions,
-            resolution_model_envelope,  # type: ignore[arg-type]
+            resolution_model_envelope,
         )
-        resolutions.update(new_resolutions)  # type: ignore[arg-type]
+        resolutions.update(new_resolutions)  # type: ignore
 
         for concept in new_resolutions.keys():
             setattr(extraction_result, concept, new_resolutions[concept])
 
-    return_dict["datasets"][accession_code]["metadata_extraction_result"] = extraction_result.model_dump()  # type: ignore[union-attr]
+    return_dict["datasets"][accession_code]["metadata_extraction_result"] = extraction_result.model_dump()  # type: ignore
     return_dict["datasets"][accession_code]["refinement_history"]["formatting_history"].append(flagged_concepts)
 
     metadata_cache_artifact = next(
@@ -242,7 +242,7 @@ async def check_column_extraction_rule_formatting(
         ),
         None,
     )
-    with open(metadata_cache_artifact.path, encoding="utf-8") as f:  # type: ignore[union-attr]
+    with open(metadata_cache_artifact.path, encoding="utf-8") as f:  # type: ignore
         metadata_dict = json.load(f)
     metadata_artifact = next(
         (
@@ -252,25 +252,25 @@ async def check_column_extraction_rule_formatting(
         ),
         None,
     )
-    metadata = pd.read_csv(metadata_artifact.path, index_col=0)
+    metadata = pd.read_csv(metadata_artifact.path, index_col=0)  # type: ignore
 
     return_dict = extract_dataset_metadata(
         accession_code,
         state.config,
         metadata_dict,
-        dataset_state.metadata_extraction_result,
+        dataset_state.metadata_extraction_result,  # type: ignore
         True,
-        gpls=[dataset_state.platform_metadata.platform_id],
-        platform=[dataset_state.platform_metadata.title],
+        gpls=[dataset_state.platform_metadata.platform_id],  # type: ignore
+        platform=[dataset_state.platform_metadata.title],  # type: ignore
         return_dict=return_dict,
     )
     return_dict.pop("raw_disease_statuses")
     return_dict = generate_summary_data(
         metadata,
         accession_code,
-        [dataset_state.platform_metadata.platform_id],
-        [dataset_state.platform_metadata.title],
-        dataset_state.refinement_history.example_errors,
+        [dataset_state.platform_metadata.platform_id],  # type: ignore
+        [dataset_state.platform_metadata.title],  # type: ignore
+        dataset_state.refinement_history.example_errors,  # type: ignore
         return_dict,
     )
 
@@ -306,8 +306,8 @@ async def check_column_extraction_rule_accuracy(
     dataset_state = state.datasets[accession_code]
     user_input = dataset_state.metadata_extraction_input
     extraction_result = dataset_state.metadata_extraction_result
-    _, resolution_model, resolution_model_envelope, __ = _get_custom_models(user_input)
-    parse_rates = _get_parse_rate(state.datasets[accession_code].metadata_summary.model_dump())
+    _, resolution_model, resolution_model_envelope, __ = _get_custom_models(user_input)  # type: ignore
+    parse_rates = _get_parse_rate(state.datasets[accession_code].metadata_summary.model_dump())  # type: ignore
     resolutions = _get_extraction_resolutions(extraction_result)
     failed_parsing_info = (
         return_dict["datasets"][accession_code]["refinement_history"]["example_errors"][-1]
@@ -317,7 +317,7 @@ async def check_column_extraction_rule_accuracy(
     flagged_concepts = [
         c
         for c in get_args(Concept)
-        if (extraction_result.model_dump()[c]["status"] == "resolved")
+        if (extraction_result.model_dump()[c]["status"] == "resolved")  # type: ignore
         and (c in parse_rates)
         and (parse_rates[c] > 0.0 and parse_rates[c] < 1.0)
         and len(failed_parsing_info[c]) > 0
@@ -328,10 +328,10 @@ async def check_column_extraction_rule_accuracy(
             accession_code,
             state.config,
             metadata,
-            extraction_result,
+            extraction_result,  # type: ignore
             overwrite_artifact=True,
-            gpls=[state.datasets[accession_code].platform_metadata.platform_id],
-            platform=[state.datasets[accession_code].platform_metadata.title],
+            gpls=[state.datasets[accession_code].platform_metadata.platform_id],  # type: ignore
+            platform=[state.datasets[accession_code].platform_metadata.title],  # type: ignore
             return_dict=return_dict,
         )
         parsed_disease_statuses = return_dict.pop("raw_disease_statuses", None)
@@ -339,29 +339,33 @@ async def check_column_extraction_rule_accuracy(
         # If there are misformatted concept patterns  attempt to return these patterns
         new_resolutions = await _extract_column_for_concept_poor_parsing(
             flagged_concepts,
-            state.llm_messages,
+            state.llm_messages,  # type: ignore
             config,
             resolution_model,
             parse_rates,
-            user_input,
+            user_input,  # type: ignore
             resolutions,
             resolution_model_envelope,
             failed_parsing_info,
         )
-        resolutions.update(new_resolutions)
+        resolutions.update(new_resolutions)  # type: ignore
 
         if resolutions["disease_status"].status == "resolved" and parsed_disease_statuses:
             resolutions = await _extract_column_for_concept_disease_status(resolutions, config, parsed_disease_statuses)
 
         if resolutions["age"].status == "missing":
             resolutions = await _extract_column_for_concept_age(
-                resolutions, config, user_input, state.llm_messages, resolution_model
+                resolutions,
+                config,
+                user_input,  # type: ignore
+                state.llm_messages,
+                resolution_model,
             )
 
         for concept in new_resolutions.keys():
             setattr(extraction_result, concept, new_resolutions[concept])
 
-    return_dict["datasets"][accession_code]["metadata_extraction_result"] = extraction_result.model_dump()  # type: ignore[union-attr]
+    return_dict["datasets"][accession_code]["metadata_extraction_result"] = extraction_result.model_dump()  # type: ignore
     return_dict["datasets"][accession_code]["refinement_history"]["num_retries"] += 1
     return_dict["datasets"][accession_code]["refinement_history"]["parsing_history"].append(flagged_concepts)
 
@@ -373,7 +377,7 @@ async def check_column_extraction_rule_accuracy(
         ),
         None,
     )
-    with open(metadata_cache_artifact.path, encoding="utf-8") as f:  # type: ignore[union-attr]
+    with open(metadata_cache_artifact.path, encoding="utf-8") as f:  # type: ignore
         metadata_dict = json.load(f)
     metadata_artifact = next(
         (
@@ -383,25 +387,25 @@ async def check_column_extraction_rule_accuracy(
         ),
         None,
     )
-    metadata = pd.read_csv(metadata_artifact.path, index_col=0)
+    metadata = pd.read_csv(metadata_artifact.path, index_col=0)  # type: ignore
 
     return_dict = extract_dataset_metadata(
         accession_code,
         state.config,
         metadata_dict,
-        dataset_state.metadata_extraction_result,
+        dataset_state.metadata_extraction_result,  # type: ignore
         True,
-        gpls=[dataset_state.platform_metadata.platform_id],
-        platform=[dataset_state.platform_metadata.title],
+        gpls=[dataset_state.platform_metadata.platform_id],  # type: ignore
+        platform=[dataset_state.platform_metadata.title],  # type: ignore
         return_dict=return_dict,
     )
     return_dict.pop("raw_disease_statuses")
     return_dict = generate_summary_data(
         metadata,
         accession_code,
-        [dataset_state.platform_metadata.platform_id],
-        [dataset_state.platform_metadata.title],
-        dataset_state.refinement_history.example_errors,
+        [dataset_state.platform_metadata.platform_id],  # type: ignore
+        [dataset_state.platform_metadata.title],  # type: ignore
+        dataset_state.refinement_history.example_errors,  # type: ignore
         return_dict,
     )
 
@@ -440,8 +444,8 @@ def geo_metadata_column_extraction_approval_node(state: GeoIngestionSubgraphStat
     return_dict["messages"] = [update_progress_tracker(state)]
 
     exceeded_retries = state.datasets[accession_code].refinement_history.num_retries >= MAX_RETRIES
-    has_formatting_issues = len(state.datasets[accession_code].refinement_history.formatting_history[-1]) > 0
-    has_parsing_issues = len(state.datasets[accession_code].refinement_history.parsing_history[-1]) > 0
+    has_formatting_issues = len(state.datasets[accession_code].refinement_history.formatting_history[-1]) > 0  # type: ignore
+    has_parsing_issues = len(state.datasets[accession_code].refinement_history.parsing_history[-1]) > 0  # type: ignore
 
     if exceeded_retries or (not has_formatting_issues and not has_parsing_issues):
         if all((r["status"] in ["resolved", "missing"]) and (r["confidence"] > 0.6) for r in resolutions.values()):

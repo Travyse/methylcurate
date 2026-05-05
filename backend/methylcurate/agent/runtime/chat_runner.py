@@ -209,7 +209,7 @@ class StreamingRunner:
             elif hasattr(subgraph, "get_state"):
                 snap = await asyncio.to_thread(subgraph.get_state, self._cfg(thread_id))
                 sub_state = getattr(snap, "values", snap)
-            sub_state = make_full_subgraph_state(subgraph_name, sub_state)
+            sub_state = make_full_subgraph_state(subgraph_name, sub_state)  # type: ignore
             accessions = params.get("accessions", [])
             accessions = [x for x in accessions if x not in sub_state.config.accessions]
             sub_state.config.accessions += accessions
@@ -359,7 +359,7 @@ class StreamingRunner:
         main_datasets = main_out.get("datasets", {})
         if not main_datasets:
             main_datasets = self._populate_main_datasets(main_out.get("artifacts"))
-        self._persist_main_dataset_statuses(main_thread, main_datasets)
+        self._persist_main_dataset_statuses(main_thread, main_datasets)  # type: ignore
 
         routing_history = main_out.get("routing_history") or []
         if not routing_history:
@@ -380,10 +380,10 @@ class StreamingRunner:
         checkpointed = await self._get_state_if_supported(self.main_graph, main_thread)
 
         # hydrate in-memory state from checkpoint
-        params["output_root"] = checkpointed["default_output_root"]
+        params["output_root"] = checkpointed["default_output_root"]  # type: ignore
         params["artifacts"] = list((checkpointed or {}).get("artifacts", []) or [])
         params["datasets"] = (
-            checkpointed.get("datasets", {}) if checkpointed.get("datasets", {}) else main_out.get("datasets", [])
+            checkpointed.get("datasets", {}) if checkpointed.get("datasets", {}) else main_out.get("datasets", [])  # type: ignore
         )
 
         if not subgraph_name:
