@@ -226,7 +226,7 @@ async def check_column_extraction_rule_formatting(
             resolutions,
             resolution_model_envelope,
         )
-        resolutions.update(new_resolutions)  # type: ignore
+        resolutions.update(new_resolutions)
 
         for concept in new_resolutions.keys():
             setattr(extraction_result, concept, new_resolutions[concept])
@@ -339,7 +339,7 @@ async def check_column_extraction_rule_accuracy(
         # If there are misformatted concept patterns  attempt to return these patterns
         new_resolutions = await _extract_column_for_concept_poor_parsing(
             flagged_concepts,
-            state.llm_messages,  # type: ignore
+            state.llm_messages,
             config,
             resolution_model,
             parse_rates,
@@ -348,7 +348,7 @@ async def check_column_extraction_rule_accuracy(
             resolution_model_envelope,
             failed_parsing_info,
         )
-        resolutions.update(new_resolutions)  # type: ignore
+        resolutions.update(new_resolutions)
 
         if resolutions["disease_status"].status == "resolved" and parsed_disease_statuses:
             resolutions = await _extract_column_for_concept_disease_status(resolutions, config, parsed_disease_statuses)

@@ -189,7 +189,7 @@ async def call_llm_structured_with_retries(messages: list[Any], config: Runnable
     resolved = None
     while retries < retry_limit:
         try:
-            resolved: Any = await asyncio.wait_for(llm.acall_structured(messages, ResultModel), timeout=CALL_TIMEOUT)  # type: ignore
+            resolved: Any = await asyncio.wait_for(llm.acall_structured(messages, ResultModel), timeout=CALL_TIMEOUT)
             break
         except TimeoutError:
             retries += 1
@@ -709,8 +709,8 @@ def construct_raw_to_harmonized_label_mapping(
             )
             continue
         best_guess_mapping = next(
-            (m for m in ontology_label_selection.mappings if m.source_label == mapping.target_label),
-            None,  # type: ignore
+            (m for m in ontology_label_selection.mappings if m.source_label == mapping.target_label),  # ty: ignore
+            None,
         )
         if best_guess_mapping is None:
             fixed_harmonized_label_mapping["mappings"].append(

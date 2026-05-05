@@ -270,7 +270,7 @@ async def refine_extracted_columns(state: GeoIngestionSubgraphState, config: Run
         )
     mapper_artifact_path = os.path.join(
         os.path.dirname(metadata_artifact.path),  # type: ignore
-        f"{metadata_artifact.accession_code}_subject_mapping.json",
+        f"{metadata_artifact.accession_code}_subject_mapping.json",  # ty: ignore
     )
     sample_subject_mapping.to_csv(mapper_artifact_path, index=True)
     mapper_artifact = ArtifactRef.model_validate(

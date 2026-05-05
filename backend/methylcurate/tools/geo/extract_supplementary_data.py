@@ -382,7 +382,7 @@ def _generate_data_samples(sample_data: pd.DataFrame, seed: int = 0) -> tuple[st
     return sample_data_markdown, sample_data[sampled_columns].copy()
 
 
-def _check_pattern_performance(pattern: str, columns: list[str]) -> tuple[set, set]:
+def _check_pattern_performance(pattern: str | None, columns: list[str]) -> tuple[set, set]:
     """Evaluate a regex pattern against a list of column names.
 
     Args:
@@ -429,11 +429,11 @@ def _check_pattern_performance_change(
     prev_beta_matching_cols, prev_beta_missing_cols = _check_pattern_performance(prev_beta_pattern, columns)
     current_beta_matching_cols, current_beta_missing_cols = _check_pattern_performance(current_beta_pattern, columns)
     # Detection pattern performance (if applicable)
-    prev_detection_matching_cols, prev_detection_missing_cols = _check_pattern_performance(  # type: ignore
+    prev_detection_matching_cols, prev_detection_missing_cols = _check_pattern_performance(
         prev_detection_pattern,
         columns,
     )
-    current_detection_matching_cols, current_detection_missing_cols = _check_pattern_performance(  # type: ignore
+    current_detection_matching_cols, current_detection_missing_cols = _check_pattern_performance(
         current_detection_pattern,
         columns,
     )
@@ -528,7 +528,7 @@ async def _get_column_scheme(
     while retries < retry_limit:
         try:
             resolved: Any = await asyncio.wait_for(
-                llm.acall_structured(messages, ForcedSampleDataResolution),  # type: ignore[arg-type]
+                llm.acall_structured(messages, ForcedSampleDataResolution),  # ty: ignore
                 timeout=CALL_TIMEOUT,
             )
             break

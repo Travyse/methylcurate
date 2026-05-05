@@ -311,7 +311,7 @@ async def _extract_column_for_concept_age(
     prompt_messages = messages + [clarification_message]
     FieldResolutionCorrectionDyn = build_dynamic_resolution_correction_model(["age"], resolution_model)  # type: ignore
     try:
-        resolved: Any = await llm.acall_structured(prompt_messages, FieldResolutionCorrectionDyn)  # type: ignore
+        resolved: Any = await llm.acall_structured(prompt_messages, FieldResolutionCorrectionDyn)
         resolutions["age"] = resolved.age
     except ValidationError as e:
         print(f"\n\nValidation error for concept age: {e}. Setting resolution to error with notes.")
@@ -402,7 +402,7 @@ async def _extract_column_for_concept_misformatted(
     resolution_model: Any,
     resolutions: dict[str, Any],
     resolution_model_envelope: Any,
-) -> dict[Concept, FieldResolution]:
+) -> dict[str, Any]:
     """Re-extract columns for concepts flagged with misformatted patterns.
 
     Generates a targeted feedback prompt that describes which concepts have
@@ -452,7 +452,7 @@ async def _extract_column_for_concept_misformatted(
     while retries < retry_limit:
         try:
             resolved: Any = await asyncio.wait_for(
-                llm.acall_structured(new_messages, FieldResolutionCorrectionDyn),  # type: ignore
+                llm.acall_structured(new_messages, FieldResolutionCorrectionDyn),
                 timeout=CALL_TIMEOUT,
             )
             for concept in misformatted_concepts:
@@ -473,7 +473,7 @@ async def _extract_column_for_concept_misformatted(
             retries += 1
             continue
         except ValidationError as e:
-            for concept in sorted(poorly_parsed_concepts):
+            for concept in sorted(misformatted_concepts):
                 error_resolution = ErrorResolution(
                     status="error",
                     confidence=0.0,
@@ -486,7 +486,7 @@ async def _extract_column_for_concept_misformatted(
         except Exception:
             retries += 1
             continue
-    return new_resolutions  # type: ignore
+    return new_resolutions
 
 
 async def _extract_column_for_concept_poor_parsing(
@@ -499,7 +499,7 @@ async def _extract_column_for_concept_poor_parsing(
     resolutions: dict[str, Any],
     resolution_model_envelope: Any,
     failed_parsing_info: dict[str, Any],
-) -> dict[Concept, FieldResolution]:
+) -> dict[str, Any]:
     """Re-extract columns for concepts whose parse rate is below 1.0.
 
     Builds a feedback-loop prompt that includes parse rate metrics and
@@ -556,7 +556,7 @@ async def _extract_column_for_concept_poor_parsing(
     clarification_message = HumanMessage(
         id=uuid.uuid4().hex, content=generate_column_feedback_loop_prompt(**prompt_params)
     )
-    new_messages = [messages[0]] + [clarification_message]  # type: ignore
+    new_messages = [messages[0]] + [clarification_message]
 
     retry_limit = GLOBAL_RETRY_LIMIT
     retries = 0
@@ -564,7 +564,7 @@ async def _extract_column_for_concept_poor_parsing(
         try:
             resolved: Any = await asyncio.wait_for(
                 llm.acall_structured(new_messages, FieldResolutionCorrectionDyn),
-                timeout=CALL_TIMEOUT,  # type: ignore
+                timeout=CALL_TIMEOUT,
             )
             for concept in poorly_parsed_concepts:
                 new_resolutions[concept] = getattr(resolved, concept)
@@ -581,7 +581,7 @@ async def _extract_column_for_concept_poor_parsing(
                 },
             )
             resolved: Any = await asyncio.wait_for(
-                llm.acall_structured(new_messages + [human_message], FieldResolutionCorrectionDyn),  # type: ignore
+                llm.acall_structured(new_messages + [human_message], FieldResolutionCorrectionDyn),
                 timeout=CALL_TIMEOUT,
             )
             for concept in poorly_parsed_concepts:
@@ -601,7 +601,7 @@ async def _extract_column_for_concept_poor_parsing(
         except Exception:
             retries += 1
             continue
-    return new_resolutions  # type: ignore
+    return new_resolutions
 
 
 async def _extract_column_for_concept_with_retry(
@@ -676,7 +676,7 @@ async def _extract_column_for_concept_with_retry(
             resolutions,
             resolution_model_envelope,
         )
-        resolutions.update(new_resolutions)  # type: ignore
+        resolutions.update(new_resolutions)
         new_resolutions, re_run = await _extract_column_for_concept_with_retry(
             extraction_result,
             count=count + 1,
@@ -713,8 +713,8 @@ async def _extract_column_for_concept_with_retry(
                 resolution_model_envelope,
                 failed_parsing_info,  # type: ignore
             )
-            resolutions.update(new_resolutions)  # type: ignore
-            re_run = True
+        resolutions.update(new_resolutions)  # ty: ignore
+        re_run = True
 
         if resolutions["disease_status"].status == "resolved" and parsed_disease_statuses is not None:
             resolutions = await _extract_column_for_concept_disease_status(resolutions, config, parsed_disease_statuses)  # type: ignore
@@ -724,7 +724,7 @@ async def _extract_column_for_concept_with_retry(
                 resolutions,
                 config,  # type: ignore
                 user_input,  # type: ignore
-                messages,
+                messages,  # ty: ignore
                 resolution_model,
             )
 
@@ -765,7 +765,7 @@ async def _extract_all_columns(
         try:
             resolved: Any = result_model.model_validate(
                 await asyncio.wait_for(
-                    llm.acall_structured(call_messages, result_model),  # type: ignore
+                    llm.acall_structured(call_messages, result_model),
                     timeout=CALL_TIMEOUT,
                 )
             )
@@ -863,9 +863,9 @@ async def extract_metadata_columns_alt(
     messages = [llm_messages[0], return_dict["llm_messages"][-1]]
     extraction_result = await _extract_all_columns(  # type: ignore[call-arg,arg-type]
         messages,
-        llm_messages,
+        llm_messages,  # ty: ignore
         config,
-        GSESpecificMetadataExtractionResult,
+        GSESpecificMetadataExtractionResult,  # ty: ignore
         user_input,
     )
 

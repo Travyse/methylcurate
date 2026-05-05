@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, TypeVar
 
 from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import AnyMessage
 from langchain_ollama import ChatOllama
 from langchain_openai import AzureChatOpenAI, ChatOpenAI
 from pydantic import BaseModel, SecretStr
@@ -241,7 +242,7 @@ class LLMClient:
             return out
         return schema.model_validate(out)
 
-    async def acall_structured(self, prompt: str, schema: type[T]) -> T:
+    async def acall_structured(self, prompt: str | list[AnyMessage], schema: type[T]) -> T:
         """
         Async native structured output using tool/function calling.
         Returns a Pydantic model instance of type `schema`.
