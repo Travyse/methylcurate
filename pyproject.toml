@@ -20,34 +20,35 @@ classifiers = [
 ]
 license = {text = "MIT"}
 dependencies = [
-  "fastapi",
-  "GEOparse",
-  "greenery",
-  "jinja2",
-  "joblib",
-  "langchain-anthropic",
-  "langchain-core",
-  "langchain-ollama",
-  "langchain-openai",
-  "langgraph",
-  "numpy",
-  "ollama",
-  "pandas",
-  "pyaging",
-  "pyarrow",
-  "pydantic",
-  "pytz",
-  "rapidfuzz",
-  "requests",
-  "rich",
-  "scikit-learn",
-  "scipy",
-  "statsmodels",
-  "torch",
-  "tqdm",
-  "typer",
+  "fastapi~=0.128",
+  "GEOparse~=2.0",
+  "greenery~=4.2",
+  "jinja2~=3.1",
+  "joblib~=1.5",
+  "langchain-anthropic~=1.3",
+  "langchain-core~=1.2",
+  "langchain-ollama~=1.0",
+  "langchain-openai~=1.1",
+  "langgraph~=1.0",
+  "langgraph-checkpoint-sqlite~=3.0",
+  "numpy~=2.4",
+  "ollama~=0.6",
+  "pandas~=2.3",
+  "pyaging~=0.1",
+  "pyarrow~=23.0",
+  "pydantic~=2.12",
+  "pytz~=2025.2",
+  "rapidfuzz~=3.14",
+  "requests~=2.32",
+  "rich~=14.2",
+  "scikit-learn~=1.8",
+  "scipy~=1.16",
+  "statsmodels~=0.14",
+  "torch~=2.10",
+  "tqdm~=4.67",
+  "typer~=0.20",
 ]
-requires-python = ">= 3.12"
+requires-python = ">= 3.11,<3.13"
 
 [dependency-groups]
 dev = [
@@ -56,14 +57,14 @@ dev = [
     { include-group = "typecheck" },
 ]
 lint = [
-    "ruff",
+    "ruff~=0.14",
 ]
 test = [
     "coverage",
-    "pytest",
+    "pytest~=9.0",
 ]
 typecheck = [
-    "ty",
+    "ty~=0.0.34",
 ]
 docs = [
     "zensical",
