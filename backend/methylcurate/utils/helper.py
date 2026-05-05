@@ -142,9 +142,7 @@ def compute_sha256(content: str, is_path: bool = False) -> str:
     return _compute_sha256_from_path(content) if is_path else _compute_sha256_from_content(content)
 
 
-def get_correct_methylation_data(
-    artifacts: list[Any], accession_code: str, artifact_kind: str = "preqc_methylation_data"
-) -> Any:
+def get_correct_methylation_data(artifacts: list[Any], accession_code: str, artifact_kind: str = "preqc_methylation_data") -> Any:
     """
     Retrieves the correct methylation data artifact for a given accession code.
 
@@ -156,22 +154,14 @@ def get_correct_methylation_data(
     Returns:
         Any: The matching artifact, or None if not found.
     """
-    target_artifacts = [
-        artifact
-        for artifact in artifacts
-        if (artifact.kind == artifact_kind) and (artifact.accession_code == accession_code)
-    ]
+    target_artifacts = [artifact for artifact in artifacts if (artifact.kind == artifact_kind) and (artifact.accession_code == accession_code)]
     if len(target_artifacts) == 0:
         return None
     elif len(target_artifacts) == 1:
         return target_artifacts[0]
     else:
         return next(
-            (
-                artifact
-                for artifact in target_artifacts
-                if f"{accession_code}_preqc_methylation_matrix" not in artifact.path
-            ),
+            (artifact for artifact in target_artifacts if f"{accession_code}_preqc_methylation_matrix" not in artifact.path),
             None,
         )
 
@@ -186,9 +176,7 @@ def get_accession_codes(state: Any) -> list[str]:
     Returns:
         List[str]: A sorted list of accession codes.
     """
-    return sorted(
-        [x.upper() for x in state.config.accessions if state.datasets[x.upper()].status not in ("failed", "resolved")]
-    )
+    return sorted([x.upper() for x in state.config.accessions if state.datasets[x.upper()].status not in ("failed", "resolved")])
 
 
 def set_step_status(status="running", step=None, error=None, warnings=None) -> dict[str, Any]:
@@ -230,47 +218,17 @@ def retrieve_status_counts(accession_codes: list[str], datasets: dict[str, Any],
         Dict[str, int]: A dictionary containing the count of datasets in each status category.
     """
     return {
-        "completed": len(
-            [
-                accession_code
-                for accession_code in accession_codes
-                if datasets[accession_code].steps[step].status == "completed"
-            ]
-        ),
-        "not_started": len(
-            [
-                accession_code
-                for accession_code in accession_codes
-                if datasets[accession_code].steps[step].status == "not_started"
-            ]
-        ),
+        "completed": len([accession_code for accession_code in accession_codes if datasets[accession_code].steps[step].status == "completed"]),
+        "not_started": len([accession_code for accession_code in accession_codes if datasets[accession_code].steps[step].status == "not_started"]),
         "in_progress": len(
-            [
-                accession_code
-                for accession_code in accession_codes
-                if datasets[accession_code].steps[step].status in ["not_started", "running"]
-            ]
+            [accession_code for accession_code in accession_codes if datasets[accession_code].steps[step].status in ["not_started", "running"]]
         ),
-        "failed": len(
-            [
-                accession_code
-                for accession_code in accession_codes
-                if datasets[accession_code].steps[step].status == "failed"
-            ]
-        ),
-        "canceled": len(
-            [
-                accession_code
-                for accession_code in accession_codes
-                if datasets[accession_code].steps[step].status == "canceled"
-            ]
-        ),
+        "failed": len([accession_code for accession_code in accession_codes if datasets[accession_code].steps[step].status == "failed"]),
+        "canceled": len([accession_code for accession_code in accession_codes if datasets[accession_code].steps[step].status == "canceled"]),
     }
 
 
-def _generate_todo_description(
-    status: str, status_counts: dict[str, int], description_default: str | None = None
-) -> str | None:
+def _generate_todo_description(status: str, status_counts: dict[str, int], description_default: str | None = None) -> str | None:
     """
     Generates a description for a todo item based on the status and status counts.
 
@@ -425,9 +383,7 @@ def _generate_todo_status(counts: dict[str, int], num_datasets: int) -> str:
         return "in_progress"
 
 
-def generate_todo_entry(
-    step: str, counts: dict[str, int], num_datasets: int, other_counts: dict[str, dict[str, int]]
-) -> dict[str, Any]:
+def generate_todo_entry(step: str, counts: dict[str, int], num_datasets: int, other_counts: dict[str, dict[str, int]]) -> dict[str, Any]:
     """
     Generates a todo entry for a specific step based on the counts and total number of datasets.
 
@@ -454,20 +410,13 @@ def generate_todo_entry(
     id = _generate_todo_id(step)
     previous_ids = range(1, int(id))
     previous_steps = [k for k, v in id_mapper.items() if int(v) in previous_ids]
-    if any(
-        _generate_todo_status(other_counts[previous_step], num_datasets) == "in_progress"
-        for previous_step in previous_steps
-    ):
+    if any(_generate_todo_status(other_counts[previous_step], num_datasets) == "in_progress" for previous_step in previous_steps):
         status = "pending"
-    elif any(
-        _generate_todo_status(other_counts[previous_step], num_datasets) == "failed" for previous_step in previous_steps
-    ):
+    elif any(_generate_todo_status(other_counts[previous_step], num_datasets) == "failed" for previous_step in previous_steps):
         status = "canceled"
     return {
         "id": id,
-        "label": _generate_todo_label(
-            status, past_tense, present_tense, num_datasets, counts, default_message=default_message
-        ),
+        "label": _generate_todo_label(status, past_tense, present_tense, num_datasets, counts, default_message=default_message),
         "status": status,
         "description": _generate_todo_description(status, counts, description_default=description_default),
     }
@@ -486,19 +435,11 @@ def populate_todos(state: Any):
     # Initializate variables
     accession_codes = get_accession_codes(state)
     download_soft_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "download_soft")
-    check_valid_dataset_counts = retrieve_status_counts(
-        get_accession_codes(state), state.datasets, "check_valid_dataset"
-    )
-    extract_metadata_schema_counts = retrieve_status_counts(
-        get_accession_codes(state), state.datasets, "extract_metadata_schema"
-    )
-    refine_metadata_schema_counts = retrieve_status_counts(
-        get_accession_codes(state), state.datasets, "refine_metadata_schema"
-    )
+    check_valid_dataset_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "check_valid_dataset")
+    extract_metadata_schema_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "extract_metadata_schema")
+    refine_metadata_schema_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "refine_metadata_schema")
     extract_data_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "extract_data")
-    supplementary_file_check_counts = retrieve_status_counts(
-        get_accession_codes(state), state.datasets, "supplementary_file_check"
-    )
+    supplementary_file_check_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "supplementary_file_check")
     all_count_dicts = {
         "download_soft": download_soft_counts,
         "check_valid_dataset": check_valid_dataset_counts,
@@ -511,16 +452,11 @@ def populate_todos(state: Any):
     if download_soft_counts["not_started"] == len(accession_codes):
         first_todo = generate_todo_entry("download_soft", download_soft_counts, len(accession_codes), all_count_dicts)
     elif check_valid_dataset_counts["not_started"] == len(accession_codes) and (
-        download_soft_counts["completed"] + download_soft_counts["failed"] + download_soft_counts["canceled"]
-        == len(accession_codes)
+        download_soft_counts["completed"] + download_soft_counts["failed"] + download_soft_counts["canceled"] == len(accession_codes)
     ):
-        first_todo = generate_todo_entry(
-            "check_valid_dataset", check_valid_dataset_counts, len(accession_codes), all_count_dicts
-        )
+        first_todo = generate_todo_entry("check_valid_dataset", check_valid_dataset_counts, len(accession_codes), all_count_dicts)
     else:
-        first_todo = generate_todo_entry(
-            "check_valid_dataset", check_valid_dataset_counts, len(accession_codes), all_count_dicts
-        )
+        first_todo = generate_todo_entry("check_valid_dataset", check_valid_dataset_counts, len(accession_codes), all_count_dicts)
     num_datasets = len(accession_codes)
     todos = [
         first_todo,
@@ -604,9 +540,7 @@ def update_small_progress_tracker(state: Any, retrieval: str) -> ToolMessage:
     accession_codes = sorted(state.datasets.keys())
     hash = _get_status_id(state.messages, retrieval)
 
-    all_completed = all(
-        state.datasets[x].steps["quality_control"].status in {"completed", "failed", "skipped"} for x in accession_codes
-    )
+    all_completed = all(state.datasets[x].steps["quality_control"].status in {"completed", "failed", "skipped"} for x in accession_codes)
 
     # Hash from accession codes + user message + user message time
     message = ToolMessage(
@@ -653,24 +587,15 @@ def benchmarking_progress(state: Any) -> ToolMessage:
         if any(
             a
             for a in state.config.artifacts
-            if a.kind == "clock"
-            and (a.path.endswith(f"{clock.lower()}.pt") or a.path.endswith(f"{clock.lower()}_model.pkl"))
+            if a.kind == "clock" and (a.path.endswith(f"{clock.lower()}.pt") or a.path.endswith(f"{clock.lower()}_model.pkl"))
         )
     )
     all_clocks_retrieved = num_clocks_retrieved == len(state.config.clock_list)
-    num_predictions_completed = sum(
-        1 for x in accession_codes if state.datasets[x].steps["make_predictions"].status == "completed"
-    )
-    all_predictions_completed = all(
-        state.datasets[x].steps["make_predictions"].status in {"completed", "failed", "skipped"}
-        for x in accession_codes
-    )
-    num_computations_completed = sum(
-        1 for x in accession_codes if state.datasets[x].steps["make_computations"].status == "completed"
-    )
+    num_predictions_completed = sum(1 for x in accession_codes if state.datasets[x].steps["make_predictions"].status == "completed")
+    all_predictions_completed = all(state.datasets[x].steps["make_predictions"].status in {"completed", "failed", "skipped"} for x in accession_codes)
+    num_computations_completed = sum(1 for x in accession_codes if state.datasets[x].steps["make_computations"].status == "completed")
     all_computations_completed = all(
-        state.datasets[x].steps["make_computations"].status in {"completed", "failed", "skipped"}
-        for x in accession_codes
+        state.datasets[x].steps["make_computations"].status in {"completed", "failed", "skipped"} for x in accession_codes
     )
 
     # Hash from accession codes + user message + user message time
@@ -691,26 +616,16 @@ def benchmarking_progress(state: Any) -> ToolMessage:
                     "id": "benchmark_models",
                     "label": "Running Benchmark Models",
                     "description": f"Completed benchmarking for {num_predictions_completed} datasets",
-                    "status": "completed"
-                    if all_predictions_completed
-                    else "in-progress"
-                    if num_predictions_completed > 0
-                    else "pending",
+                    "status": "completed" if all_predictions_completed else "in-progress" if num_predictions_completed > 0 else "pending",
                 },
                 {
                     "id": "make_computations",
                     "label": "Computing Benchmark Tasks",
                     "description": f"Completed benchmarking for {num_computations_completed} datasets",
-                    "status": "completed"
-                    if all_computations_completed
-                    else "in-progress"
-                    if num_computations_completed > 0
-                    else "pending",
+                    "status": "completed" if all_computations_completed else "in-progress" if num_computations_completed > 0 else "pending",
                 },
             ],
-            "elapsedTime": round(
-                (datetime.fromisoformat(current_time) - datetime.fromisoformat(previous_time)).total_seconds()
-            ),
+            "elapsedTime": round((datetime.fromisoformat(current_time) - datetime.fromisoformat(previous_time)).total_seconds()),
         },
         additional_kwargs={
             "name": "benchmarkProgress",
@@ -735,9 +650,7 @@ def qc_progress(state: Any) -> ToolMessage:
     previous_message = next((m for m in state.main_messages if m.tool_call_id == hash), None)
     previous_time = previous_message.additional_kwargs["created_at"] if previous_message else current_time
     num_datasets_qcd = sum(
-        1
-        for x in state.datasets.keys()
-        if state.datasets[x].steps["quality_control"].status in {"completed", "failed", "canceled"}
+        1 for x in state.datasets.keys() if state.datasets[x].steps["quality_control"].status in {"completed", "failed", "canceled"}
     )
     all_datasets_qcd = num_datasets_qcd == len(state.datasets.keys())
 
@@ -757,9 +670,7 @@ def qc_progress(state: Any) -> ToolMessage:
                     "status": "completed" if all_datasets_qcd else "in-progress",
                 },
             ],
-            "elapsedTime": round(
-                (datetime.fromisoformat(current_time) - datetime.fromisoformat(previous_time)).total_seconds()
-            ),
+            "elapsedTime": round((datetime.fromisoformat(current_time) - datetime.fromisoformat(previous_time)).total_seconds()),
         },
         additional_kwargs={
             "name": "benchmarkProgress",
@@ -881,14 +792,10 @@ def load_metadata_aligned_methylation_data(
     Returns:
         pd.DataFrame: The loaded and aligned methylation data.
     """
-    subject_mapper = next(
-        (a for a in artifacts if a.kind == "subject_column_mapping" and a.accession_code == accession_code), None
-    )
+    subject_mapper = next((a for a in artifacts if a.kind == "subject_column_mapping" and a.accession_code == accession_code), None)
     methylation_data = get_correct_methylation_data(artifacts, accession_code, artifact_kind=methylation_data_type)
     if methylation_data_type == "postqc_methylation_data" and not methylation_data:
-        return load_metadata_aligned_methylation_data(
-            accession_code, artifacts, methylation_data_type="preqc_methylation_data"
-        )
+        return load_metadata_aligned_methylation_data(accession_code, artifacts, methylation_data_type="preqc_methylation_data")
     methylation_df = read_feather(methylation_data.path, index_name="subject_id")
     if not subject_mapper:
         return methylation_df
@@ -1008,20 +915,13 @@ def generate_harmonization_todo_entry(
     id = _generate_harmonization_todo_id(step)
     previous_ids = range(1, int(id))
     previous_steps = [k for k, v in id_mapper.items() if int(v) in previous_ids]
-    if any(
-        _generate_todo_status(other_counts[previous_step], num_datasets) == "in_progress"
-        for previous_step in previous_steps
-    ):
+    if any(_generate_todo_status(other_counts[previous_step], num_datasets) == "in_progress" for previous_step in previous_steps):
         status = "pending"
-    elif any(
-        _generate_todo_status(other_counts[previous_step], num_datasets) == "failed" for previous_step in previous_steps
-    ):
+    elif any(_generate_todo_status(other_counts[previous_step], num_datasets) == "failed" for previous_step in previous_steps):
         status = "canceled"
     return {
         "id": id,
-        "label": _generate_todo_label(
-            status, past_tense, present_tense, num_datasets, counts, default_message=default_message
-        ),
+        "label": _generate_todo_label(status, past_tense, present_tense, num_datasets, counts, default_message=default_message),
         "status": status,
         "description": _generate_todo_description(status, counts, description_default=description_default),
     }
@@ -1039,24 +939,12 @@ def populate_harmonization_todos(state: Any):
     """
     # Initializate variables
     accession_codes = get_accession_codes(state)
-    harmonization_disease_label_counts = retrieve_status_counts(
-        get_accession_codes(state), state.datasets, "map_disease_labels_to_ontology"
-    )
-    harmonization_disease_group_label_counts = retrieve_status_counts(
-        get_accession_codes(state), state.datasets, "group_disease_labels"
-    )
-    harmonize_tissue_label_counts = retrieve_status_counts(
-        get_accession_codes(state), state.datasets, "map_tissue_labels_to_ontology"
-    )
-    harmonize_tissue_group_label_counts = retrieve_status_counts(
-        get_accession_codes(state), state.datasets, "group_tissue_labels"
-    )
-    harmonize_cell_type_label_counts = retrieve_status_counts(
-        get_accession_codes(state), state.datasets, "map_cell_type_labels_to_ontology"
-    )
-    harmonize_sex_label_counts = retrieve_status_counts(
-        get_accession_codes(state), state.datasets, "harmonize_sex_labels"
-    )
+    harmonization_disease_label_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "map_disease_labels_to_ontology")
+    harmonization_disease_group_label_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "group_disease_labels")
+    harmonize_tissue_label_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "map_tissue_labels_to_ontology")
+    harmonize_tissue_group_label_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "group_tissue_labels")
+    harmonize_cell_type_label_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "map_cell_type_labels_to_ontology")
+    harmonize_sex_label_counts = retrieve_status_counts(get_accession_codes(state), state.datasets, "harmonize_sex_labels")
 
     all_count_dicts = {
         "harmonize_disease_labels": harmonization_disease_label_counts,
@@ -1069,24 +957,12 @@ def populate_harmonization_todos(state: Any):
 
     num_datasets = len(accession_codes)
     todos = [
-        generate_harmonization_todo_entry(
-            "harmonize_disease_labels", harmonization_disease_label_counts, num_datasets, all_count_dicts
-        ),
-        generate_harmonization_todo_entry(
-            "harmonize_disease_group_labels", harmonization_disease_group_label_counts, num_datasets, all_count_dicts
-        ),
-        generate_harmonization_todo_entry(
-            "harmonize_tissue_labels", harmonize_tissue_label_counts, num_datasets, all_count_dicts
-        ),
-        generate_harmonization_todo_entry(
-            "harmonize_tissue_group_labels", harmonize_tissue_group_label_counts, num_datasets, all_count_dicts
-        ),
-        generate_harmonization_todo_entry(
-            "harmonize_cell_type_labels", harmonize_cell_type_label_counts, num_datasets, all_count_dicts
-        ),
-        generate_harmonization_todo_entry(
-            "harmonize_sex_labels", harmonize_sex_label_counts, num_datasets, all_count_dicts
-        ),
+        generate_harmonization_todo_entry("harmonize_disease_labels", harmonization_disease_label_counts, num_datasets, all_count_dicts),
+        generate_harmonization_todo_entry("harmonize_disease_group_labels", harmonization_disease_group_label_counts, num_datasets, all_count_dicts),
+        generate_harmonization_todo_entry("harmonize_tissue_labels", harmonize_tissue_label_counts, num_datasets, all_count_dicts),
+        generate_harmonization_todo_entry("harmonize_tissue_group_labels", harmonize_tissue_group_label_counts, num_datasets, all_count_dicts),
+        generate_harmonization_todo_entry("harmonize_cell_type_labels", harmonize_cell_type_label_counts, num_datasets, all_count_dicts),
+        generate_harmonization_todo_entry("harmonize_sex_labels", harmonize_sex_label_counts, num_datasets, all_count_dicts),
     ]
 
     return todos

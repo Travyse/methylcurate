@@ -63,9 +63,7 @@ class SampleLevelQCInput(BaseModel):
         - missing_cutoff: The maximum allowed fraction of missing values per sample.
     """
 
-    missing_cutoff: float = Field(
-        0.1, ge=0.0, le=1.0, description="Maximum allowed fraction of missing values per sample"
-    )
+    missing_cutoff: float = Field(0.1, ge=0.0, le=1.0, description="Maximum allowed fraction of missing values per sample")
 
 
 class SampleLevelQCResult(BaseModel):
@@ -89,9 +87,7 @@ class SimpleImputerModelInput(BaseModel):
     """
 
     concept: Literal["simple"] = "simple"
-    strategy: Literal["mean", "median", "most_frequent", "constant"] = Field(
-        "mean", description="Imputation strategy to use"
-    )
+    strategy: Literal["mean", "median", "most_frequent", "constant"] = Field("mean", description="Imputation strategy to use")
 
 
 class KNNImputerModelInput(BaseModel):
@@ -139,9 +135,7 @@ class CpGLevelQCInput(BaseModel):
         - imputation_strategy: The imputation strategy for handling missing CpG values.
     """
 
-    missing_cutoff: float = Field(
-        0.2, ge=0.0, le=1.0, description="Maximum allowed fraction of missing values per CpG site"
-    )
+    missing_cutoff: float = Field(0.2, ge=0.0, le=1.0, description="Maximum allowed fraction of missing values per CpG site")
     imputation_strategy: ImputationInput = Field(
         default_factory=lambda: ImputationInput(strategy="whole"),
         description="Imputation strategy for handling missing CpG values",
@@ -158,9 +152,7 @@ class CpGLevelQCResult(BaseModel):
     """
 
     removed_cpgs: list[NonEmptyStr] = Field(default_factory=list, description="List of CpG IDs removed during QC")
-    missing_before_imputation: float = Field(
-        0.0, ge=0.0, le=1.0, description="Fraction of missing values before imputation"
-    )
+    missing_before_imputation: float = Field(0.0, ge=0.0, le=1.0, description="Fraction of missing values before imputation")
 
 
 class DNAmQCInput(BaseModel):
@@ -182,9 +174,7 @@ class DNAmQCResult(BaseModel):
         - removed_samples: List of sample IDs removed during DNAm QC.
     """
 
-    removed_samples: list[NonEmptyStr] = Field(
-        default_factory=list, description="List of sample IDs removed during DNAm QC"
-    )
+    removed_samples: list[NonEmptyStr] = Field(default_factory=list, description="List of sample IDs removed during DNAm QC")
 
 
 class InterarrayCorrelationQCInput(BaseModel):
@@ -195,9 +185,7 @@ class InterarrayCorrelationQCInput(BaseModel):
         - correlation_cutoff: The minimum allowed mean inter-array correlation per sample.
     """
 
-    correlation_cutoff: float = Field(
-        0.9, ge=0.0, le=1.0, description="Minimum allowed mean inter-array correlation per sample"
-    )
+    correlation_cutoff: float = Field(0.9, ge=0.0, le=1.0, description="Minimum allowed mean inter-array correlation per sample")
 
 
 class InterarrayCorrelationQCResult(BaseModel):
@@ -208,7 +196,5 @@ class InterarrayCorrelationQCResult(BaseModel):
         - removed_samples: List of sample IDs removed during inter-array correlation QC.
     """
 
-    removed_samples: list[NonEmptyStr] = Field(
-        default_factory=list, description="List of sample IDs removed during inter-array correlation QC"
-    )
+    removed_samples: list[NonEmptyStr] = Field(default_factory=list, description="List of sample IDs removed during inter-array correlation QC")
     notes: str | None = Field(default=None, description="Optional notes about the QC process")

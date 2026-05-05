@@ -89,9 +89,7 @@ def get_metadata_dataframe(accession_code: str, artifacts: list[Any]) -> pd.Data
     Returns:
         pd.DataFrame: The metadata DataFrame.
     """
-    metadata_artifact = next(
-        (a for a in artifacts if a.kind == "dataset_metadata" and a.accession_code == accession_code), None
-    )
+    metadata_artifact = next((a for a in artifacts if a.kind == "dataset_metadata" and a.accession_code == accession_code), None)
     if metadata_artifact is None:
         raise ValueError("No metadata")
     return pd.read_csv(metadata_artifact.path, index_col=0)
@@ -109,16 +107,12 @@ def get_available_methylation_dataframe(accession_code: str, artifacts: list[Any
         pd.DataFrame: The methylation DataFrame.
     """
     # Check for post-quality control data
-    postqc_methylation_data = next(
-        (a for a in artifacts if a.kind == "postqc_methylation_data" and a.accession_code == accession_code), None
-    )
+    postqc_methylation_data = next((a for a in artifacts if a.kind == "postqc_methylation_data" and a.accession_code == accession_code), None)
     if postqc_methylation_data is not None:
         return read_feather(postqc_methylation_data.path, index_name="subject_id")
 
     # Check for pre-quality control data
-    preqc_methylation_data = next(
-        (a for a in artifacts if a.kind == "preqc_methylation_data" and a.accession_code == accession_code), None
-    )
+    preqc_methylation_data = next((a for a in artifacts if a.kind == "preqc_methylation_data" and a.accession_code == accession_code), None)
     if preqc_methylation_data is not None:
         return load_metadata_aligned_methylation_data(accession_code, artifacts)
 
@@ -136,9 +130,7 @@ def get_dataset_predictions(accession_code: str, artifacts: list[Any]) -> pd.Dat
     Returns:
         pd.DataFrame: The dataset predictions DataFrame.
     """
-    dataset_predictions_artifact = next(
-        (a for a in artifacts if a.kind == "dataset_benchmark" and a.accession_code == accession_code), None
-    )
+    dataset_predictions_artifact = next((a for a in artifacts if a.kind == "dataset_benchmark" and a.accession_code == accession_code), None)
     if dataset_predictions_artifact is not None:
         return pd.read_csv(dataset_predictions_artifact.path, index_col=0)
 
@@ -162,10 +154,7 @@ def get_all_methylation_aging_clocks(output_dir: str) -> list[MethylationAgingCl
         if clock_name in get_args(MethylationClocks):
             # if metadata.get("data_type") == "methylation" and metadata.get("species") == "Homo sapiens":
             methylation_clocks.add(clock_name)
-    methylation_clocks = [
-        MethylationAgingClock.model_validate({"clock_name": clock_name})
-        for clock_name in sorted(list(methylation_clocks))
-    ]
+    methylation_clocks = [MethylationAgingClock.model_validate({"clock_name": clock_name}) for clock_name in sorted(list(methylation_clocks))]
     return sorted(methylation_clocks, key=lambda c: c.clock_name.lower())
 
 
@@ -253,7 +242,8 @@ def bootstrap_welch_one_sided_aac_gt_hc(
     n_bootstraps: int = 1000,
 ) -> pd.DataFrame:
     """
-    Perform a bootstrap analysis using Welch's one-sided t-test for age acceleration differences between disease and control groups across multiple clocks.
+    Perform a bootstrap analysis using Welch's one-sided t-test for age acceleration
+    differences between disease and control groups across multiple clocks.
 
     Args:
         prediction_df (pd.DataFrame): The DataFrame containing the predictions and metadata for the dataset.
@@ -277,9 +267,7 @@ def bootstrap_welch_one_sided_aac_gt_hc(
         if any(count < 10 for count in [control_count, target_count]):
             continue
 
-        shuffled_labels = [
-            sub_prediction_df["Disease_Status"].sample(frac=1, random_state=i).to_numpy() for i in range(n_bootstraps)
-        ]
+        shuffled_labels = [sub_prediction_df["Disease_Status"].sample(frac=1, random_state=i).to_numpy() for i in range(n_bootstraps)]
         for clock in clocks:
             if clock not in sub_prediction_df.columns:
                 continue
@@ -314,14 +302,11 @@ def bootstrap_welch_one_sided_aac_gt_hc(
                     "Disease_Group": sub_prediction_df["Disease_Group"].unique()[0],
                     "Clock": clock,
                     "AA2": aatwo_p,
-                    "AA2_Empirical_p": (sum(1 for t in clock_t_stats if t >= aatwo_t_stat) + 1)
-                    / (len(clock_t_stats) + 1),
+                    "AA2_Empirical_p": (sum(1 for t in clock_t_stats if t >= aatwo_t_stat) + 1) / (len(clock_t_stats) + 1),
                 }
             )
     if not rows:
-        return pd.DataFrame(
-            columns=pd.Index(["Accession_Code", "Disease", "Disease_Group", "Clock", "AA2", "AA2_Empirical_p"])
-        )
+        return pd.DataFrame(columns=pd.Index(["Accession_Code", "Disease", "Disease_Group", "Clock", "AA2", "AA2_Empirical_p"]))
     return pd.DataFrame(rows)
 
 
@@ -399,9 +384,7 @@ def bootstrap_aa1_test(
         if any(count < 10 for count in [control_count, target_count]):
             continue
 
-        shuffled_labels = [
-            sub_prediction_df["Disease_Status"].sample(frac=1, random_state=i).to_numpy() for i in range(n_bootstraps)
-        ]
+        shuffled_labels = [sub_prediction_df["Disease_Status"].sample(frac=1, random_state=i).to_numpy() for i in range(n_bootstraps)]
 
         for clock in clocks:
             if clock not in sub_prediction_df.columns:
@@ -437,14 +420,11 @@ def bootstrap_aa1_test(
                     "Disease_Group": sub_prediction_df["Disease_Group"].unique()[0],
                     "Clock": clock,
                     "AA1": aaone_p,
-                    "AA1_Empirical_p": (sum(1 for t in clock_t_stats if t >= aaone_t_stat) + 1)
-                    / (len(clock_t_stats) + 1),
+                    "AA1_Empirical_p": (sum(1 for t in clock_t_stats if t >= aaone_t_stat) + 1) / (len(clock_t_stats) + 1),
                 }
             )
     if not rows:
-        return pd.DataFrame(
-            columns=pd.Index(["Accession_Code", "Disease", "Disease_Group", "Clock", "AA1", "AA1_Empirical_p"])
-        )
+        return pd.DataFrame(columns=pd.Index(["Accession_Code", "Disease", "Disease_Group", "Clock", "AA1", "AA1_Empirical_p"]))
     return pd.DataFrame(rows)
 
 
@@ -504,9 +484,7 @@ def compute_mae(
         prediction_df,
         extraction_protocol,
         clocks,
-        metric_fn=lambda clock_subset, clock: (
-            abs(clock_subset[clock.lower() + "_accel"] - clock_subset["age"])
-        ).mean(),
+        metric_fn=lambda clock_subset, clock: (abs(clock_subset[clock.lower() + "_accel"] - clock_subset["age"])).mean(),
         metric_name="MAE_score",
     )
 
@@ -530,9 +508,7 @@ def compute_medae(
         prediction_df,
         extraction_protocol,
         clocks,
-        metric_fn=lambda clock_subset, clock: (
-            abs(clock_subset[clock.lower() + "_accel"] - clock_subset["age"])
-        ).median(),
+        metric_fn=lambda clock_subset, clock: (abs(clock_subset[clock.lower() + "_accel"] - clock_subset["age"])).median(),
         metric_name="MedAE_score",
     )
 
@@ -556,9 +532,7 @@ def compute_pearson_r(
         prediction_df,
         extraction_protocol,
         clocks,
-        metric_fn=lambda clock_subset, clock: stats.pearsonr(
-            clock_subset[clock.lower() + "_accel"], clock_subset["age"]
-        )[0],
+        metric_fn=lambda clock_subset, clock: stats.pearsonr(clock_subset[clock.lower() + "_accel"], clock_subset["age"])[0],
         metric_name="Pearson_R_score",
     )
 

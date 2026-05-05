@@ -12,8 +12,7 @@ class TestStepsAttributeAccess:
 
         source = inspect.getsource(mod.update_small_progress_tracker)
         assert '.steps["quality_control"].status' in source, (
-            "update_small_progress_tracker must access the .status attribute, "
-            "not compare the StepStatus object directly to a string"
+            "update_small_progress_tracker must access the .status attribute, not compare the StepStatus object directly to a string"
         )
 
     def test_update_small_progress_tracker_no_direct_string_compare(self):

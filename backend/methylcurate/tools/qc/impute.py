@@ -56,9 +56,7 @@ def _impute_per_split(
     return imputed_target_df
 
 
-def _impute_whole(
-    reference_df: pd.DataFrame, target_df: pd.DataFrame, imputer_input: ImputerModelInput
-) -> pd.DataFrame:
+def _impute_whole(reference_df: pd.DataFrame, target_df: pd.DataFrame, imputer_input: ImputerModelInput) -> pd.DataFrame:
     """Impute missing values across the entire dataset without stratification.
 
     A single imputer is fitted on the reference and applied to the target.
@@ -111,9 +109,7 @@ def impute_missing_values(
         missing entries have been replaced by imputed values.
     """
     if split_strategy.strategy == "stratify":
-        imputed_target_df = _impute_per_split(
-            reference_df, target_df, reference_metadata_df, target_metadata_df, imputer_input, split_strategy
-        )
+        imputed_target_df = _impute_per_split(reference_df, target_df, reference_metadata_df, target_metadata_df, imputer_input, split_strategy)
     else:
         imputed_target_df = _impute_whole(reference_df, target_df, imputer_input)
     return imputed_target_df

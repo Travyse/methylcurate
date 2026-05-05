@@ -13,10 +13,12 @@ class HumanReadableConceptInput(BaseModel):
     Attributes:
     - dataset_title: A concise title describing the dataset that is being harmonized.
     - dataset_summary: A description of the dataset being harmonized, including any relevant context that may assist in understanding the metadata.
-    - dataset_overall_design: A description of the overall design of the dataset, including any relevant context that may assist in understanding the metadata.
+    - dataset_overall_design: A description of the overall design of the dataset, including any relevant context that may
+        assist in understanding the metadata.
     - metadata_field_name: The name of the metadata field that this concept was extracted from.
     - metadata_field_key_name: The key name of the metadata field that this concept was extracted from, if applicable.
-    - concepts: A list of human readable concepts that were extracted from the metadata for a particular field. Each concept includes the original label and any relevant context.
+    - concepts: A list of human readable concepts that were extracted from the metadata for a particular field. Each concept
+        includes the original label and any relevant context.
     """
 
     dataset_title: str = Field(..., description="A concise title describing the dataset that is being harmonized")
@@ -26,17 +28,20 @@ class HumanReadableConceptInput(BaseModel):
     )
     dataset_overall_design: str | None = Field(
         None,
-        description="A description of the overall design of the dataset, including any relevant context that may assist in understanding the metadata.",
+        description=(
+            "A description of the overall design of the dataset, including any relevant context that may assist in understanding the metadata."
+        ),
     )
-    metadata_field_name: str = Field(
-        ..., description="The name of the metadata field that this concept was extracted from."
-    )
+    metadata_field_name: str = Field(..., description="The name of the metadata field that this concept was extracted from.")
     metadata_field_key_name: str | None = Field(
         None, description="The key name of the metadata field that this concept was extracted from, if applicable."
     )
     concepts: list[str] = Field(
         ...,
-        description="A list of human readable concepts that were extracted from the metadata for a particular field. Each concept includes the original label and any relevant context.",
+        description=(
+            "A list of human readable concepts that were extracted from the metadata for a particular field. Each"
+            " concept includes the original label and any relevant context."
+        ),
     )
 
 
@@ -108,9 +113,7 @@ class PATOMapping(BaseMapping):
 
     ontology: Literal["pato"]
     source_label: str = Field(..., description="The label that is being harmonized to the PATO ontology")
-    target_label: Literal["male", "female"] = Field(
-        ..., description="The ontological label that the source label is being mapped to"
-    )
+    target_label: Literal["male", "female"] = Field(..., description="The ontological label that the source label is being mapped to")
 
 
 class BestGuessMapping(BaseMapping):
@@ -119,14 +122,18 @@ class BestGuessMapping(BaseMapping):
 
     Attributes:
     - ontology: The ontology being used, in this case "best_guess".
-    - source_label: The label that is being harmonized but failed to map to the ontology, so a best guess was made based on the label and context. This field represents the original label.
+    - source_label: The label that is being harmonized but failed to map to the ontology, so a best guess was made based
+        on the label and context. This field represents the original label.
     - target_label: The best guess ontological label that the source label is being mapped to, based on the label and context.
     """
 
     ontology: Literal["best_guess"]
     source_label: str = Field(
         ...,
-        description="The label that is being harmonized but failed to map to the ontology, so a best guess was made based on the label and context. This field represents the original label.",
+        description=(
+            "The label that is being harmonized but failed to map to the ontology, so a best guess was made based on"
+            " the label and context. This field represents the original label."
+        ),
     )
     target_label: str = Field(
         ...,

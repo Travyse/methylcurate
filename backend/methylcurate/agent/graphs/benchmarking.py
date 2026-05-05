@@ -29,8 +29,7 @@ def route_clock_retrieval_node(state: BenchmarkingSubgraphState) -> str:
         if not any(
             a
             for a in state.config.artifacts
-            if a.kind == "clock"
-            and (a.path.endswith(f"{clock.lower()}.pt") or a.path.endswith(f"{clock.lower()}_model.pkl"))
+            if a.kind == "clock" and (a.path.endswith(f"{clock.lower()}.pt") or a.path.endswith(f"{clock.lower()}_model.pkl"))
         )
     ]
     return "clock_retrieval_node" if clocks_to_retrieve else "clock_prediction_node"

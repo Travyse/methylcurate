@@ -7,11 +7,11 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver  # type: ignore
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from .agent.registry.services import build_services_with_checkpointer
 from .agent.state.utils import make_main_state
-from .api.session import SessionStore
+from .api.session import RunSession, SessionStore
 
 
 # ----------------------------
@@ -125,7 +125,7 @@ async def chat_loop(cfg: CLIConfig):
                 continue
 
             async def run(
-                session: Session = session,  # type: ignore
+                session: RunSession = session,
                 user_text: str = user_text,
                 run_id: str = run_id,
             ):
@@ -213,4 +213,5 @@ async def chat_loop(cfg: CLIConfig):
 if __name__ == "__main__":
     cfg = parse_args()
     asyncio.run(chat_loop(cfg))
-    # python -m agentic_ai_aging_clock_helper.agentic_ai_aging_clock_helper --default-output-root "/Users/travyse/Documents/Research/Agentic-AI/dev-testing"
+    # python -m agentic_ai_aging_clock_helper.agentic_ai_aging_clock_helper
+    #   --default-output-root "/Users/travyse/Documents/Research/Agentic-AI/dev-testing"

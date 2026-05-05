@@ -52,10 +52,13 @@ ONTOLOGY_DICT = {
 }
 
 
-BEST_GUESS_NOTES = "This label was not able to be mapped to the ontology, so the best guess is to keep the original label. This is likely because the label is either very noisy or represents a concept that is not well represented in the ontology."
-CONTROL_BEST_GUESS_NOTES = (
-    "This label represents the control samples in the dataset, and is not meant to be harmonized to the ontology."
+BEST_GUESS_NOTES = (
+    "This label was not able to be mapped to the ontology, "
+    "so the best guess is to keep the original label. "
+    "This is likely because the label is either very noisy "
+    "or represents a concept that is not well represented in the ontology."
 )
+CONTROL_BEST_GUESS_NOTES = "This label represents the control samples in the dataset, and is not meant to be harmonized to the ontology."
 
 
 def search_ontology_term(query: str, ontology: str = "mondo", k: int = 5) -> list[dict[str, Any]]:
@@ -197,7 +200,11 @@ async def call_llm_structured_with_retries(messages: list[Any], config: Runnable
         except OutputParserException as e:
             human_message = HumanMessage(
                 id=uuid.uuid4().hex,
-                content=f"The previous output from the LLM failed to parse with error: {e}. Please reformat the output to match the expected format and ensure that all required fields are included.",
+                content=(
+                    f"The previous output from the LLM failed to parse with error: {e}. "
+                    "Please reformat the output to match the expected format and ensure "
+                    "that all required fields are included."
+                ),
                 additional_kwargs={
                     "created_at": datetime.now(UTC).isoformat(),
                 },
@@ -246,9 +253,7 @@ async def _guess_human_readable_labels(
         dataset_summary=guess_input.dataset_summary,
         dataset_overall_design=guess_input.dataset_overall_design,
         metadata_field_name=guess_input.metadata_field_name,
-        metadata_field_key_name=guess_input.metadata_field_key_name
-        if guess_input.metadata_field_key_name is not None
-        else "N/A",
+        metadata_field_key_name=guess_input.metadata_field_key_name if guess_input.metadata_field_key_name is not None else "N/A",
         target_label=ONTOLOGY_DICT[ontology]["target_label"],
         ontology_name=ONTOLOGY_DICT[ontology]["ontology_name"],
         labels=", ".join(template_input_labels),
@@ -264,9 +269,7 @@ async def _guess_human_readable_labels(
     _, LabelMappingSetDyn = create_ontology_mapping_model(
         guess_input.concepts, ontology_literal, ontology, allowed_target_labels=None, high_level=False
     )
-    resolved = await call_llm_structured_with_retries(
-        [system_message, human_message], config, ResultModel=LabelMappingSetDyn
-    )
+    resolved = await call_llm_structured_with_retries([system_message, human_message], config, ResultModel=LabelMappingSetDyn)
     return resolved
 
 
@@ -307,12 +310,8 @@ async def _guess_human_readable_high_level_labels(
             "created_at": datetime.now(UTC).isoformat(),
         },
     )
-    _, LabelMappingSetDyn = create_ontology_mapping_model(
-        input_labels, ontology_literal, ontology, allowed_target_labels=None, high_level=True
-    )
-    resolved = await call_llm_structured_with_retries(
-        [system_message, human_message], config, ResultModel=LabelMappingSetDyn
-    )
+    _, LabelMappingSetDyn = create_ontology_mapping_model(input_labels, ontology_literal, ontology, allowed_target_labels=None, high_level=True)
+    resolved = await call_llm_structured_with_retries([system_message, human_message], config, ResultModel=LabelMappingSetDyn)
     return resolved
 
 
@@ -341,9 +340,7 @@ async def _select_best_ontology_labels(
         A LabelMappingSet with the LLM's best-choice ontology label selections.
     """
     system_message = generate_ontology_selection_examples(ontology=ontology)
-    table = pd.DataFrame(
-        [{"Label": key, "Candidate Mondo Labels": value} for key, value in ontology_label_dict.items()]
-    )
+    table = pd.DataFrame([{"Label": key, "Candidate Mondo Labels": value} for key, value in ontology_label_dict.items()])
     query_prompt = generate_ontology_label_selection_query(
         dataset_title=guess_input.dataset_title,
         dataset_summary=guess_input.dataset_summary,
@@ -384,9 +381,7 @@ async def _select_best_high_level_ontology_labels(
         A LabelMappingSet with the LLM's best-choice high-level category selections.
     """
     system_message = generate_high_level_ontology_selection_examples(ontology=ontology)
-    table = pd.DataFrame(
-        [{"Label": key, "Candidate Mondo Labels": value} for key, value in ontology_label_dict.items()]
-    )
+    table = pd.DataFrame([{"Label": key, "Candidate Mondo Labels": value} for key, value in ontology_label_dict.items()])
     query_prompt = generate_high_level_ontology_label_selection_query(
         target_label=ONTOLOGY_DICT[ontology]["target_label"],
         ontology_name=ONTOLOGY_DICT[ontology]["ontology_name"],
@@ -463,17 +458,13 @@ async def _harmonize_ontology_labels(
         ontology_label_selection.mappings.append(other_mapping)
         return human_readable_ontology_labels, {}, ontology_label_selection  # type: ignore
 
-    dataset_context = gather_concept_context(
-        metadata_dict, extraction_protocol[column_name.lower()], unique_dataset_labels
-    )
+    dataset_context = gather_concept_context(metadata_dict, extraction_protocol[column_name.lower()], unique_dataset_labels)
     _, DatasetLabelMappingSetDyn = create_ontology_mapping_model(
         unique_dataset_labels, ontology_literal, ontology, allowed_target_labels=None, high_level=False
     )
 
     # Guess human readable disease labels
-    human_readable_ontology_labels = await _guess_human_readable_labels(
-        dataset_context, DatasetLabelMappingSetDyn, config, ontology=ontology
-    )
+    human_readable_ontology_labels = await _guess_human_readable_labels(dataset_context, DatasetLabelMappingSetDyn, config, ontology=ontology)
     if control_label not in ["", None]:
         human_readable_ontology_labels.mappings.append(
             BestGuessMapping.model_validate(
@@ -487,9 +478,7 @@ async def _harmonize_ontology_labels(
         )
     # TODO: Add control back to guess
     suggested_human_readable_ontology_labels = [
-        x.target_label
-        for x in human_readable_ontology_labels.mappings
-        if x.ontology != "missing" and x.target_label != "Control"
+        x.target_label for x in human_readable_ontology_labels.mappings if x.ontology != "missing" and x.target_label != "Control"
     ]
     print(f"\nSuggested human-readable labels: {suggested_human_readable_ontology_labels}")
     if not suggested_human_readable_ontology_labels:
@@ -497,8 +486,7 @@ async def _harmonize_ontology_labels(
 
     # Get best ontology label
     label_to_top_n_ontology = {
-        suggested_label: search_ontology_term(suggested_label, ontology=ontology, k=5)
-        for suggested_label in suggested_human_readable_ontology_labels
+        suggested_label: search_ontology_term(suggested_label, ontology=ontology, k=5) for suggested_label in suggested_human_readable_ontology_labels
     }
     missing_labels = [x.source_label for x in human_readable_ontology_labels.mappings if x.ontology == "missing"]
     # Get missing
@@ -516,14 +504,10 @@ async def _harmonize_ontology_labels(
             suggested_human_readable_ontology_labels,
             ontology_literal,
             ontology,
-            allowed_target_labels=[
-                entry["label"] for label, entries in label_to_top_n_ontology.items() for entry in entries
-            ],
+            allowed_target_labels=[entry["label"] for label, entries in label_to_top_n_ontology.items() for entry in entries],
             high_level=False,
         )
-        ontology_label_dict = {
-            label: [f"'{entry}'" for entry in entries] for label, entries in label_to_top_n_ontology.items()
-        }
+        ontology_label_dict = {label: [f"'{entry}'" for entry in entries] for label, entries in label_to_top_n_ontology.items()}
         ontology_label_selection = await _select_best_ontology_labels(
             ontology_label_dict, dataset_context, OntologyGroupLabelMappingSetDyn, config, ontology=ontology
         )
@@ -584,14 +568,11 @@ async def _harmonize_ontology_group_labels(
         ontology_literal=ontology_literal,
     )
 
-    suggested_human_readable_ontology_labels = [
-        x.target_label for x in human_readable_ontology_labels.mappings if x.ontology != "missing"
-    ]
+    suggested_human_readable_ontology_labels = [x.target_label for x in human_readable_ontology_labels.mappings if x.ontology != "missing"]
 
     # Get best ontology label
     label_to_top_n_ontology = {
-        suggested_label: search_ontology_term(suggested_label, ontology=ontology, k=5)
-        for suggested_label in suggested_human_readable_ontology_labels
+        suggested_label: search_ontology_term(suggested_label, ontology=ontology, k=5) for suggested_label in suggested_human_readable_ontology_labels
     }
     missing_labels = [x.source_label for x in human_readable_ontology_labels.mappings if x.ontology == "missing"]
     # Get missing
@@ -605,17 +586,11 @@ async def _harmonize_ontology_group_labels(
         suggested_human_readable_ontology_labels,
         ontology_literal,
         ontology,
-        allowed_target_labels=[
-            entry["label"] for label, entries in label_to_top_n_ontology.items() for entry in entries
-        ],
+        allowed_target_labels=[entry["label"] for label, entries in label_to_top_n_ontology.items() for entry in entries],
         high_level=True,
     )
-    ontology_label_dict = {
-        label: [entry["label"] for entry in entries] for label, entries in label_to_top_n_ontology.items()
-    }
-    ontology_label_dict = {
-        label: [f"'{entry}'" for entry in entries] for label, entries in label_to_top_n_ontology.items()
-    }
+    ontology_label_dict = {label: [entry["label"] for entry in entries] for label, entries in label_to_top_n_ontology.items()}
+    ontology_label_dict = {label: [f"'{entry}'" for entry in entries] for label, entries in label_to_top_n_ontology.items()}
     ontology_label_selection = await _select_best_high_level_ontology_labels(
         ontology_label_dict, OntologyGroupLabelMappingSetDyn, config, ontology=ontology
     )
@@ -661,9 +636,7 @@ async def _harmonize_sex_labels(
     """
     column_name = "Sex"
     unique_dataset_labels = sorted([str(x) for x in sample_metadata[column_name].unique()])
-    dataset_context = gather_concept_context(
-        metadata_dict, extraction_protocol[column_name.lower()], unique_dataset_labels
-    )
+    dataset_context = gather_concept_context(metadata_dict, extraction_protocol[column_name.lower()], unique_dataset_labels)
     harmonized_labels = ["Male", "Female", "Unknown/Other"]
     ontology_label_dict = {label: harmonized_labels for label in unique_dataset_labels}
     _, OntologyGroupLabelMappingSetDyn = create_ontology_mapping_model(
@@ -679,9 +652,7 @@ async def _harmonize_sex_labels(
     return unique_dataset_labels, ontology_label_dict, ontology_label_selection  # type: ignore
 
 
-def construct_raw_to_harmonized_label_mapping(
-    guessed_ontology_labels: LabelMappingSet, ontology_label_selection: LabelMappingSet
-) -> LabelMappingSet:
+def construct_raw_to_harmonized_label_mapping(guessed_ontology_labels: LabelMappingSet, ontology_label_selection: LabelMappingSet) -> LabelMappingSet:
     """Build the final raw-to-harmonized label mapping from two LLM outputs.
 
     Joins the human-readable guesses with the best ontology selections to
@@ -726,9 +697,7 @@ def construct_raw_to_harmonized_label_mapping(
                 {
                     "ontology": best_guess_mapping.ontology,
                     "source_label": mapping.source_label,
-                    "target_label": best_guess_mapping.target_label
-                    if hasattr(best_guess_mapping, "target_label")
-                    else mapping.source_label,
+                    "target_label": best_guess_mapping.target_label if hasattr(best_guess_mapping, "target_label") else mapping.source_label,
                     "notes": best_guess_mapping.notes,
                 }
             )

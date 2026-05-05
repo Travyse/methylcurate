@@ -90,7 +90,8 @@ class StepStatus(BaseModel):
 
 class HumanReviewRequest(BaseModel):
     """
-    Model representing a request for human review, including the review ID, reason for review, question to be answered, any relevant payload, and the creation timestamp.
+    Model representing a request for human review, including the review ID, reason for review,
+    question to be answered, any relevant payload, and the creation timestamp.
 
     Attributes:
         review_id (NonEmptyStr): A unique identifier for the review request.
@@ -113,7 +114,8 @@ class HumanReviewDecision(BaseModel):
 
     Attributes:
         review_id (NonEmptyStr): A unique identifier for the review request.
-        decision (Literal["approve","reject","edit"]): The decision made by the human reviewer. "edit" indicates that the user supplied corrected parameters or rules.
+        decision (Literal["approve","reject","edit"]): The decision made by the human reviewer.
+            "edit" indicates that the user supplied corrected parameters or rules.
         notes (Optional[NonEmptyStr]): Any additional notes provided by the human reviewer.
         edits (Dict): A dictionary containing any edits made by the human reviewer, e.g., {"subject_id_rule": {...}}.
         decided_at (NonEmptyStr): The timestamp when the decision was made, in ISO8601 format.

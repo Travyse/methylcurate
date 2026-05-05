@@ -269,9 +269,7 @@ def _download_geo_dataset(accession: str, output_dir: str):
                 return (
                     artifacts,
                     supplementary_files,
-                    GEODownloadResult(
-                        accession=accession, artifact=artifacts[0], status="success", error=None, warnings=[]
-                    ),
+                    GEODownloadResult(accession=accession, artifact=artifacts[0], status="success", error=None, warnings=[]),
                 )
 
         except Exception as e:
@@ -294,9 +292,7 @@ def _download_geo_dataset(accession: str, output_dir: str):
     )
 
 
-def download_geo_datasets(
-    config: GEOIngestionConfig, batch: GEODownloadBatchInput
-) -> tuple[list[Any], list[Any], GEODownloadBatchResult]:
+def download_geo_datasets(config: GEOIngestionConfig, batch: GEODownloadBatchInput) -> tuple[list[Any], list[Any], GEODownloadBatchResult]:
     """
     Tool-friendly batch downloader:
       - does not assume a single output_dir for all accessions (each input can specify output_root)
@@ -305,8 +301,7 @@ def download_geo_datasets(
     """
     # TODO: Restructure this to download in batches of 5 or so (I can configure this)
     results: list[Any] = Parallel(n_jobs=-1)(
-        delayed(_download_geo_dataset)(item.accession, os.path.join(config.output_root, item.accession))
-        for item in batch.geo_downloads
+        delayed(_download_geo_dataset)(item.accession, os.path.join(config.output_root, item.accession)) for item in batch.geo_downloads
     )
 
     download_results = [x[2] for x in results]
@@ -388,9 +383,7 @@ def ftp_to_https(url: str) -> str:
     return urlunparse(("https", u.netloc, u.path, "", "", ""))
 
 
-def download(
-    accession_code: str, url: str, destdir: str | Path = ".", chunk_size: int = 1024 * 1024, max_retries: int = 3
-) -> ArtifactRef:
+def download(accession_code: str, url: str, destdir: str | Path = ".", chunk_size: int = 1024 * 1024, max_retries: int = 3) -> ArtifactRef:
     """Download a single supplementary file with caching and retry logic.
 
     Checks a shared cache directory first, returning the existing artifact
@@ -488,9 +481,7 @@ def download(
     raise RuntimeError(f"Failed to download {filename} for {accession_code} after {max_retries} attempts.")
 
 
-def parallel_downloads(
-    accession_code: str, urls: list[str], destdir: str, chunk_size: int = 1024 * 1024
-) -> dict[str, list[ArtifactRef]]:
+def parallel_downloads(accession_code: str, urls: list[str], destdir: str, chunk_size: int = 1024 * 1024) -> dict[str, list[ArtifactRef]]:
     """Download multiple supplementary files in parallel for a single accession.
 
     Dispatches each URL to :func:`download` using ``joblib.Parallel`` with

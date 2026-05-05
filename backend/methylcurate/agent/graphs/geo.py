@@ -107,11 +107,7 @@ def route_format_supplementary_data(state: GeoIngestionSubgraphState) -> str:
         return "summarize_geo_findings"
 
     running_accession_codes = sorted(
-        [
-            accession_code
-            for accession_code in accession_codes
-            if state.datasets[accession_code].steps["supplementary_file_check"].status == "running"
-        ]
+        [accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["supplementary_file_check"].status == "running"]
     )
     accession_code = running_accession_codes[0]
     supplementary_file_artifacts = sorted(
@@ -126,8 +122,7 @@ def route_format_supplementary_data(state: GeoIngestionSubgraphState) -> str:
         [
             artifact
             for artifact in state.config.artifacts
-            if (artifact.kind == "supplementary_file_methylation_data_formatted")
-            and (artifact.accession_code == accession_code)
+            if (artifact.kind == "supplementary_file_methylation_data_formatted") and (artifact.accession_code == accession_code)
         ],
         key=lambda artifact: artifact.path,
     )

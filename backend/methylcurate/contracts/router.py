@@ -17,7 +17,8 @@ class RouterOutput(BaseModel):
         - params: Parameters for the selected subgraph.
         - confidence: Confidence score of the routing decision.
         - needs_clarification: Whether the router needs clarification from the user. Set true if confidence is <= 0.5.
-        - clarification_question: Clarification question to ask the user if needs_clarification is true. The goal of the question is to improve the router's ability to route correctly.
+        - clarification_question: Clarification question to ask the user if needs_clarification is true.
+          The goal of the question is to improve the router's ability to route correctly.
         - reasons: List of reasons for the routing decision, useful for explainability.
 
     Validation:
@@ -39,11 +40,12 @@ class RouterOutput(BaseModel):
     )
     clarification_question: NonEmptyStr | None = Field(
         default=None,
-        description="Clarification question to ask the user if needs_clarification is true. The goal of the question is to improve your ability to route correctly.",
+        description=(
+            "Clarification question to ask the user if needs_clarification is true. "
+            "The goal of the question is to improve your ability to route correctly."
+        ),
     )
-    reasons: list[NonEmptyStr] = Field(
-        default_factory=list, description="List of reasons for the routing decision, useful for explainability."
-    )
+    reasons: list[NonEmptyStr] = Field(default_factory=list, description="List of reasons for the routing decision, useful for explainability.")
 
     @field_validator("subgraph", mode="after")
     def validate_subgraph(cls, v):

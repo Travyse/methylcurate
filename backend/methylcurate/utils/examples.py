@@ -127,12 +127,8 @@ def generate_geo_metadata_extraction_examples(n_samples=10, concept: str = "age"
             dict: A dictionary representing the characteristics_ch1 field with random values, potentially missing the specified concept.
         """
         return {
-            "tissue": random.choice(["Prefrontal Cortex", "Hippocampus", "Cerebellum"])
-            if concept == "tissue" and not is_missing
-            else None,
-            "cell type": random.choice(["Neuron", "Astrocyte", "Microglia"])
-            if concept == "cell_type" and not is_missing
-            else None,
+            "tissue": random.choice(["Prefrontal Cortex", "Hippocampus", "Cerebellum"]) if concept == "tissue" and not is_missing else None,
+            "cell type": random.choice(["Neuron", "Astrocyte", "Microglia"]) if concept == "cell_type" and not is_missing else None,
             "brain bank": random.choice(["Newcastle", "Oxford", "Cambridge"]),
             "post-mortem delay": random.randint(1, 24),
             "braak stage": random.randint(0, 6),
@@ -150,13 +146,10 @@ def generate_geo_metadata_extraction_examples(n_samples=10, concept: str = "age"
                 "kind": "soft_file",
             },
             "title": [["Tissue_Sample {i}"] for i in range(n_samples)],
-            "source_name_ch1": [
-                [random.choice(["Prefrontal Cortex", "Hippocampus", "Cerebellum"])] for _ in range(n_samples)
-            ],
+            "source_name_ch1": [[random.choice(["Prefrontal Cortex", "Hippocampus", "Cerebellum"])] for _ in range(n_samples)],
             "description": [[]],
             "characteristics_ch1": [
-                {k: v for k, v in _generate_random_characteristics_ch1(concept, is_missing).items() if v is not None}
-                for _ in range(n_samples)
+                {k: v for k, v in _generate_random_characteristics_ch1(concept, is_missing).items() if v is not None} for _ in range(n_samples)
             ],
             "relation": None,
             "platform_id": [["GPL12345"] for _ in range(n_samples)],
@@ -249,13 +242,10 @@ def generate_general_geo_metadata_extraction_examples(n_samples=10, is_missing=T
                 "kind": "soft_file",
             },
             "title": [["Tissue_Sample {i}"] for i in range(n_samples)],
-            "source_name_ch1": [
-                [random.choice(["Prefrontal Cortex", "Hippocampus", "Cerebellum"])] for _ in range(n_samples)
-            ],
+            "source_name_ch1": [[random.choice(["Prefrontal Cortex", "Hippocampus", "Cerebellum"])] for _ in range(n_samples)],
             "description": [[]],
             "characteristics_ch1": [
-                {k: v for k, v in _generate_random_characteristics_ch1(is_missing).items() if v is not None}
-                for _ in range(n_samples)
+                {k: v for k, v in _generate_random_characteristics_ch1(is_missing).items() if v is not None} for _ in range(n_samples)
             ],
             "relation": None,
             "platform_id": [["GPL12345"] for _ in range(n_samples)],
@@ -431,13 +421,9 @@ def generate_column_interpretation_examples(alt=False) -> tuple[pd.DataFrame, di
     }
     if alt:
         cols = [f"{random.randint(1, 10)}-{uuid.uuid4().hex[:4]}_{uuid.uuid4().hex[:8]}" for _ in range(5)]
-        cols = [
-            val
-            for pair in zip([f"{c}" for c in cols], [f"{c}_Detection_pval" for c in cols], strict=True)
-            for val in pair
-        ]
+        cols = [val for pair in zip([f"{c}" for c in cols], [f"{c}_Detection_pval" for c in cols], strict=True) for val in pair]
         example_input["columns"] = cols
-    df = pd.DataFrame(data=example_input["rows"], columns=example_input["columns"], index=example_input["index"])
+    df = pd.DataFrame(data=example_input["rows"], columns=example_input["columns"], index=example_input["index"])  # ty: ignore[invalid-argument-type]
 
     example_agent_response = {
         "beta_column": {
@@ -460,16 +446,12 @@ def generate_column_interpretation_examples(alt=False) -> tuple[pd.DataFrame, di
         },
         "detection_column": {
             "status": "resolved",
-            "pattern": "^[a-zA-Z0-9]+_[a-zA-Z0-9]+_Detection_pval$"
-            if not alt
-            else r"^\d+-[a-zA-Z0-9]+_[a-zA-Z0-9]+_Detection_pval$",
+            "pattern": "^[a-zA-Z0-9]+_[a-zA-Z0-9]+_Detection_pval$" if not alt else r"^\d+-[a-zA-Z0-9]+_[a-zA-Z0-9]+_Detection_pval$",
             "column_evidence": [
                 df.columns.tolist()[i]
                 for i in range(len(df.columns))
                 if re.search(
-                    "^[a-zA-Z0-9]+_[a-zA-Z0-9]+_Detection_pval$"
-                    if not alt
-                    else r"^\d+-[a-zA-Z0-9]+_[a-zA-Z0-9]+_Detection_pval$",
+                    "^[a-zA-Z0-9]+_[a-zA-Z0-9]+_Detection_pval$" if not alt else r"^\d+-[a-zA-Z0-9]+_[a-zA-Z0-9]+_Detection_pval$",
                     df.columns[i],
                     re.IGNORECASE,
                 )
@@ -498,16 +480,14 @@ def generate_column_interpretation_examples_no_detection() -> tuple[pd.DataFrame
     }
     cols = [f"{random.randint(1, 10)}-{uuid.uuid4().hex[:4]}_{uuid.uuid4().hex[:8]}" for _ in range(5)]
     example_input["columns"] = cols
-    df = pd.DataFrame(data=example_input["rows"], columns=example_input["columns"], index=example_input["index"])
+    df = pd.DataFrame(data=example_input["rows"], columns=example_input["columns"], index=example_input["index"])  # ty: ignore[invalid-argument-type]
 
     example_agent_response = {
         "beta_column": {
             "status": "resolved",
             "pattern": r"^\d+-[a-zA-Z0-9]+_[a-zA-Z0-9]+$",
             "column_evidence": cols,
-            "evidence": [
-                "Identified beta-like values in these columns which are bound between 0 and 1, and are not detection columns."
-            ],
+            "evidence": ["Identified beta-like values in these columns which are bound between 0 and 1, and are not detection columns."],
         },
         "detection_column": {
             "status": "missing",
@@ -701,14 +681,10 @@ def generate_high_level_ontology_guess_examples(ontology: str):
     ontology_name = ontology_dict["ontology_name"]
     target_label = ontology_dict["target_label"]
     labels, LabelMappingSetDyn, label_mapping_set = _high_level_ontology_labels(ontology)
-    user_query = generate_ontology_group_guess_user_query(
-        ontology_name=ontology_name, target_label=target_label, labels=", ".join(labels)
-    )
+    user_query = generate_ontology_group_guess_user_query(ontology_name=ontology_name, target_label=target_label, labels=", ".join(labels))
     agent_response = json.dumps(label_mapping_set.model_dump(), indent=2)
     example = f"User Query:\n{user_query}\n\nAgent Response:\n{agent_response}"
-    system_prompt = generate_ontology_group_guess_system_prompt(
-        ontology_name=ontology_name, target_label=target_label, example=example
-    )
+    system_prompt = generate_ontology_group_guess_system_prompt(ontology_name=ontology_name, target_label=target_label, example=example)
     system_message = SystemMessage(content=system_prompt)
     return system_message
 
@@ -1138,13 +1114,11 @@ def generate_ontology_selection_examples(ontology: str) -> SystemMessage:
         }
     )
     example_params["json_schema"] = ExampleLabelMappingSetDyn.model_json_schema()
-    example_params["input"] = example_input_dataframe.to_markdown(index=False)
+    example_params["input"] = example_input_dataframe.to_markdown(index=False) or ""
     user_query = generate_ontology_label_selection_query(**example_params)
     agent_response = json.dumps(example_label_mapping_set.model_dump(), indent=2)
     example = f"User Query:\n{user_query}\n\nAgent Response:\n{agent_response}"
-    system_prompt = generate_ontology_label_selection_system_prompt(
-        ontology_name=ontology_dict["ontology_name"], example=example
-    )
+    system_prompt = generate_ontology_label_selection_system_prompt(ontology_name=ontology_dict["ontology_name"], example=example)
     system_message = SystemMessage(content=system_prompt)
     return system_message
 
@@ -1281,9 +1255,7 @@ def generate_high_level_ontology_selection_examples(ontology: str) -> SystemMess
     ontology_dict = _harmonization_ontology_dict()[ontology]
     example_params["ontology_name"] = ontology_dict["ontology_name"]
     example_params["target_label"] = ontology_dict["target_label"]
-    example_label_dict, ExampleLabelMappingSetDyn, example_label_mapping_set = _suggested_high_level_ontology_labels(
-        ontology
-    )
+    example_label_dict, ExampleLabelMappingSetDyn, example_label_mapping_set = _suggested_high_level_ontology_labels(ontology)
     example_input_dataframe = pd.DataFrame(
         {
             "Label": example_label_dict.keys(),
@@ -1291,12 +1263,10 @@ def generate_high_level_ontology_selection_examples(ontology: str) -> SystemMess
         }
     )
     example_params["json_schema"] = ExampleLabelMappingSetDyn.model_json_schema()
-    example_params["input"] = example_input_dataframe.to_markdown(index=False)
+    example_params["input"] = example_input_dataframe.to_markdown(index=False) or ""
     user_query = generate_high_level_ontology_label_selection_query(**example_params)
     agent_response = json.dumps(example_label_mapping_set.model_dump(), indent=2)
     example = f"User Query:\n{user_query}\n\nAgent Response:\n{agent_response}"
-    system_prompt = generate_high_level_ontology_label_selection_system_prompt(
-        ontology_name=ontology_dict["ontology_name"], example=example
-    )
+    system_prompt = generate_high_level_ontology_label_selection_system_prompt(ontology_name=ontology_dict["ontology_name"], example=example)
     system_message = SystemMessage(content=system_prompt)
     return system_message

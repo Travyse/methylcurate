@@ -55,7 +55,8 @@ class MethylationAgingClock(BaseModel):
 
 class PredictionInput(BaseModel):
     """
-    Prediction input model for methylation aging clock predictions, including a list of clocks to predict and the imputation strategy for missing data.
+    Prediction input model for methylation aging clock predictions, including a list of clocks
+    to predict and the imputation strategy for missing data.
 
     Attributes:
         clock_list (List[MethylationAgingClock]): A list of methylation aging clocks to predict.

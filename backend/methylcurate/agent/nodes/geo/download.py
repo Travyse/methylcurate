@@ -80,11 +80,10 @@ def geo_download_node(state: GeoIngestionSubgraphState, config: RunnableConfig) 
         or (state.datasets[x].steps["download_soft"].status == "not_started")
     ]
     if completed or len(running_accession_codes) == 0:
-        return Command(
-            update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]}
-        )
+        return Command(update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]})
 
-    # Grab the first 5 accession codes to download in this batch (if there are more than 5, the rest will be picked up in the next iteration after we update the state with results and statuses)
+    # Grab the first 5 accession codes to download in this batch (if there are more than 5,
+    # the rest will be picked up in the next iteration after we update the state with results and statuses)
     running_accession_codes = sorted(running_accession_codes)[: min(5, len(running_accession_codes))]
 
     download_inputs = [
@@ -122,9 +121,7 @@ def geo_download_node(state: GeoIngestionSubgraphState, config: RunnableConfig) 
             download_result=next((res for res in batch_result.results if res.accession == accession_code), None),
         )
 
-    return_dict["config"]["artifacts"] = consolidate_artifacts(
-        [ArtifactRef.model_validate(x) for x in return_dict["config"]["artifacts"]], artifacts
-    )
+    return_dict["config"]["artifacts"] = consolidate_artifacts([ArtifactRef.model_validate(x) for x in return_dict["config"]["artifacts"]], artifacts)
     return_dict["main_messages"] = [update_progress_tracker(state)]
     return_dict["messages"] = [update_progress_tracker(state)]
     return Command(update=return_dict)
@@ -133,9 +130,7 @@ def geo_download_node(state: GeoIngestionSubgraphState, config: RunnableConfig) 
 def _check_downloads_succeeded(return_dict: dict[str, Any]) -> dict[str, Any]:
     accession_code = list(return_dict["datasets"].keys())
     if len(accession_code) != 1:
-        raise ValueError(
-            f"Expected exactly one accession code in state for download check, but found {len(accession_code)}: {accession_code}"
-        )
+        raise ValueError(f"Expected exactly one accession code in state for download check, but found {len(accession_code)}: {accession_code}")
     accession_code = accession_code[0]
 
     dataset_state = return_dict["datasets"][accession_code]
@@ -169,15 +164,12 @@ def _check_downloads_succeeded(return_dict: dict[str, Any]) -> dict[str, Any]:
 
 def check_downloads_succeeded(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
-    unstarted_accession_codes = sorted(
-        [accession_code for accession_code in accession_codes if not state.datasets.get(accession_code, False)]
-    )
+    unstarted_accession_codes = sorted([accession_code for accession_code in accession_codes if not state.datasets.get(accession_code, False)])
     running_accession_codes = sorted(
         [
             accession_code
             for accession_code in accession_codes
-            if (accession_code not in unstarted_accession_codes)
-            and (state.datasets[accession_code].steps["check_valid_dataset"].status == "running")
+            if (accession_code not in unstarted_accession_codes) and (state.datasets[accession_code].steps["check_valid_dataset"].status == "running")
         ]
     )
     current_accession_code = running_accession_codes.pop(0)
@@ -209,10 +201,7 @@ def _check_platforms_used(return_dict: dict[str, Any]) -> dict[str, Any]:
     for accession_code in return_dict["datasets"].keys():
         platform_metadata = return_dict["datasets"][accession_code].get("platform_metadata", {})
         is_dnam_dataset = _check_is_methylation_dataset(platform_metadata)
-        if (
-            not is_dnam_dataset
-            or return_dict["datasets"][accession_code]["steps"]["check_valid_dataset"]["status"] == "failed"
-        ):
+        if not is_dnam_dataset or return_dict["datasets"][accession_code]["steps"]["check_valid_dataset"]["status"] == "failed":
             return_dict["datasets"][accession_code]["status"] = "failed"
             return_dict["datasets"][accession_code]["steps"]["check_valid_dataset"] = set_step_status(
                 status="failed", step=return_dict["datasets"][accession_code]["steps"]["check_valid_dataset"]
@@ -220,7 +209,8 @@ def _check_platforms_used(return_dict: dict[str, Any]) -> dict[str, Any]:
             _cancel_downstream_steps(return_dict, accession_code)
             return_dict["datasets"][accession_code]["is_valid_dataset"] = False
             return_dict["datasets"][accession_code]["errors"].append(
-                f"Dataset {accession_code} does not appear to be a DNA methylation dataset. As of now, we only support DNA methylation datasets from GEO."
+                f"Dataset {accession_code} does not appear to be a DNA methylation dataset. "
+                f"As of now, we only support DNA methylation datasets from GEO."
             )
 
     return return_dict
@@ -228,15 +218,12 @@ def _check_platforms_used(return_dict: dict[str, Any]) -> dict[str, Any]:
 
 def check_platforms_used(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
-    unstarted_accession_codes = sorted(
-        [accession_code for accession_code in accession_codes if not state.datasets.get(accession_code, False)]
-    )
+    unstarted_accession_codes = sorted([accession_code for accession_code in accession_codes if not state.datasets.get(accession_code, False)])
     running_accession_codes = sorted(
         [
             accession_code
             for accession_code in accession_codes
-            if (accession_code not in unstarted_accession_codes)
-            and (state.datasets[accession_code].steps["check_valid_dataset"].status == "running")
+            if (accession_code not in unstarted_accession_codes) and (state.datasets[accession_code].steps["check_valid_dataset"].status == "running")
         ]
     )
     current_accession_code = running_accession_codes.pop(0)
@@ -252,9 +239,7 @@ def check_platforms_used(state: GeoIngestionSubgraphState, config: RunnableConfi
 
 def _check_if_data_present(artifacts: list[Any], return_dict: dict[str, Any]) -> dict[str, Any]:
     accession_code = list(return_dict["datasets"].keys())[0]
-    methylation_data_path = next(
-        (a for a in artifacts if a.accession_code == accession_code and a.kind == "preqc_methylation_data"), None
-    )
+    methylation_data_path = next((a for a in artifacts if a.accession_code == accession_code and a.kind == "preqc_methylation_data"), None)
     methylation_data = read_feather(methylation_data_path.path, index_name="subject_id")  # type: ignore
     if methylation_data.empty:
         supplementary_files = return_dict["datasets"][accession_code].get("supplementary_files", [])
@@ -263,7 +248,11 @@ def _check_if_data_present(artifacts: list[Any], return_dict: dict[str, Any]) ->
             selection = interrupt(
                 ToolMessage(
                     id=hash,
-                    content="This GEO dataset requires you to select the datasets. Here are some files below. We suggest selecting the datasets that look like they are processed (often will have Beta or Proc in the file name, will be .txt, .csv, or .tsv files.)",
+                    content=(
+                        "This GEO dataset requires you to select the datasets. Here are some files below. "
+                        "We suggest selecting the datasets that look like they are processed "
+                        "(often will have Beta or Proc in the file name, will be .txt, .csv, or .tsv files.)"
+                    ),
                     tool_call_id=hash,
                     artifact={
                         "id": hash,
@@ -290,15 +279,12 @@ def _check_if_data_present(artifacts: list[Any], return_dict: dict[str, Any]) ->
                 )
                 _cancel_downstream_steps(return_dict, accession_code)
                 return_dict["datasets"][accession_code]["errors"].append(
-                    f"Dataset {accession_code} does not appear to have any GSM samples with data tables, and user chose to skip after being prompted with available supplementary files."
+                    f"Dataset {accession_code} does not appear to have any GSM samples with data tables, "
+                    "and user chose to skip after being prompted with available supplementary files."
                 )
             else:
-                selections = [
-                    s for s in supplementary_files if any(y in s for y in selection["data"]["data"]["selections"])
-                ]
-                download_results = parallel_downloads(
-                    accession_code, selections, return_dict["datasets"][accession_code]["output_dir"]
-                )
+                selections = [s for s in supplementary_files if any(y in s for y in selection["data"]["data"]["selections"])]
+                download_results = parallel_downloads(accession_code, selections, return_dict["datasets"][accession_code]["output_dir"])
                 return_dict["config"]["artifacts"] = consolidate_artifacts(
                     [ArtifactRef.model_validate(x) for x in return_dict["config"]["artifacts"]],
                     download_results["artifacts"],
@@ -364,23 +350,16 @@ async def check_data_presence(state: GeoIngestionSubgraphState, config: Runnable
     completed = download_completion and valid_check_completion
     if completed:
         return Command(update={}, goto="download_soft_file")
-    unstarted_accession_codes = sorted(
-        [accession_code for accession_code in accession_codes if not state.datasets.get(accession_code, False)]
-    )
+    unstarted_accession_codes = sorted([accession_code for accession_code in accession_codes if not state.datasets.get(accession_code, False)])
     running_accession_codes = sorted(
         [
             accession_code
             for accession_code in accession_codes
-            if (accession_code not in unstarted_accession_codes)
-            and (state.datasets[accession_code].steps["check_valid_dataset"].status == "running")
+            if (accession_code not in unstarted_accession_codes) and (state.datasets[accession_code].steps["check_valid_dataset"].status == "running")
         ]
     )
     current_accession_code = running_accession_codes.pop(0)
-    artifacts = [
-        a
-        for a in state.config.artifacts
-        if a.kind == "preqc_methylation_data" and a.accession_code == current_accession_code
-    ]
+    artifacts = [a for a in state.config.artifacts if a.kind == "preqc_methylation_data" and a.accession_code == current_accession_code]
     return_dict = {
         "config": state.config.model_dump(),
         "datasets": {current_accession_code: state.datasets[current_accession_code].model_dump()},

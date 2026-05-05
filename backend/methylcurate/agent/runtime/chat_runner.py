@@ -70,9 +70,7 @@ class StreamingRunner:
         self.deps = deps
 
         if not hasattr(self.main_graph, "astream_events"):
-            raise RuntimeError(
-                "Compiled main graph does not expose astream_events(); pin a LangGraph version that does."
-            )
+            raise RuntimeError("Compiled main graph does not expose astream_events(); pin a LangGraph version that does.")
 
     async def _update_main_state_messages(self, thread_id: str, new_messages: list):
         cfg = self._cfg(thread_id)
@@ -197,9 +195,7 @@ class StreamingRunner:
             return {"raw": str(ev)}
         return intr if isinstance(intr, dict) else {"value": intr}
 
-    async def _load_or_create_sub_state(
-        self, subgraph: Any, subgraph_name: str, run_id: str, thread_id: str, params: dict[str, Any]
-    ):
+    async def _load_or_create_sub_state(self, subgraph: Any, subgraph_name: str, run_id: str, thread_id: str, params: dict[str, Any]):
         # Load from checkpoint if supported
         sub_state = None
         try:
@@ -342,9 +338,7 @@ class StreamingRunner:
         pending = main_out.get("pending_reviews")
         if pending is not None:
             payload = {
-                "prompt": getattr(pending, "question", None)
-                or pending.get("question")
-                or "I need your input to continue.",
+                "prompt": getattr(pending, "question", None) or pending.get("question") or "I need your input to continue.",
                 "context": getattr(pending, "payload", None) or pending.get("payload") or {},
                 "reason": getattr(pending, "reason", None) or pending.get("reason"),
                 "review_id": getattr(pending, "review_id", None) or pending.get("review_id"),
@@ -369,9 +363,7 @@ class StreamingRunner:
         router_out = routing_history[-1]
         if getattr(router_out, "needs_clarification", False):
             # should already be caught by pending_reviews, but belt+suspenders
-            await queue.put(
-                StreamEvent("interrupt", {"thread_id": main_thread, "payload": {"prompt": "I need one more detail."}})
-            )
+            await queue.put(StreamEvent("interrupt", {"thread_id": main_thread, "payload": {"prompt": "I need one more detail."}}))
             return
 
         router_dict = router_out.model_dump()
@@ -402,9 +394,7 @@ class StreamingRunner:
             subgraph=subgraph, subgraph_name=subgraph_name, run_id=run_id, thread_id=sub_thread, params=params
         )
 
-        sub_state.messages.append(
-            main_out["messages"][-1]
-        )  # pass last main message to subgraph state for context; adjust as needed
+        sub_state.messages.append(main_out["messages"][-1])  # pass last main message to subgraph state for context; adjust as needed
 
         async for ev in subgraph.astream_events(
             sub_state,
@@ -450,9 +440,7 @@ class StreamingRunner:
 
         sub_out = await self._get_state_if_supported(subgraph, sub_thread)
         if sub_out is None:
-            sub_out = await asyncio.to_thread(
-                subgraph.invoke, sub_state, self._cfg(sub_thread, recursion_limit=SUBGRAPH_RECURSION_LIMIT)
-            )
+            sub_out = await asyncio.to_thread(subgraph.invoke, sub_state, self._cfg(sub_thread, recursion_limit=SUBGRAPH_RECURSION_LIMIT))
 
         sub_artifacts = _get_artifacts(sub_out)
         main_artifacts = _get_artifacts(main_out)
@@ -493,9 +481,7 @@ class StreamingRunner:
             )
             await queue.put(StreamEvent("final", {"message": ""}))
         else:
-            await queue.put(
-                StreamEvent("final", {"message": getattr(sub_out, "next_action_hint", f"{subgraph_name} completed.")})
-            )
+            await queue.put(StreamEvent("final", {"message": getattr(sub_out, "next_action_hint", f"{subgraph_name} completed.")}))
 
     # ----------------------------
     # Resume after interrupt() (stream)
@@ -541,9 +527,7 @@ class StreamingRunner:
                         node_from_event(ev)
                         msg = [x.model_dump() for x in ev["data"]["output"].update["main_messages"]]
                         # 1) persist to main thread
-                        await self.main_graph.aupdate_state(
-                            self._cfg(f"{thread_id.split(':', 1)[0]}:main"), values={"messages": msg}
-                        )
+                        await self.main_graph.aupdate_state(self._cfg(f"{thread_id.split(':', 1)[0]}:main"), values={"messages": msg})
 
                         # 2) notify frontend (SSE)
                         await queue.put(

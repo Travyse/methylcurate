@@ -169,8 +169,7 @@ async def disease_harmonization_node(state: HarmonizationSubgraphState, config: 
         [
             accession_code
             for accession_code in accession_codes
-            if state.datasets[accession_code].steps["map_disease_labels_to_ontology"].status
-            in {"running", "not_started"}
+            if state.datasets[accession_code].steps["map_disease_labels_to_ontology"].status in {"running", "not_started"}
         ]
     )
     accession_code = running_accession_codes.pop(0)
@@ -252,25 +251,15 @@ async def higher_level_disease_mapping_node(state: HarmonizationSubgraphState, c
         ]
     )
     running_disease_mappings = [
-        _get_harmonization_results("disease", accession_code, state.config.artifacts)
-        for accession_code in running_accession_codes
+        _get_harmonization_results("disease", accession_code, state.config.artifacts) for accession_code in running_accession_codes
     ]
 
     harmonized_labels = sorted(
-        set(
-            [
-                x.target_label
-                for disease_mapping in running_disease_mappings
-                for x in disease_mapping.mappings
-                if hasattr(x, "target_label")
-            ]
-        )
+        set([x.target_label for disease_mapping in running_disease_mappings for x in disease_mapping.mappings if hasattr(x, "target_label")])
     )
     return_dict = {
         "config": state.config.model_dump(),
-        "datasets": {
-            accession_code: state.datasets[accession_code].model_dump() for accession_code in running_accession_codes
-        },
+        "datasets": {accession_code: state.datasets[accession_code].model_dump() for accession_code in running_accession_codes},
     }
     (
         granular_to_coarse_disease_label_mapping,
@@ -278,9 +267,7 @@ async def higher_level_disease_mapping_node(state: HarmonizationSubgraphState, c
         disease_group_harmonization_mapping,
     ) = await _harmonize_ontology_group_labels(harmonized_labels, config, ontology="mondo")
 
-    proper_group_mapping = construct_raw_to_harmonized_label_mapping(
-        granular_to_coarse_disease_label_mapping, disease_group_harmonization_mapping
-    )
+    proper_group_mapping = construct_raw_to_harmonized_label_mapping(granular_to_coarse_disease_label_mapping, disease_group_harmonization_mapping)
     return_dict["disease_group_mapping"] = disease_group_harmonization_mapping.model_dump()
     artifacts = []
     for accession_code in running_accession_codes:
@@ -305,9 +292,7 @@ async def higher_level_disease_mapping_node(state: HarmonizationSubgraphState, c
                 }
             )
         harmonization_result_df = pd.DataFrame(rows)
-        harmonization_result_path = os.path.join(
-            state.datasets[accession_code].output_dir, "disease_harmonization_metadata.csv"
-        )
+        harmonization_result_path = os.path.join(state.datasets[accession_code].output_dir, "disease_harmonization_metadata.csv")
         harmonization_result_df.to_csv(harmonization_result_path, index=True)
         artifacts.append(
             ArtifactRef.model_validate(
@@ -323,9 +308,7 @@ async def higher_level_disease_mapping_node(state: HarmonizationSubgraphState, c
         )
         return_dict["datasets"][accession_code]["steps"]["group_disease_labels"]["status"] = "completed"
         return_dict["datasets"][accession_code]["steps"]["map_tissue_labels_to_ontology"]["status"] = "running"
-    return_dict["config"]["artifacts"] = consolidate_artifacts(
-        [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], artifacts
-    )
+    return_dict["config"]["artifacts"] = consolidate_artifacts([ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], artifacts)
     return_dict["messages"] = [update_harmonization_progress_tracker(state)]
     return_dict["main_messages"] = [update_harmonization_progress_tracker(state)]
     return Command(update=return_dict)
@@ -354,8 +337,7 @@ async def tissue_harmonization_node(state: HarmonizationSubgraphState, config: R
         [
             accession_code
             for accession_code in accession_codes
-            if state.datasets[accession_code].steps["map_tissue_labels_to_ontology"].status
-            in {"running", "not_started"}
+            if state.datasets[accession_code].steps["map_tissue_labels_to_ontology"].status in {"running", "not_started"}
         ]
     )
     accession_code = running_accession_codes.pop(0)
@@ -427,24 +409,14 @@ async def higher_level_tissue_mapping_node(state: HarmonizationSubgraphState, co
         ]
     )
     running_tissue_mappings = [
-        _get_harmonization_results("tissue", accession_code, state.config.artifacts)
-        for accession_code in running_accession_codes
+        _get_harmonization_results("tissue", accession_code, state.config.artifacts) for accession_code in running_accession_codes
     ]
     harmonized_labels = sorted(
-        set(
-            [
-                x.target_label
-                for tissue_mapping in running_tissue_mappings
-                for x in tissue_mapping.mappings
-                if hasattr(x, "target_label")
-            ]
-        )
+        set([x.target_label for tissue_mapping in running_tissue_mappings for x in tissue_mapping.mappings if hasattr(x, "target_label")])
     )
     return_dict = {
         "config": state.config.model_dump(),
-        "datasets": {
-            accession_code: state.datasets[accession_code].model_dump() for accession_code in running_accession_codes
-        },
+        "datasets": {accession_code: state.datasets[accession_code].model_dump() for accession_code in running_accession_codes},
     }
 
     (
@@ -452,9 +424,7 @@ async def higher_level_tissue_mapping_node(state: HarmonizationSubgraphState, co
         _,
         tissue_group_harmonization_mapping,
     ) = await _harmonize_ontology_group_labels(harmonized_labels, config, ontology="uberon")
-    proper_group_mapping = construct_raw_to_harmonized_label_mapping(
-        granular_to_coarse_tissue_label_mapping, tissue_group_harmonization_mapping
-    )
+    proper_group_mapping = construct_raw_to_harmonized_label_mapping(granular_to_coarse_tissue_label_mapping, tissue_group_harmonization_mapping)
     return_dict["tissue_group_mapping"] = tissue_group_harmonization_mapping.model_dump()
     artifacts = []
     for accession_code in running_accession_codes:
@@ -474,16 +444,12 @@ async def higher_level_tissue_mapping_node(state: HarmonizationSubgraphState, co
             rows.append(
                 {
                     "original_label": mapping.source_label,
-                    "harmonized_label": mapping.target_label
-                    if hasattr(mapping, "target_label")
-                    else mapping.source_label,
+                    "harmonized_label": mapping.target_label if hasattr(mapping, "target_label") else mapping.source_label,
                     "harmonized_group_label": harmonized_group_label if harmonized_group_label is not None else "",
                 }
             )
         harmonization_result_df = pd.DataFrame(rows)
-        harmonization_result_path = os.path.join(
-            state.datasets[accession_code].output_dir, "tissue_harmonization_metadata.csv"
-        )
+        harmonization_result_path = os.path.join(state.datasets[accession_code].output_dir, "tissue_harmonization_metadata.csv")
         harmonization_result_df.to_csv(harmonization_result_path, index=True)
         artifacts.append(
             ArtifactRef.model_validate(
@@ -499,9 +465,7 @@ async def higher_level_tissue_mapping_node(state: HarmonizationSubgraphState, co
         )
         return_dict["datasets"][accession_code]["steps"]["group_tissue_labels"]["status"] = "completed"
         return_dict["datasets"][accession_code]["steps"]["map_cell_type_labels_to_ontology"]["status"] = "running"
-    return_dict["config"]["artifacts"] = consolidate_artifacts(
-        [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], artifacts
-    )
+    return_dict["config"]["artifacts"] = consolidate_artifacts([ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], artifacts)
     return_dict["messages"] = [update_harmonization_progress_tracker(state)]
     return_dict["main_messages"] = [update_harmonization_progress_tracker(state)]
     return Command(update=return_dict)
@@ -530,8 +494,7 @@ async def cell_type_harmonization_node(state: HarmonizationSubgraphState, config
         [
             accession_code
             for accession_code in accession_codes
-            if state.datasets[accession_code].steps["map_cell_type_labels_to_ontology"].status
-            in {"running", "not_started"}
+            if state.datasets[accession_code].steps["map_cell_type_labels_to_ontology"].status in {"running", "not_started"}
         ]
     )
     accession_code = running_accession_codes.pop(0)
@@ -630,9 +593,7 @@ async def sex_harmonization_node(state: HarmonizationSubgraphState, config: Runn
             }
         )
     )
-    return_dict["config"]["artifacts"] = consolidate_artifacts(
-        [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], artifacts
-    )
+    return_dict["config"]["artifacts"] = consolidate_artifacts([ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], artifacts)
     return_dict["datasets"][accession_code]["steps"]["harmonize_sex_labels"]["status"] = "completed"
     return_dict["messages"] = [update_harmonization_progress_tracker(state)]
     return_dict["main_messages"] = [update_harmonization_progress_tracker(state)]

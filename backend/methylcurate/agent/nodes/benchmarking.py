@@ -104,9 +104,7 @@ def _get_harmonized_full_data_if_available(
         individual_mapper[row["original_label"]] = row["harmonized_label"]
         group_mapper[row["original_label"]] = row["harmonized_group_label"]
     metadata_df["Disease_Group"] = metadata_df["Disease_Status"].map(group_mapper).fillna(metadata_df["Disease_Status"])
-    metadata_df["Disease_Status"] = (
-        metadata_df["Disease_Status"].map(individual_mapper).fillna(metadata_df["Disease_Status"])
-    )
+    metadata_df["Disease_Status"] = metadata_df["Disease_Status"].map(individual_mapper).fillna(metadata_df["Disease_Status"])
     metadata_df["Tissue_Group"] = metadata_df["Tissue"].map(group_mapper).fillna(metadata_df["Tissue"])
     metadata_df["Tissue"] = metadata_df["Tissue"].map(individual_mapper).fillna(metadata_df["Tissue"])
     metadata_df["Cell_Type"] = metadata_df["Cell_Type"].map(individual_mapper).fillna(metadata_df["Cell_Type"])
@@ -142,8 +140,7 @@ def clock_retrieval_node(state: BenchmarkingSubgraphState, config: RunnableConfi
         if not any(
             a
             for a in state.config.artifacts
-            if a.kind == "clock"
-            and (a.path.endswith(f"{clock.lower()}.pt") or a.path.endswith(f"{clock.lower()}_model.pkl"))
+            if a.kind == "clock" and (a.path.endswith(f"{clock.lower()}.pt") or a.path.endswith(f"{clock.lower()}_model.pkl"))
         )
     ]
     if not clocks_to_retrieve:
@@ -237,46 +234,34 @@ def benchmarking_node(state: BenchmarkingSubgraphState, config: RunnableConfig) 
         methylation_df = load_metadata_aligned_methylation_data(
             accession_code, state.config.artifacts, methylation_data_type="postqc_methylation_data"
         )
-        logger.info(
-            f"\nMethylation data:\n {methylation_df[methylation_df.columns.tolist()[:20]].head().to_markdown(index=True)}"
-        )
+        logger.info(f"\nMethylation data:\n {methylation_df[methylation_df.columns.tolist()[:20]].head().to_markdown(index=True)}")
     except Exception as e:
         logger.error(f"Error loading data for accession code {accession_code}: {e}")
         return_dict["datasets"][accession_code]["steps"]["make_predictions"]["status"] = "completed"
         return_dict["datasets"][accession_code]["steps"]["make_computations"]["status"] = "canceled"
         return Command(update=return_dict)
     if methylation_df.empty:
-        logger.error(
-            f"No methylation data found for accession code {accession_code}. Skipping benchmarking for this dataset."
-        )
+        logger.error(f"No methylation data found for accession code {accession_code}. Skipping benchmarking for this dataset.")
         return_dict["datasets"][accession_code]["steps"]["make_predictions"]["status"] = "completed"
         return_dict["datasets"][accession_code]["steps"]["make_computations"]["status"] = "canceled"
         return Command(update=return_dict)
     cpg_columns = [col for col in methylation_df.columns if col.startswith("cg")]
     if not cpg_columns:
-        logger.error(
-            f"No CpG columns found in methylation data for accession code {accession_code}. Skipping benchmarking for this dataset."
-        )
+        logger.error(f"No CpG columns found in methylation data for accession code {accession_code}. Skipping benchmarking for this dataset.")
         return_dict["datasets"][accession_code]["steps"]["make_predictions"]["status"] = "completed"
         return_dict["datasets"][accession_code]["steps"]["make_computations"]["status"] = "canceled"
         return Command(update=return_dict)
     if "Subject" not in methylation_df.columns.tolist():
         methylation_metadata_col = []
-    full_data, metadata_columns = _get_harmonized_full_data_if_available(
-        accession_code, metadata_df, methylation_df, state.config.artifacts
-    )
+    full_data, metadata_columns = _get_harmonized_full_data_if_available(accession_code, metadata_df, methylation_df, state.config.artifacts)
 
     if full_data["Sex"].isnull().any():
         if set([x.lower() for x in clock_list]).intersection({"grimage", "grimage2", "pcgrimage"}):
             clock_list = [x for x in clock_list if x.lower() not in {"grimage", "grimage2", "pcgrimage"}]
         full_data.drop(columns=["Sex", "female"], inplace=True, errors="ignore")
 
-    logger.info(
-        f"\nDataset after merging metadata and methylation data: {full_data[full_data.columns.tolist()[:30]].head().to_markdown(index=True)}"
-    )
-    adata = pya.pp.df_to_adata(
-        full_data, metadata_cols=metadata_columns + methylation_metadata_col, imputer_strategy="knn", verbose=False
-    )
+    logger.info(f"\nDataset after merging metadata and methylation data: {full_data[full_data.columns.tolist()[:30]].head().to_markdown(index=True)}")
+    adata = pya.pp.df_to_adata(full_data, metadata_cols=metadata_columns + methylation_metadata_col, imputer_strategy="knn", verbose=False)
     pya.pred.predict_age(adata, clock_list, dir=os.path.join(state.config.output_root, "clocks"), verbose=False)  # type: ignore
     if internal_clock_list:
         internal_clock_predictions = make_internal_clock_predictions(
@@ -336,9 +321,7 @@ def task_computation_node(state: BenchmarkingSubgraphState, config: RunnableConf
         "config": state.config.model_dump(),
         "datasets": {accession_code: state.datasets[accession_code].model_dump()},
     }
-    logger = setup_logger(
-        os.path.join(state.config.output_root, accession_code), f"{accession_code}_tasks", "tasks.log"
-    )
+    logger = setup_logger(os.path.join(state.config.output_root, accession_code), f"{accession_code}_tasks", "tasks.log")
     for a in state.config.artifacts:
         logger.info(f"\nArtifact: {a.model_dump()}\n")
     extraction_protocol = get_extraction_protocol(accession_code, state.config.artifacts)
@@ -356,9 +339,7 @@ def task_computation_node(state: BenchmarkingSubgraphState, config: RunnableConf
     medae = compute_medae(prediction_df, extraction_protocol, clocks=state.config.clock_list)
     pearson_r = compute_pearson_r(prediction_df, extraction_protocol, clocks=state.config.clock_list)
     aa1_task = bootstrap_aa1_test(prediction_df, extraction_protocol, clocks=state.config.clock_list, n_bootstraps=1000)
-    aa2_task = bootstrap_welch_one_sided_aac_gt_hc(
-        prediction_df, extraction_protocol, clocks=state.config.clock_list, n_bootstraps=1000
-    )
+    aa2_task = bootstrap_welch_one_sided_aac_gt_hc(prediction_df, extraction_protocol, clocks=state.config.clock_list, n_bootstraps=1000)
 
     all_results = aa1_task.merge(aa2_task, on=["Accession_Code", "Clock", "Disease", "Disease_Group"], how="outer")
     for res in [mae, medae, pearson_r]:
@@ -497,9 +478,7 @@ def summarize_benchmarking_results(state: BenchmarkingSubgraphState, config: Run
         "rows": [],
     }
     logger = setup_logger(state.config.output_root, "overall_benchmark_summary", "benchmark_summary.log")
-    accession_codes = sorted(
-        [x for x in state.datasets.keys() if state.datasets[x].steps["make_computations"].status == "completed"]
-    )
+    accession_codes = sorted([x for x in state.datasets.keys() if state.datasets[x].steps["make_computations"].status == "completed"])
     computation_dfs = []
     for accession_code in accession_codes:
         computation_artifact = next(
@@ -515,24 +494,18 @@ def summarize_benchmarking_results(state: BenchmarkingSubgraphState, config: Run
     # performance
     performance_subset = computation_df.copy().drop_duplicates(subset=["Clock"])
     for _, row in performance_subset.iterrows():
-        predictive_performance_payload["rows"].append(
-            {"clock": row["Clock"], "medae": row["MedAE_score"], "pearson_r": row["Pearson_R_score"]}
-        )
+        predictive_performance_payload["rows"].append({"clock": row["Clock"], "medae": row["MedAE_score"], "pearson_r": row["Pearson_R_score"]})
 
     # task
     task_subset = computation_df.copy().drop_duplicates(subset=["Clock", "Disease"])
     task_subset = task_subset[task_subset["Disease"] != "Control"]
     # aa1
     for _, row in task_subset.dropna(subset=["AA1_score", "AA1_emp_score"]).iterrows():
-        aa1_payload["rows"].append(
-            {"clock": row["Clock"], "dx": row["Disease"], "aa1": row["AA1_score"], "aa1_shuffled": row["AA1_emp_score"]}
-        )
+        aa1_payload["rows"].append({"clock": row["Clock"], "dx": row["Disease"], "aa1": row["AA1_score"], "aa1_shuffled": row["AA1_emp_score"]})
 
     # aa2
     for _, row in task_subset.dropna(subset=["AA2_score", "AA2_emp_score"]).iterrows():
-        aa2_payload["rows"].append(
-            {"clock": row["Clock"], "dx": row["Disease"], "aa2": row["AA2_score"], "aa2_shuffled": row["AA2_emp_score"]}
-        )
+        aa2_payload["rows"].append({"clock": row["Clock"], "dx": row["Disease"], "aa2": row["AA2_score"], "aa2_shuffled": row["AA2_emp_score"]})
 
     # predictive_message
     predictive_performance_payload["message"] = (

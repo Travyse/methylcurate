@@ -58,16 +58,13 @@ class GEODownloadResult(BaseModel):
     Validation:
         - If status is "failed", an error message must be provided.
         - If status is not "failed", an error message must not be provided.
-        - If status is "success", an artifact reference should ideally be provided (this check can be relaxed if artifact is truly optional on success).
+        - If status is "success", an artifact reference should ideally be provided
+            (this check can be relaxed if artifact is truly optional on success).
     """
 
     accession: NonEmptyStr = Field(..., description="GSE accession, e.g. GSE40279")
-    artifact: ArtifactRef | None = Field(
-        ..., description="Reference to the downloaded artifact, if download was successful"
-    )
-    status: Literal["success", "skipped", "failed", "resolved"] = Field(
-        ..., description="Overall status of the download attempt"
-    )
+    artifact: ArtifactRef | None = Field(..., description="Reference to the downloaded artifact, if download was successful")
+    status: Literal["success", "skipped", "failed", "resolved"] = Field(..., description="Overall status of the download attempt")
     error: NonEmptyStr | None = Field(..., description="Error message if status is failed")
     warnings: list[NonEmptyStr] = Field(default_factory=list)
 
@@ -133,13 +130,9 @@ class GEOMetadataExtractionInput(BaseModel):
     title: list[list[NonEmptyStr]] = Field(..., description="List of example titles from GEO metadata")
     source_name_ch1: list[list[NonEmptyStr]] = Field(..., description="List of example source names from GEO metadata")
     description: list[list[NonEmptyStr]] = Field(..., description="List of example descriptions from GEO metadata")
-    characteristics_ch1: list[dict[NonEmptyStr, Any]] = Field(
-        ..., description="List of example characteristics from GEO metadata"
-    )
+    characteristics_ch1: list[dict[NonEmptyStr, Any]] = Field(..., description="List of example characteristics from GEO metadata")
     relation: list[list[NonEmptyStr]] | None = Field(None, description="List of example relations from GEO metadata")
-    platform_id: list[list[NonEmptyStr]] | None = Field(
-        None, description="List of example platform IDs from GEO metadata"
-    )
+    platform_id: list[list[NonEmptyStr]] | None = Field(None, description="List of example platform IDs from GEO metadata")
 
     @model_validator(mode="after")
     def validate_artifact(self):
@@ -165,7 +158,16 @@ class ExtractionRuleBase(BaseModel):
 
     Attributes:
         type (Literal["regex"]): The type of extraction rule.
-        field_name (Literal["title", "source_name_ch1", "description", "characteristics_ch1", "relation", "platform_id"]): The name of the field to apply the extraction rule to.
+        field_name (
+            Literal[
+                "title",
+                "source_name_ch1",
+                "description",
+                "characteristics_ch1",
+                "relation",
+                "platform_id",
+            ]
+        ): The name of the field to apply the extraction rule to.
         group_index (int): The index of the regex capture group to return.
         normalization (List[Literal["strip", "lower", "digits_only"]]): The normalization pipeline to apply to the extracted value.
     """
@@ -193,13 +195,19 @@ class DefaultValue(BaseModel):
 
     Attributes:
         field_name (Literal["default"]): The name of the field to apply the extraction rule to.
-        value (NonEmptyStr): The default value to use for this concept when no extractable evidence is found in the dataset but there is evidence in the dataset metadata like title or summary. This should be a single, specific value.
+        value (NonEmptyStr): The default value to use for this concept when no extractable evidence is found in the
+            dataset but there is evidence in the dataset metadata like title or summary.
+            This should be a single, specific value.
     """
 
     field_name: Literal["default"] = "default"
     value: NonEmptyStr = Field(
         ...,
-        description="The default value to use for this concept when no extractable evidence is found in the dataset but there is evidence in the dataset metadata like title or summary. This should be a single, specific value",
+        description=(
+            "The default value to use for this concept when no extractable evidence is found in the dataset "
+            "but there is evidence in the dataset metadata like title or summary. "
+            "This should be a single, specific value"
+        ),
     )
 
 
@@ -211,13 +219,19 @@ class CharacteristicsExtractionRule(ExtractionRuleBase):
         field_name (Literal["characteristics_ch1"]): The name of the field to apply the extraction rule to.
         pattern (NonEmptyStr): A regular expression pattern to apply to the specified key_name value in characteristics_ch1.
         key_name (NonEmptyStr): The key inside the target key:value string in characteristics_ch1.
-        control_value (Optional[NonEmptyStr]): This only set for extraction rules for disease_status. This identifies how the dataset encodes the control samples, e.g. 'healthy' or 'control'.
+        control_value (Optional[NonEmptyStr]): This only set for extraction rules for disease_status.
+            This identifies how the dataset encodes the control samples, e.g. 'healthy' or 'control'.
     """
 
     field_name: Literal["characteristics_ch1"]
     pattern: NonEmptyStr = Field(
         ...,
-        description="A regular expression pattern to apply to the specified key_name value in characteristics_ch1. For example, if key_name is 'age' and characteristics_ch1 includes the following entry: {'age': '45 years'}, then this pattern would be applied to '45 years' and should extract the concept value of '45'.",
+        description=(
+            "A regular expression pattern to apply to the specified key_name value in characteristics_ch1. "
+            "For example, if key_name is 'age' and characteristics_ch1 includes the following entry: "
+            "{'age': '45 years'}, then this pattern would be applied to '45 years' "
+            "and should extract the concept value of '45'."
+        ),
     )
     key_name: NonEmptyStr = Field(
         ...,
@@ -225,7 +239,10 @@ class CharacteristicsExtractionRule(ExtractionRuleBase):
     )
     control_value: NonEmptyStr | None = Field(
         None,
-        description="This only set for extraction rules for disease_status. This identifies how the dataset encodes the control samples, e.g. 'healthy' or 'control'.",
+        description=(
+            "This only set for extraction rules for disease_status. This identifies how the dataset encodes "
+            "the control samples, e.g. 'healthy' or 'control'."
+        ),
     )
 
 
@@ -234,14 +251,22 @@ class OtherExtractionRule(ExtractionRuleBase):
     Model representing an extraction rule for fields other than characteristics_ch1.
 
     Attributes:
-        field_name (Literal["title", "source_name_ch1", "description", "relation", "platform_id"]): The name of the field to apply the extraction rule to.
-        pattern (NonEmptyStr): A regular expression pattern to apply to the specified field. For characteristics_ch1 extractions, this pattern will be applied to each key:value pair in the list. This regex pattern should extract the concept value.
+        field_name (
+            Literal["title", "source_name_ch1", "description", "relation", "platform_id"]
+        ): The name of the field to apply the extraction rule to.
+        pattern (NonEmptyStr): A regular expression pattern to apply to the specified field.
+            For characteristics_ch1 extractions, this pattern will be applied to each key:value pair in the list.
+            This regex pattern should extract the concept value.
     """
 
     field_name: Literal["title", "source_name_ch1", "description", "relation", "platform_id"]
     pattern: NonEmptyStr = Field(
         ...,
-        description="A regular expression pattern to apply to the specified field. For characteristics_ch1 extractions, this pattern will be applied to each key:value pair in the list. This regex pattern should extract the concept value.",
+        description=(
+            "A regular expression pattern to apply to the specified field. "
+            "For characteristics_ch1 extractions, this pattern will be applied "
+            "to each key:value pair in the list. This regex pattern should extract the concept value."
+        ),
     )
 
 
@@ -264,9 +289,7 @@ class FieldResolutionBase(BaseModel):
     model_config = ConfigDict(extra="forbid")  # critical: prevents “rest of attrs should not be present”
     status: ResolutionStatus
     confidence: float = Field(..., ge=0.0, le=1.0, description="Model confidence in this extraction")
-    notes: list[NonEmptyStr] = Field(
-        min_length=1, description="Evidence for the extraction rule and any notes about the resolution"
-    )
+    notes: list[NonEmptyStr] = Field(min_length=1, description="Evidence for the extraction rule and any notes about the resolution")
 
 
 class MissingResolution(FieldResolutionBase):
@@ -275,19 +298,34 @@ class MissingResolution(FieldResolutionBase):
 
     Attributes:
         status (Literal["missing"]): The status of the resolution.
-        candidate_field_names (List[Literal["title","source_name_ch1","description","characteristics_ch1","relation","platform_id"]]): Fields checked and found no extractable evidence for this concept.
-        candidate_key_names (List[str]): Key names in characteristics_ch1 checked and found no extractable evidence for this concept. Must include every possible key name.
-        absence_evidence (List[NonEmptyStr]): Must be verbatim substrings copied from the input values, not analyst commentary. Never write 'no field contains…'
+        candidate_field_names (
+            List[
+                Literal[
+                    "title",
+                    "source_name_ch1",
+                    "description",
+                    "characteristics_ch1",
+                    "relation",
+                    "platform_id",
+                ]
+            ]
+        ): Fields checked and found no extractable evidence for this concept.
+        candidate_key_names (List[str]): Key names in characteristics_ch1 checked and found
+            no extractable evidence for this concept. Must include every possible key name.
+        absence_evidence (List[NonEmptyStr]): Must be verbatim substrings copied from the input values,
+            not analyst commentary. Never write 'no field contains…'
     """
 
     status: Literal["missing"]
-    candidate_field_names: list[
-        Literal["title", "source_name_ch1", "description", "characteristics_ch1", "relation", "platform_id"]
-    ] = Field(..., min_length=6, description="Fields checked and found no extractable evidence for this concept.")
+    candidate_field_names: list[Literal["title", "source_name_ch1", "description", "characteristics_ch1", "relation", "platform_id"]] = Field(
+        ..., min_length=6, description="Fields checked and found no extractable evidence for this concept."
+    )
     candidate_key_names: list[str] = Field(
         ...,
         min_length=1,
-        description="Key names in characteristics_ch1 checked and found no extractable evidence for this concept. Must include every possible key name.",
+        description=(
+            "Key names in characteristics_ch1 checked and found no extractable evidence for this concept. Must include every possible key name."
+        ),
     )
     absence_evidence: list[NonEmptyStr] = Field(
         ...,
@@ -361,9 +399,7 @@ class GEOMetadataExtractionResult(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid")
-    artifact: ArtifactRef | None = Field(
-        ..., description="Reference to the saved json file containing the metadata schema"
-    )
+    artifact: ArtifactRef | None = Field(..., description="Reference to the saved json file containing the metadata schema")
     subject_id: FieldResolution = Field(..., description="Resolution details for subject_id concept")
     age: FieldResolution = Field(..., description="Resolution details for age concept")
     tissue: FieldResolution = Field(..., description="Resolution details for tissue concept")
@@ -381,7 +417,10 @@ def build_dynamic_result_model(allowed_keys: tuple[str, ...]):
     CharacteristicsExtractionRule.key_name ∈ allowed_keys
 
     Args:
-        allowed_keys (Tuple[str, ...]): A tuple of allowed key names for characteristics_ch1 extractions. This should include every possible key name that could be used in the input data for any of the target concepts, otherwise the model will not be able to validate valid inputs that use a key name not included in this list.
+        allowed_keys (Tuple[str, ...]): A tuple of allowed key names for characteristics_ch1 extractions.
+            This should include every possible key name that could be used in the input data
+            for any of the target concepts, otherwise the model will not be able to validate
+            valid inputs that use a key name not included in this list.
     """
     allowed_keys = tuple(allowed_keys)
     KeyName = Literal[allowed_keys]  # type: ignore
@@ -398,21 +437,37 @@ def build_dynamic_result_model(allowed_keys: tuple[str, ...]):
             NonEmptyStr,
             Field(
                 ...,
-                description="A regular expression pattern to apply to the specified key_name value in characteristics_ch1. For example, if key_name is 'age' and characteristics_ch1 includes the following entry: {'age': '45 years'}, then this pattern would be applied to '45 years' and should extract the concept value of '45'.",
+                description=(
+                    "A regular expression pattern to apply to the specified key_name value "
+                    "in characteristics_ch1. For example, if key_name is 'age' and "
+                    "characteristics_ch1 includes the following entry: {'age': '45 years'}, "
+                    "then this pattern would be applied to '45 years' "
+                    "and should extract the concept value of '45'."
+                ),
             ),
         ),
         key_name=(
             KeyName,
             Field(
                 ...,
-                description="This represents the key name of one of the key: value pairs in characteristics_ch1 that semantically encodes the concept. This is not necessarily an exact match of the concept. For example, if the concept is age and the characteristics_ch1 column includes 'age (years): 45', then key_name would be 'age'",
+                description=(
+                    "This represents the key name of one of the key: value pairs "
+                    "in characteristics_ch1 that semantically encodes the concept. "
+                    "This is not necessarily an exact match of the concept. "
+                    "For example, if the concept is age and the characteristics_ch1 column "
+                    "includes 'age (years): 45', then key_name would be 'age'"
+                ),
             ),
         ),
         control_value=(
             NonEmptyStr | None,
             Field(
                 None,
-                description="This only set for extraction rules for disease_status. This identifies how the dataset encodes the control samples, e.g. 'healthy' or 'control'.",
+                description=(
+                    "This only set for extraction rules for disease_status. "
+                    "This identifies how the dataset encodes "
+                    "the control samples, e.g. 'healthy' or 'control'."
+                ),
             ),
         ),
     )
@@ -447,7 +502,10 @@ def build_dynamic_result_model(allowed_keys: tuple[str, ...]):
             Field(
                 ...,
                 min_length=len(get_args(KeyName)),
-                description="Key names in characteristics_ch1 checked and found no extractable evidence for this concept. Must include every possible key name.",
+                description=(
+                    "Key names in characteristics_ch1 checked and found no extractable evidence "
+                    "for this concept. Must include every possible key name."
+                ),
             ),
         ),
         absence_evidence=(
@@ -506,10 +564,7 @@ def build_dynamic_resolution_correction_model(allowed_concepts: tuple[str, ...],
         Type[BaseModel]: A Pydantic model class for resolution correction with fields for each allowed concept.
     """
     allowed_concepts = tuple(allowed_concepts)
-    model_fields = {
-        c: (field_resolution_dyn, Field(..., description=f"Resolution details for {c} concept"))
-        for c in allowed_concepts
-    }
+    model_fields = {c: (field_resolution_dyn, Field(..., description=f"Resolution details for {c} concept")) for c in allowed_concepts}
     ResolutionCorrectionDyn = create_model(  # type: ignore
         f"ResolutionCorrection__{abs(hash(allowed_concepts))}",
         __base__=BaseModel,
@@ -536,9 +591,7 @@ def build_dynamic_control_identification_model(allowed_values: tuple[str, ...]):
         __config__=ConfigDict(extra="forbid"),
         control_value=(
             Literal[allowed_values] | None,  # type: ignore
-            Field(
-                ..., description="The value in the dataset that indicates a control sample, e.g. 'healthy' or 'control'"
-            ),
+            Field(..., description="The value in the dataset that indicates a control sample, e.g. 'healthy' or 'control'"),
         ),
     )
     return ControlIdentificationModel
@@ -549,7 +602,10 @@ def build_dynamic_constrained_resolution_model(allowed_keys: tuple[str, ...], ta
     Build a dynamic Pydantic model for constrained resolution based on allowed keys.
 
     Args:
-        allowed_keys (Tuple[str, ...]): A tuple of allowed key names for characteristics_ch1 extractions. This should include every possible key name that could be used in the input data for any of the target concepts, otherwise the model will not be able to validate valid inputs that use a key name not included in this list.
+        allowed_keys (Tuple[str, ...]): A tuple of allowed key names for characteristics_ch1 extractions.
+            This should include every possible key name that could be used in the input data
+            for any of the target concepts, otherwise the model will not be able to validate
+            valid inputs that use a key name not included in this list.
         target_concept (str): The target concept for which the constrained resolution model is being built.
 
     Returns:
@@ -571,7 +627,13 @@ def build_dynamic_constrained_resolution_model(allowed_keys: tuple[str, ...], ta
             KeyName,
             Field(
                 ...,
-                description="This represents the key name of one of the key: value pairs in characteristics_ch1 that semantically encodes the concept. This is not necessarily an exact match of the concept. For example, if the concept is age and the characteristics_ch1 column includes 'age (years): 45', then key_name would be 'age'",
+                description=(
+                    "This represents the key name of one of the key: value pairs "
+                    "in characteristics_ch1 that semantically encodes the concept. "
+                    "This is not necessarily an exact match of the concept. "
+                    "For example, if the concept is age and the characteristics_ch1 column "
+                    "includes 'age (years): 45', then key_name would be 'age'"
+                ),
             ),
         ),
     )
@@ -612,18 +674,15 @@ class ResolvedColumnExtraction(BaseModel):
     Attributes:
     - status: A literal string indicating the resolution status, which is "resolved" in this case.
     - pattern: A non-empty string containing the regular expression pattern used to extract the target value from the column.
-    - column_evidence: A list of non-empty strings representing the columns that were checked and provided evidence for the accuracy of the extraction pattern.
+    - column_evidence: A list of non-empty strings representing the columns that were checked
+        and provided evidence for the accuracy of the extraction pattern.
     - evidence: A list of non-empty strings representing additional evidence for the extraction rule and any notes about the resolution.
     """
 
     status: Literal["resolved"]
     pattern: NonEmptyStr = Field(..., description="A regular expression pattern to apply to extract the target value.")
-    column_evidence: list[NonEmptyStr] = Field(
-        min_length=1, description="Columns checked that prove the accuracy of this pattern."
-    )
-    evidence: list[NonEmptyStr] = Field(
-        min_length=1, description="Evidence for the extraction rule and any notes about the resolution"
-    )
+    column_evidence: list[NonEmptyStr] = Field(min_length=1, description="Columns checked that prove the accuracy of this pattern.")
+    evidence: list[NonEmptyStr] = Field(min_length=1, description="Evidence for the extraction rule and any notes about the resolution")
 
 
 class MissingColumnExtraction(BaseModel):
@@ -637,9 +696,7 @@ class MissingColumnExtraction(BaseModel):
     """
 
     status: Literal["missing"]
-    candidate_columns: list[NonEmptyStr] = Field(
-        ..., min_length=1, description="Columns checked and found no extractable evidence for this concept."
-    )
+    candidate_columns: list[NonEmptyStr] = Field(..., min_length=1, description="Columns checked and found no extractable evidence for this concept.")
     absence_evidence: list[NonEmptyStr] = Field(
         ...,
         min_length=1,
@@ -657,9 +714,7 @@ class ErrorColumnExtraction(BaseModel):
     """
 
     status: Literal["error"]
-    notes: list[NonEmptyStr] = Field(
-        min_length=1, description="Evidence for the extraction rule and any notes about the resolution"
-    )
+    notes: list[NonEmptyStr] = Field(min_length=1, description="Evidence for the extraction rule and any notes about the resolution")
 
 
 ColumnExtraction = Annotated[
@@ -754,9 +809,7 @@ class GEOSampleLevelMetadata(BaseModel):
     tissue: NonEmptyStr | None = Field(None, description="The tissue type associated with this sample, if available")
     cell_type: NonEmptyStr | None = Field(None, description="The cell type associated with this sample, if available")
     status: NonEmptyStr | None = Field(None, description="The disease status associated with this sample, if available")
-    sex: NonEmptyStr | None = Field(
-        None, description="The sex of the subject associated with this sample, if available"
-    )
+    sex: NonEmptyStr | None = Field(None, description="The sex of the subject associated with this sample, if available")
     platform: NonEmptyStr | None = Field(None, description="The platform ID associated with this sample, if available")
     gpl: list[NonEmptyStr] | None = Field(None, description="The GPL IDs associated with this sample, if available")
 
@@ -771,9 +824,7 @@ class GeoSampleLevelMetadataBatch(BaseModel):
     """
 
     accession: NonEmptyStr = Field(..., description="The GEO Series accession, e.g. GSE12345")
-    samples: list[GEOSampleLevelMetadata] = Field(
-        ..., description="List of sample-level metadata entries for this GEO Series"
-    )
+    samples: list[GEOSampleLevelMetadata] = Field(..., description="List of sample-level metadata entries for this GEO Series")
 
 
 class FieldCoverage(BaseModel):
@@ -790,9 +841,7 @@ class FieldCoverage(BaseModel):
 
     present: int = Field(..., description="Number of samples for which this field is present")
     missing: int = Field(..., description="Number of samples for which this field is missing")
-    parse_rate: float = Field(
-        ..., ge=0.0, le=1.0, description="Parse rate for this field among samples where it is present"
-    )
+    parse_rate: float = Field(..., ge=0.0, le=1.0, description="Parse rate for this field among samples where it is present")
     unique_values: int = Field(..., description="Number of unique values observed for this field")
     examples: list[NonEmptyStr] = Field(default_factory=list, description="Example values observed for this field")
 
@@ -827,9 +876,7 @@ class MetadataSummary(BaseModel):
     tissue: FieldCoverage = Field(..., description="Coverage details for tissue field")
     cell_type: FieldCoverage = Field(..., description="Coverage details for cell_type field")
     disease_status: FieldCoverage = Field(..., description="Coverage details for disease_status field")
-    warnings: list[NonEmptyStr] = Field(
-        default_factory=list, description="List of warnings related to metadata coverage"
-    )
+    warnings: list[NonEmptyStr] = Field(default_factory=list, description="List of warnings related to metadata coverage")
 
     @model_validator(mode="after")
     def validate_accession(self):

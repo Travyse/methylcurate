@@ -93,8 +93,7 @@ class LLMClient:
         # Enforce "native structured output only"
         if not hasattr(self._llm, "with_structured_output"):
             raise RuntimeError(
-                f"Model wrapper for provider={config.provider} does not expose with_structured_output(). "
-                "Pick a tool-calling-capable backend/version."
+                f"Model wrapper for provider={config.provider} does not expose with_structured_output(). Pick a tool-calling-capable backend/version."
             )
 
         # Enforce "token streaming"
@@ -180,9 +179,7 @@ class LLMClient:
             )
 
         if cfg.provider == "ollama":
-            kwargs: dict[str, Any] = dict(
-                model=cfg.model, temperature=cfg.temperature, top_k=cfg.top_k, top_p=cfg.top_p, seed=42
-            )
+            kwargs: dict[str, Any] = dict(model=cfg.model, temperature=cfg.temperature, top_k=cfg.top_k, top_p=cfg.top_p, seed=42)
             if cfg.ollama_base_url:
                 kwargs["base_url"] = cfg.ollama_base_url
             # Many Ollama setups support token streaming; native structured output (tools) is not guaranteed.

@@ -91,12 +91,8 @@ class TestNBootstrapsRespected:
 
         for func in (bootstrap_welch_one_sided_aac_gt_hc, bootstrap_aa1_test):
             source = inspect.getsource(func)
-            assert "range(n_bootstraps)" in source, (
-                f"{func.__name__} should use n_bootstraps parameter, not hardcoded 1000"
-            )
-            assert "range(1000)" not in source, (
-                f"{func.__name__} contains hardcoded range(1000); should use range(n_bootstraps)"
-            )
+            assert "range(n_bootstraps)" in source, f"{func.__name__} should use n_bootstraps parameter, not hardcoded 1000"
+            assert "range(1000)" not in source, f"{func.__name__} contains hardcoded range(1000); should use range(n_bootstraps)"
 
 
 class TestBootstrapRespectsNBootstrapsRuntime:

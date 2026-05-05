@@ -41,24 +41,14 @@ from ...state.models import GeoIngestionSubgraphState
 async def extract_sample_metadata(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     if check_step_completion("extract_data", state.datasets, accession_codes):
-        return Command(
-            update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]}
-        )
+        return Command(update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]})
     running_accession_codes = sorted(
-        [
-            accession_code
-            for accession_code in accession_codes
-            if state.datasets[accession_code].steps["extract_data"].status == "running"
-        ]
+        [accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["extract_data"].status == "running"]
     )
     accession_code = running_accession_codes[0]
     dataset_state = state.datasets[accession_code]
     metadata_artifact = next(
-        (
-            artifact
-            for artifact in state.config.artifacts
-            if (artifact.kind == "metadata_cache") and (artifact.accession_code == accession_code)
-        ),
+        (artifact for artifact in state.config.artifacts if (artifact.kind == "metadata_cache") and (artifact.accession_code == accession_code)),
         None,
     )
     with open(metadata_artifact.path, encoding="utf-8") as f:  # type: ignore
@@ -79,30 +69,18 @@ async def extract_sample_metadata(state: GeoIngestionSubgraphState, config: Runn
     return Command(update=return_dict)
 
 
-async def generate_metadata_extraction_summary(
-    state: GeoIngestionSubgraphState, config: RunnableConfig
-) -> dict[str, Any]:
+async def generate_metadata_extraction_summary(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     running_accession_codes = sorted(
-        [
-            accession_code
-            for accession_code in accession_codes
-            if state.datasets[accession_code].steps["extract_data"].status == "running"
-        ]
+        [accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["extract_data"].status == "running"]
     )
     if not running_accession_codes:
-        return Command(
-            update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]}
-        )
+        return Command(update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]})
     accession_code = running_accession_codes[0]
     dataset_state = state.datasets[accession_code]
     return_dict = {"config": state.config.model_dump(), "datasets": {accession_code: dataset_state.model_dump()}}
     metadata_artifact = next(
-        (
-            artifact
-            for artifact in state.config.artifacts
-            if (artifact.kind == "dataset_metadata") and (artifact.accession_code == accession_code)
-        ),
+        (artifact for artifact in state.config.artifacts if (artifact.kind == "dataset_metadata") and (artifact.accession_code == accession_code)),
         None,
     )
     metadata = pd.read_csv(metadata_artifact.path, index_col=0)  # type: ignore
@@ -128,15 +106,9 @@ async def generate_metadata_extraction_summary(
 async def format_supplementary_data(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     if check_step_completion("supplementary_file_check", state.datasets, accession_codes):
-        return Command(
-            update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]}
-        )
+        return Command(update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]})
     running_accession_codes = sorted(
-        [
-            accession_code
-            for accession_code in accession_codes
-            if state.datasets[accession_code].steps["supplementary_file_check"].status == "running"
-        ]
+        [accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["supplementary_file_check"].status == "running"]
     )
     accession_code = running_accession_codes[0]
     dataset_state = state.datasets[accession_code]
@@ -152,8 +124,7 @@ async def format_supplementary_data(state: GeoIngestionSubgraphState, config: Ru
         [
             artifact
             for artifact in state.config.artifacts
-            if (artifact.kind == "supplementary_file_methylation_data_formatted")
-            and (artifact.accession_code == accession_code)
+            if (artifact.kind == "supplementary_file_methylation_data_formatted") and (artifact.accession_code == accession_code)
         ],
         key=lambda artifact: artifact.path,
     )
@@ -164,15 +135,11 @@ async def format_supplementary_data(state: GeoIngestionSubgraphState, config: Ru
         not in [os.path.splitext(artifact.path)[0] for artifact in formatted_supplementary_file_artifacts]
     ]
     if not running_supplementary_file_artifacts:
-        return Command(
-            update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]}
-        )
+        return Command(update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]})
 
     return_dict = {"config": state.config.model_dump(), "datasets": {accession_code: dataset_state.model_dump()}}
     current_artifact = running_supplementary_file_artifacts[0]
-    return_dict = await format_individual_methylation_data(
-        accession_code, return_dict, config, current_artifact, state.messages
-    )
+    return_dict = await format_individual_methylation_data(accession_code, return_dict, config, current_artifact, state.messages)
     return_dict["main_messages"] = [update_progress_tracker(state)]
     return_dict["messages"] = [update_progress_tracker(state)]
     return Command(update=return_dict)
@@ -181,19 +148,14 @@ async def format_supplementary_data(state: GeoIngestionSubgraphState, config: Ru
 async def merge_supplementary_file_data(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     running_accession_codes = sorted(
-        [
-            accession_code
-            for accession_code in accession_codes
-            if state.datasets[accession_code].steps["supplementary_file_check"].status == "running"
-        ]
+        [accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["supplementary_file_check"].status == "running"]
     )
     accession_code = running_accession_codes[0]
     formatted_supplementary_file_artifacts = sorted(
         [
             artifact
             for artifact in state.config.artifacts
-            if (artifact.kind == "supplementary_file_methylation_data_formatted")
-            and (artifact.accession_code == accession_code)
+            if (artifact.kind == "supplementary_file_methylation_data_formatted") and (artifact.accession_code == accession_code)
         ],
         key=lambda artifact: artifact.path,
     )
@@ -201,9 +163,7 @@ async def merge_supplementary_file_data(state: GeoIngestionSubgraphState, config
     methylation_dataframe_output_path = os.path.join(dataset_state.output_dir, "preqc_methylation_matrix.feather")
 
     return_dict = {"config": state.config.model_dump(), "datasets": {accession_code: dataset_state.model_dump()}}
-    formatted_datasets = [
-        read_feather(artifact.path, index_name="subject_id") for artifact in formatted_supplementary_file_artifacts
-    ]
+    formatted_datasets = [read_feather(artifact.path, index_name="subject_id") for artifact in formatted_supplementary_file_artifacts]
     formatted_data = pd.concat(formatted_datasets, axis=0)
     write_feather(formatted_data, methylation_dataframe_output_path, index_name="subject_id")
 
@@ -218,9 +178,7 @@ async def merge_supplementary_file_data(state: GeoIngestionSubgraphState, config
         }
     )
 
-    return_dict["config"]["artifacts"] = consolidate_artifacts(
-        [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], [methylation_artifact]
-    )
+    return_dict["config"]["artifacts"] = consolidate_artifacts([ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], [methylation_artifact])
     return_dict["main_messages"] = [update_progress_tracker(state)]
     return_dict["messages"] = [update_progress_tracker(state)]
     return Command(update=return_dict)
@@ -229,11 +187,7 @@ async def merge_supplementary_file_data(state: GeoIngestionSubgraphState, config
 async def refine_extracted_columns(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     running_accession_codes = sorted(
-        [
-            accession_code
-            for accession_code in accession_codes
-            if state.datasets[accession_code].steps["supplementary_file_check"].status == "running"
-        ]
+        [accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["supplementary_file_check"].status == "running"]
     )
     accession_code = running_accession_codes[0]
     dataset_state = state.datasets[accession_code]
@@ -253,11 +207,7 @@ async def refine_extracted_columns(state: GeoIngestionSubgraphState, config: Run
         return Command(update=return_dict)
 
     metadata_artifact = next(
-        (
-            artifact
-            for artifact in state.config.artifacts
-            if (artifact.kind == "metadata_cache") and (artifact.accession_code == accession_code)
-        ),
+        (artifact for artifact in state.config.artifacts if (artifact.kind == "metadata_cache") and (artifact.accession_code == accession_code)),
         None,
     )
     with open(metadata_artifact.path, encoding="utf-8") as f:  # type: ignore
@@ -283,9 +233,7 @@ async def refine_extracted_columns(state: GeoIngestionSubgraphState, config: Run
             "created_at": datetime.now(UTC).isoformat(),
         }
     )
-    return_dict["config"]["artifacts"] = consolidate_artifacts(
-        [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], [mapper_artifact]
-    )
+    return_dict["config"]["artifacts"] = consolidate_artifacts([ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], [mapper_artifact])
     return_dict["datasets"][accession_code]["steps"]["supplementary_file_check"] = set_step_status(
         status="completed", step=return_dict["datasets"][accession_code]["steps"]["supplementary_file_check"]
     )
@@ -382,9 +330,7 @@ def summarize_geo_findings(state: GeoIngestionSubgraphState, config: RunnableCon
         m.update(accession_code.encode("utf-8"))
     hash = m.hexdigest()
 
-    payload["message"] = (
-        f"We have downloaded and formatted {len(accession_codes)} datasets from GEO. Here is a summary of the datasets:"
-    )
+    payload["message"] = f"We have downloaded and formatted {len(accession_codes)} datasets from GEO. Here is a summary of the datasets:"
     message = ToolMessage(
         id=hash,
         content=payload["message"],

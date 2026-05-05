@@ -184,7 +184,7 @@ async def _process_detection_columns(
     # 5. Reconstruct DataFrame
     # We transpose and reconstruct to match your "Sample as Index" requirement
     start_time = datetime.now()
-    methylation_df = pd.DataFrame(filtered_values.T, index=beta_cols, columns=sample_data.index)
+    methylation_df = pd.DataFrame(filtered_values.T, index=beta_cols, columns=sample_data.index)  # ty: ignore[invalid-argument-type]
     end_time = datetime.now()
     reconstruction_time_taken = (end_time - start_time).total_seconds()
     print(f"\nTime taken to reconstruct filtered DataFrame: {reconstruction_time_taken} seconds\n")
@@ -219,7 +219,10 @@ async def _process_detection_columns_alt(
     column_scheme, artifact = await _get_column_scheme(artifact, sample_data, config)
     if all(s.status in ["error", "missing"] for s in [column_scheme.beta_column, column_scheme.detection_column]):
         raise ValueError(
-            f"Unable to determine column scheme for dataset {artifact.accession_code} with artifact {artifact.path}. Beta column notes: {column_scheme.beta_column.notes}, Detection column notes: {column_scheme.detection_column.notes}"  # type: ignore
+            f"Unable to determine column scheme for dataset {artifact.accession_code} "
+            f"with artifact {artifact.path}. "
+            f"Beta column notes: {getattr(column_scheme.beta_column, 'notes', 'N/A')}, "
+            f"Detection column notes: {getattr(column_scheme.detection_column, 'notes', 'N/A')}"
         )
 
     beta_pattern = (
@@ -234,9 +237,7 @@ async def _process_detection_columns_alt(
         if column_scheme.detection_column.status == "resolved"
         else None
     )
-    detection_columns = [
-        idx for idx, col in enumerate(sample_data.columns) if detection_pattern and detection_pattern.search(col)
-    ]
+    detection_columns = [idx for idx, col in enumerate(sample_data.columns) if detection_pattern and detection_pattern.search(col)]
 
     if not beta_pattern:
         return pd.DataFrame(), artifact
@@ -486,9 +487,7 @@ async def _get_column_scheme(
     """
     deps: Deps = config["configurable"]["deps"]
     llm = deps.llm
-    print(
-        f"\nGetting column scheme for artifact {artifact.path} with accession code {artifact.accession_code}, attempt {count + 1}"
-    )
+    print(f"\nGetting column scheme for artifact {artifact.path} with accession code {artifact.accession_code}, attempt {count + 1}")
     sample_data_markdown, _ = _generate_data_samples(sample_data, seed=count)
     example_one_data_markdown, example_one_answer = generate_column_interpretation_examples()
     example_two_data_markdown, example_two_answer = generate_column_interpretation_examples(alt=True)
@@ -577,25 +576,13 @@ async def _get_column_scheme(
         print(f"\nBeta columns identified with pattern {resolved.beta_column.pattern}: {beta_columns}")
         print(f"\nColumns that failed to match beta pattern {resolved.beta_column.pattern}: {missing_beta_columns}")
 
-        detection_pattern = (
-            re.compile(resolved.detection_column.pattern, re.IGNORECASE)
-            if resolved.detection_column.status == "resolved"
-            else None
-        )
-        detection_columns = [
-            col for col in sorted(new_columns.columns.tolist()) if detection_pattern and detection_pattern.search(col)
-        ]
-        missing_detection_columns = [
-            col for col in sorted(new_columns.columns.tolist()) if col not in detection_columns
-        ]
+        detection_pattern = re.compile(resolved.detection_column.pattern, re.IGNORECASE) if resolved.detection_column.status == "resolved" else None
+        detection_columns = [col for col in sorted(new_columns.columns.tolist()) if detection_pattern and detection_pattern.search(col)]
+        missing_detection_columns = [col for col in sorted(new_columns.columns.tolist()) if col not in detection_columns]
         if detection_pattern:
             print(f"\n Detection pattern: {detection_pattern}")
-            print(
-                f"\nDetection columns identified with pattern {resolved.detection_column.pattern}: {detection_columns}"
-            )
-            print(
-                f"\nColumns that failed to match detection pattern {resolved.detection_column.pattern}: {missing_detection_columns}"
-            )
+            print(f"\nDetection columns identified with pattern {resolved.detection_column.pattern}: {detection_columns}")
+            print(f"\nColumns that failed to match detection pattern {resolved.detection_column.pattern}: {missing_detection_columns}")
 
         # Cases
         complete_failure = len(beta_columns) == 0
@@ -608,9 +595,7 @@ async def _get_column_scheme(
                 sample_data=new_sample_data_markdown,
                 random_column=new_columns.columns.tolist()[0],
                 beta_pattern=resolved.beta_column.pattern,
-                beta_columns=", ".join(beta_columns)
-                if len(beta_columns) > 0
-                else "N/A, because your pattern failed to match any columns.",
+                beta_columns=", ".join(beta_columns) if len(beta_columns) > 0 else "N/A, because your pattern failed to match any columns.",
                 not_beta_columns=", ".join(missing_beta_columns)
                 if len(missing_beta_columns) > 0
                 else "N/A, all columns were identified as being `beta_column`s.",
@@ -637,9 +622,7 @@ async def _get_column_scheme(
                 messages=messages + [agent_message, correction_message],  # type: ignore
                 count=count + 1,
                 prev_beta_pattern=resolved.beta_column.pattern,
-                prev_detection_pattern=resolved.detection_column.pattern
-                if resolved.detection_column.status == "resolved"
-                else None,
+                prev_detection_pattern=resolved.detection_column.pattern if resolved.detection_column.status == "resolved" else None,
             )
 
     column_scheme_path = os.path.splitext(artifact.path)[0] + ".json"
@@ -704,9 +687,7 @@ async def format_individual_methylation_data(
         }
     )
 
-    return_dict["config"]["artifacts"] = consolidate_artifacts(
-        [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], [methylation_artifact]
-    )
+    return_dict["config"]["artifacts"] = consolidate_artifacts([ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], [methylation_artifact])
     return_dict["datasets"][accession_code]["supplementary_data"][artifact.sha256] = "running"
     return return_dict
 
@@ -729,9 +710,7 @@ def merge_formatted_supplementary_data(state: GeoIngestionSubgraphState, accessi
     dataset_state = state.datasets[accession_code]
     print(f"\nDataset supplementary data state: {dataset_state.supplementary_data}")
     formatted_artifacts = [
-        a
-        for a in state_config.artifacts
-        if (a.kind == "supplementary_file_methylation_data_formatted") and (a.accession_code == accession_code)
+        a for a in state_config.artifacts if (a.kind == "supplementary_file_methylation_data_formatted") and (a.accession_code == accession_code)
     ]
     formatted_datasets = [pd.read_csv(artifact.path, index_col=0) for artifact in formatted_artifacts]
     merged_data = pd.concat(formatted_datasets, axis=0)
@@ -764,9 +743,7 @@ async def format_methylation_data(
     return_dict = {"config": state_config.model_dump()}
 
     sample_data_artifacts = [
-        a
-        for a in state_config.artifacts
-        if (a.kind == "supplementary_file_methylation_data") and (a.accession_code == accession_code)
+        a for a in state_config.artifacts if (a.kind == "supplementary_file_methylation_data") and (a.accession_code == accession_code)
     ]
     sample_datasets = [_read_sample_data(artifact.path) for artifact in sample_data_artifacts]
     collected_artifacts = []
@@ -806,9 +783,7 @@ async def format_methylation_data(
             )
     collected_artifacts.append(methylation_artifact)
 
-    return_dict["config"]["artifacts"] = consolidate_artifacts(
-        [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], collected_artifacts
-    )
+    return_dict["config"]["artifacts"] = consolidate_artifacts([ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], collected_artifacts)
     return return_dict
 
 
@@ -1019,9 +994,7 @@ def lexical_score_matrix(A: list[str], B: list[str], workers: int = -1, no_count
     return S
 
 
-def extract_subject_column_mapping(
-    metadata_artifact: ArtifactRef, sample_data_df: pd.DataFrame, return_dict: dict[str, Any]
-) -> Any:
+def extract_subject_column_mapping(metadata_artifact: ArtifactRef, sample_data_df: pd.DataFrame, return_dict: dict[str, Any]) -> Any:
     """Map sample data indices to metadata subject IDs via lexical scoring.
 
     Reads the metadata CSV, computes a lexical similarity matrix
@@ -1048,9 +1021,7 @@ def extract_subject_column_mapping(
     mapper = {sample_data_subjects[i]: subject_ids[j] for i, j in enumerate(best_j)}
     print(f"\nGenerated subject mapping: {mapper}")
     # Save mapper
-    mapper_artifact_path = os.path.join(
-        os.path.dirname(metadata_artifact.path), f"{metadata_artifact.accession_code}_subject_mapping.json"
-    )
+    mapper_artifact_path = os.path.join(os.path.dirname(metadata_artifact.path), f"{metadata_artifact.accession_code}_subject_mapping.json")
     with open(mapper_artifact_path, "w", encoding="utf-8") as f:
         json.dump(mapper, f, ensure_ascii=False, indent=2)
     mapper_artifact = ArtifactRef.model_validate(
@@ -1161,9 +1132,7 @@ def _create_subject_id_mapping(
 
     # This is to map from the original subject id to the best subject id
     # I have the field name and key name, I need to extract that here
-    def _extract_subject(
-        field_name: str, target_values: list[str], metadata_dict: dict[str, Any], key_name: str | None = None
-    ):
+    def _extract_subject(field_name: str, target_values: list[str], metadata_dict: dict[str, Any], key_name: str | None = None):
         subject = None
         candidate_subjects = []
         max_score = -1
@@ -1185,9 +1154,7 @@ def _create_subject_id_mapping(
                 max_score = score_matrix[i, j]
                 subject = candidate_subjects[i]
                 sample = target_values[j]
-                print(
-                    f"\nExtracted subject {subject} for value {sample} in field {field_name} and key {key_name} with score {max_score}"
-                )
+                print(f"\nExtracted subject {subject} for value {sample} in field {field_name} and key {key_name} with score {max_score}")
         return subject
 
     def _get_subject_column_values(source_values: list[str], target_values: list[str]) -> Any:

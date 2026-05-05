@@ -12,7 +12,7 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver  # type: ignore
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from pydantic import BaseModel
 
 from ..agent.registry.services import build_services_with_checkpointer
@@ -443,9 +443,7 @@ async def stream_thread(thread_id: str, req: StreamRequest, request: Request):
         except Exception as e:
             traceback.print_exc()
             try:
-                await session.queue.put(
-                    type("Ev", (), {"type": "final", "payload": {"message": f"Runner crashed: {e}"}})
-                )
+                await session.queue.put(type("Ev", (), {"type": "final", "payload": {"message": f"Runner crashed: {e}"}}))
             except Exception:
                 pass
 

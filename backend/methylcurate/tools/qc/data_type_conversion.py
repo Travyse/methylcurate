@@ -24,9 +24,7 @@ def detect_data_type(data_matrix: pd.DataFrame) -> str:  # TODO Fix the input
 
     result = (in_range & non_na).sum().sum() / non_na.sum().sum()
 
-    print(
-        f"Total values: {data_matrix.size}, Non-NA values: {non_na.sum().sum()}, Values in [0,1]: {(in_range & non_na).sum().sum()}"
-    )
+    print(f"Total values: {data_matrix.size}, Non-NA values: {non_na.sum().sum()}, Values in [0,1]: {(in_range & non_na).sum().sum()}")
     print(f"Proportion of values that fall within beta range: {result}")
     if result > 0.95:
         return "beta"
@@ -52,9 +50,7 @@ def _convert_m_to_beta(m_matrix: np.ndarray) -> np.ndarray:
     return beta_values
 
 
-def convert_data_type(
-    data_conversion_input: PreprocessDataInput, data_df: pd.DataFrame
-) -> tuple[PreprocessDataResult, pd.DataFrame]:
+def convert_data_type(data_conversion_input: PreprocessDataInput, data_df: pd.DataFrame) -> tuple[PreprocessDataResult, pd.DataFrame]:
     """Convert methylation data between beta-value and M-value representations.
 
     When the source and target types differ the appropriate conversion
@@ -80,9 +76,7 @@ def convert_data_type(
     elif data_conversion_input.from_type == "m" and data_conversion_input.to_type == "beta":
         converted_array = _convert_m_to_beta(data_df.to_numpy())
     else:
-        raise ValueError(
-            f"Unsupported conversion from {data_conversion_input.from_type} to {data_conversion_input.to_type}"
-        )
+        raise ValueError(f"Unsupported conversion from {data_conversion_input.from_type} to {data_conversion_input.to_type}")
 
     converted_df = pd.DataFrame(converted_array, index=data_df.index, columns=data_df.columns)
     return PreprocessDataResult(data_type=data_conversion_input.to_type), converted_df

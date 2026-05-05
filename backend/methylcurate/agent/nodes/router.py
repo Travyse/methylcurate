@@ -148,9 +148,7 @@ async def clarify_router_node(state: MainState, config: RunnableConfig) -> dict[
     # Assume the human provided text in state.pending_review.response_text
     human_response = interrupt({"prompt": state.pending_reviews.question, "context": state.pending_reviews.payload})
     # Possibly have the LLM involved in this
-    human_message = HumanMessage(
-        content=human_response, additional_kwargs={"created_at": datetime.now(UTC).isoformat()}
-    )
+    human_message = HumanMessage(content=human_response, additional_kwargs={"created_at": datetime.now(UTC).isoformat()})
     message_history = state.messages + [human_message]
     router_out = await _get_router_decision(message_history, llm)
 

@@ -181,9 +181,7 @@ def _get_custom_models(user_input: GEOMetadataExtractionInput):
     key_names = set()
     for example in user_input.characteristics_ch1:
         key_names.update(v.split(":", 1)[0].strip() for v in example)
-    GEOMetadataExtractionResultDyn, FieldResolutionDyn, FieldResolutionEnvelopeDyn = build_dynamic_result_model(
-        tuple(sorted(list(key_names)))
-    )
+    GEOMetadataExtractionResultDyn, FieldResolutionDyn, FieldResolutionEnvelopeDyn = build_dynamic_result_model(tuple(sorted(list(key_names))))
     return GEOMetadataExtractionResultDyn, FieldResolutionDyn, FieldResolutionEnvelopeDyn, key_names
 
 
@@ -204,9 +202,7 @@ def _get_parse_rate(metadata_summary: dict[str, Any] = None) -> dict[str, float]
     parse_rates = {}
     if metadata_summary is not None:
         parse_rates = {
-            concept: metadata_summary[concept]["parse_rate"]
-            for concept in get_args(Concept)
-            if not isinstance(metadata_summary[concept], list)
+            concept: metadata_summary[concept]["parse_rate"] for concept in get_args(Concept) if not isinstance(metadata_summary[concept], list)
         }
     return parse_rates
 
@@ -226,17 +222,9 @@ def _get_extraction_resolutions(extraction_result: Any) -> dict[str, Any]:
     """
     resolutions = {}
     for concept in get_args(Concept):
-        concept_presence = (
-            (concept in extraction_result)
-            if isinstance(extraction_result, dict)
-            else hasattr(extraction_result, concept)
-        )
+        concept_presence = (concept in extraction_result) if isinstance(extraction_result, dict) else hasattr(extraction_result, concept)
         if concept_presence:
-            resolution = (
-                extraction_result.get(concept, None)
-                if isinstance(extraction_result, dict)
-                else getattr(extraction_result, concept, None)
-            )
+            resolution = extraction_result.get(concept, None) if isinstance(extraction_result, dict) else getattr(extraction_result, concept, None)
             resolutions[concept] = FieldResolutionEnvelope(resolution=resolution).resolution  # type: ignore
     return resolutions
 
@@ -269,7 +257,11 @@ def _check_extraction_patterns(resolutions: dict[str, Any]) -> list[Concept]:
             # if concept in flexible_concepts:
             #    if has_alternation_anywhere(pattern):
             #        flagged_patterns.append(concept)
-            #        notes_flagged_patterns[concept] = f"The regular expression pattern '{pattern}' contains alternations, which violates the generic pattern requirement. Modify this pattern to remove all alternations and be simpler and more generic."
+            #        notes_flagged_patterns[concept] = (
+            #            f"The regular expression pattern '{pattern}' contains alternations, "
+            #            "which violates the generic pattern requirement. "
+            #            "Modify this pattern to remove all alternations and be simpler and more generic."
+            #        )
     return flagged_patterns, notes_flagged_patterns  # type: ignore
 
 
@@ -342,9 +334,7 @@ async def _extract_column_for_concept_disease_status(
     """
     deps: Deps = config["configurable"]["deps"]
     llm = deps.llm
-    if resolutions["disease_status"].extraction.field_name == "default" or not hasattr(
-        resolutions["disease_status"].extraction, "key_name"
-    ):
+    if resolutions["disease_status"].extraction.field_name == "default" or not hasattr(resolutions["disease_status"].extraction, "key_name"):
         key_name = "N/A"
     else:
         key_name = resolutions["disease_status"].extraction.key_name
@@ -378,12 +368,17 @@ async def _extract_column_for_concept_disease_status(
         except OutputParserException as e:
             human_message = HumanMessage(
                 id=uuid.uuid4().hex,
-                content=f"The previous output from the LLM failed to parse with error: {e}. Please reformat the output to match the expected format and ensure that all required fields are included.",
+                content=(
+                    f"The previous output from the LLM failed to parse with error: {e}. "
+                    "Please reformat the output to match the expected format and ensure "
+                    "that all required fields are included."
+                ),
                 additional_kwargs={
                     "created_at": datetime.now(UTC).isoformat(),
                 },
             )
             call_messages += [human_message]
+            retries += 1
             continue
         except ValidationError as e:
             print(f"\n\nValidation error for concept disease_status: {e}. Setting resolution to error with notes.")
@@ -464,7 +459,11 @@ async def _extract_column_for_concept_misformatted(
         except OutputParserException as e:
             human_message = HumanMessage(
                 id=uuid.uuid4().hex,
-                content=f"The previous output from the LLM failed to parse with error: {e}. Please reformat the output to match the expected format and ensure that all required fields are included.",
+                content=(
+                    f"The previous output from the LLM failed to parse with error: {e}. "
+                    "Please reformat the output to match the expected format and ensure "
+                    "that all required fields are included."
+                ),
                 additional_kwargs={
                     "created_at": datetime.now(UTC).isoformat(),
                 },
@@ -553,9 +552,7 @@ async def _extract_column_for_concept_poor_parsing(
     FieldResolutionCorrectionDyn = build_dynamic_resolution_correction_model(poorly_parsed_concepts, resolution_model)  # type: ignore
     prompt_params["json_format"] = json.dumps(FieldResolutionCorrectionDyn.model_json_schema(), indent=2)
 
-    clarification_message = HumanMessage(
-        id=uuid.uuid4().hex, content=generate_column_feedback_loop_prompt(**prompt_params)
-    )
+    clarification_message = HumanMessage(id=uuid.uuid4().hex, content=generate_column_feedback_loop_prompt(**prompt_params))
     new_messages = [messages[0]] + [clarification_message]
 
     retry_limit = GLOBAL_RETRY_LIMIT
@@ -575,7 +572,11 @@ async def _extract_column_for_concept_poor_parsing(
         except OutputParserException as e:
             human_message = HumanMessage(
                 id=uuid.uuid4().hex,
-                content=f"The previous output from the LLM failed to parse with error: {e}. Please reformat the output to match the expected format and ensure that all required fields are included.",
+                content=(
+                    f"The previous output from the LLM failed to parse with error: {e}. "
+                    "Please reformat the output to match the expected format and ensure "
+                    "that all required fields are included."
+                ),
                 additional_kwargs={
                     "created_at": datetime.now(UTC).isoformat(),
                 },
@@ -665,7 +666,8 @@ async def _extract_column_for_concept_with_retry(
 
     if len(flagged_concepts) > 0:
         print(
-            f"\n\nFlagged concepts for misformatted extraction patterns: {flagged_concepts}. Attempting to re-extract columns for these concepts with a formatting-focused prompt."
+            f"\n\nFlagged concepts for misformatted extraction patterns: {flagged_concepts}. "
+            "Attempting to re-extract columns for these concepts with a formatting-focused prompt."
         )
         # If there are misformatted concept patterns  attempt to return these patterns
         new_resolutions = await _extract_column_for_concept_misformatted(
@@ -772,10 +774,7 @@ async def _extract_all_columns(
             print(f"\n\nInitial extraction result: {resolved}\n\n")
             resolved = GEOMetadataExtractionResult(**resolved.model_dump())
             resolutions = _get_extraction_resolutions(resolved.model_dump())
-            if (
-                resolutions["disease_status"].status == "resolved"
-                and resolutions["disease_status"].extraction.field_name != "default"
-            ):
+            if resolutions["disease_status"].status == "resolved" and resolutions["disease_status"].extraction.field_name != "default":
                 resolutions["disease_status"].extraction.pattern = "([\\s\\S]*)"
             break
         except TimeoutError:
@@ -785,7 +784,11 @@ async def _extract_all_columns(
             print(f"\n\nOutput parser exception during extraction: {e}. Retrying extraction with clarification prompt.")
             human_message = HumanMessage(
                 id=uuid.uuid4().hex,
-                content=f"The previous output from the LLM failed to parse with error: {e}. Please reformat the output to match the expected format and ensure that all required fields are included.",
+                content=(
+                    f"The previous output from the LLM failed to parse with error: {e}. "
+                    "Please reformat the output to match the expected format and ensure "
+                    "that all required fields are included."
+                ),
                 additional_kwargs={
                     "created_at": datetime.now(UTC).isoformat(),
                 },
@@ -875,9 +878,7 @@ async def extract_metadata_columns_alt(
     if hasattr(extraction_result, "resolutions"):
         resolutions = extraction_result.resolutions
     else:
-        resolutions = {
-            key: getattr(extraction_result, key) for key in get_args(Concept) if hasattr(extraction_result, key)
-        }
+        resolutions = {key: getattr(extraction_result, key) for key in get_args(Concept) if hasattr(extraction_result, key)}
 
     if all((r.status in ["resolved", "missing"]) and (r.confidence > 0.6) for r in resolutions.values()):  # type: ignore
         try:

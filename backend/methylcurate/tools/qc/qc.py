@@ -22,9 +22,7 @@ from ...contracts.qc import (
 )
 
 
-def handle_sample_level_missingness(
-    qc_input: SampleLevelQCInput, data_df: pd.DataFrame
-) -> tuple[SampleLevelQCResult, pd.DataFrame]:
+def handle_sample_level_missingness(qc_input: SampleLevelQCInput, data_df: pd.DataFrame) -> tuple[SampleLevelQCResult, pd.DataFrame]:
     """Filter samples whose missing-value rate exceeds the configured cutoff.
 
     Args:
@@ -44,9 +42,7 @@ def handle_sample_level_missingness(
     return state_result, data_df_filtered
 
 
-def handle_cpg_level_missingness(
-    qc_input: CpGLevelQCInput, data_df: pd.DataFrame
-) -> tuple[CpGLevelQCResult, pd.DataFrame]:
+def handle_cpg_level_missingness(qc_input: CpGLevelQCInput, data_df: pd.DataFrame) -> tuple[CpGLevelQCResult, pd.DataFrame]:
     """Filter CpG probes with high missingness and impute remaining gaps.
 
     Probes exceeding the missingness cutoff are dropped.  Surviving
@@ -79,9 +75,7 @@ def handle_cpg_level_missingness(
         imputer = SimpleImputer(strategy=qc_input.imputation_strategy.imputation_model.strategy)  # type: ignore
 
     data_df_filtered.loc[:, high_quality_cpgs] = imputer.fit_transform(data_df_filtered[high_quality_cpgs])
-    state_result = CpGLevelQCResult.model_validate(
-        {"removed_cpgs": removed_cpgs, "missing_before_imputation": overall_missing_rate}
-    )
+    state_result = CpGLevelQCResult.model_validate({"removed_cpgs": removed_cpgs, "missing_before_imputation": overall_missing_rate})
     return state_result, data_df_filtered
 
 
@@ -107,9 +101,7 @@ def maximum_dnam_filter(qc_input: DNAmQCInput, data_df: pd.DataFrame) -> tuple[D
     return state_result, data_df_filtered
 
 
-def interarray_correlation(
-    qc_input: InterarrayCorrelationQCInput, data_df: pd.DataFrame
-) -> tuple[InterarrayCorrelationQCResult, pd.DataFrame]:
+def interarray_correlation(qc_input: InterarrayCorrelationQCInput, data_df: pd.DataFrame) -> tuple[InterarrayCorrelationQCResult, pd.DataFrame]:
     """Filter samples whose mean inter-array correlation falls below the cutoff.
 
     Computes the full pairwise sample correlation matrix, derives each

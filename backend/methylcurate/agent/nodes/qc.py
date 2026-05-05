@@ -29,9 +29,7 @@ from ...utils.logging import setup_logger
 from ..state.models import QualityControlSubgraphState
 
 
-def _get_data_conversion_input_or_default(
-    accession_code: str, state: QualityControlSubgraphState
-) -> PreprocessDataInput:
+def _get_data_conversion_input_or_default(accession_code: str, state: QualityControlSubgraphState) -> PreprocessDataInput:
     """
     Retrieves the data conversion input for the given accession code from the state. If the data conversion input is not present in the state, it attempts to infer the necessary information from the preqc_methylation_data artifact associated with the accession code. It reads the methylation data, detects its type, and constructs a PreprocessDataInput object with the detected type as the from_type and "beta" as the to_type. If the required artifact is missing, it raises a ValueError.
 
@@ -46,9 +44,7 @@ def _get_data_conversion_input_or_default(
         return state.data_conversion_input
 
     relevant_artifacts = [
-        artifact
-        for artifact in state.config.artifacts
-        if artifact.accession_code == accession_code and artifact.kind == "preqc_methylation_data"
+        artifact for artifact in state.config.artifacts if artifact.accession_code == accession_code and artifact.kind == "preqc_methylation_data"
     ]
     geo_data_path = (
         next((artifact.path for artifact in relevant_artifacts if "cache" not in artifact.path), None)
@@ -150,9 +146,7 @@ def quality_control_node(state: QualityControlSubgraphState, config: RunnableCon
         return Command(update={})
 
     accession_code = running_accession_codes[0]
-    logger = setup_logger(
-        os.path.join(state.config.output_root, accession_code), f"{accession_code}_tasks", "tasks.log"
-    )
+    logger = setup_logger(os.path.join(state.config.output_root, accession_code), f"{accession_code}_tasks", "tasks.log")
     return_dict = {
         "config": state.config.model_dump(),
         "datasets": {accession_code: state.datasets[accession_code].model_dump()},
@@ -160,9 +154,7 @@ def quality_control_node(state: QualityControlSubgraphState, config: RunnableCon
 
     dataset_state = state.datasets[accession_code]
     relevant_artifacts = [
-        artifact
-        for artifact in state.config.artifacts
-        if artifact.accession_code == accession_code and artifact.kind == "preqc_methylation_data"
+        artifact for artifact in state.config.artifacts if artifact.accession_code == accession_code and artifact.kind == "preqc_methylation_data"
     ]
     geo_data_path = (
         next((artifact.path for artifact in relevant_artifacts if "cache" not in artifact.path), None)
@@ -198,9 +190,7 @@ def quality_control_node(state: QualityControlSubgraphState, config: RunnableCon
     dataset_state.interarray_correlation_qc_result = qc_results["interarray_correlation_qc_result"]
     dataset_state.artifacts = qc_results["artifacts"]
     return_dict["datasets"][accession_code] = dataset_state.model_dump()
-    return_dict["datasets"][accession_code]["artifacts"] = consolidate_artifacts(
-        dataset_state.artifacts, qc_results["artifacts"]
-    )
+    return_dict["datasets"][accession_code]["artifacts"] = consolidate_artifacts(dataset_state.artifacts, qc_results["artifacts"])
     return_dict["config"]["artifacts"] = consolidate_artifacts(state.config.artifacts, qc_results["artifacts"])
     return_dict["datasets"][accession_code]["steps"]["quality_control"]["status"] = "completed"
     progress_message = qc_progress(state)
@@ -260,9 +250,7 @@ def quality_control_summarization_node(state: QualityControlSubgraphState) -> Qu
         ],
         "rows": [],
     }
-    accession_codes = sorted(
-        [x for x in state.datasets.keys() if state.datasets[x].steps["quality_control"].status == "completed"]
-    )
+    accession_codes = sorted([x for x in state.datasets.keys() if state.datasets[x].steps["quality_control"].status == "completed"])
 
     for accession_code in accession_codes:
         preqc_methylation_df = load_metadata_aligned_methylation_data(accession_code, state.config.artifacts)

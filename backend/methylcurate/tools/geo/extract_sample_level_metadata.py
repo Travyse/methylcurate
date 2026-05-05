@@ -120,9 +120,7 @@ def apply_extraction_rule(field_values: list[str], rule: ExtractionRule) -> tupl
 
         if field_name == "characteristics_ch1":
             field_values = {  # type: ignore
-                v.split(":")[0].strip(): v.split(":")[1].strip()
-                for v in field_values
-                if isinstance(v, str) and ":" in v
+                v.split(":")[0].strip(): v.split(":")[1].strip() for v in field_values if isinstance(v, str) and ":" in v
             }
             for k, v in field_values.items():  # type: ignore
                 if rule.key_name.lower() == k.lower():  # type: ignore
@@ -292,7 +290,7 @@ def _merge_to_dataframe(rows: list[Any], col_names: list[str], index_col: str | 
     for row in rows:
         if len(row) != len(col_names):
             raise ValueError(f"Row length {len(row)} does not match column names length {len(col_names)}")
-    df = pd.DataFrame(rows, columns=col_names)
+    df = pd.DataFrame(rows, columns=col_names)  # ty: ignore[invalid-argument-type]
     if index_col is not None and index_col in df.columns:
         df.set_index(index_col, inplace=True)
     return df
@@ -332,9 +330,7 @@ def get_field_value(gsm_metadata: dict, resolution: FieldResolution) -> tuple[st
     return (  # type: ignore
         extracted_value,
         target_field,
-        False
-        if (extracted_value is not None) or all(x is None for x in [extracted_value, target_field])
-        else (extracted_value, target_field, True),
+        False if (extracted_value is not None) or all(x is None for x in [extracted_value, target_field]) else (extracted_value, target_field, True),
     )
 
 
@@ -374,9 +370,7 @@ def get_df_field_coverage(metadata: pd.DataFrame, field: str) -> FieldCoverage:
     return FieldCoverage(
         present=metadata[metadata[field].notna()][field].count(),
         missing=metadata[field].isna().sum(),
-        parse_rate=metadata[metadata[field].notna()][field].count() / metadata.shape[0]
-        if metadata.shape[0] > 0
-        else 0.0,
+        parse_rate=metadata[metadata[field].notna()][field].count() / metadata.shape[0] if metadata.shape[0] > 0 else 0.0,
         unique_values=metadata[metadata[field].notna()][field].nunique(),
         examples=metadata[metadata[field].notna()][field].astype(str).tolist()[:10],
     )
@@ -417,9 +411,7 @@ def extract_dataset_metadata(
         raw disease statuses, and example parsing errors.
     """
 
-    def get_resolution(
-        metadata_extraction_result: GEOMetadataExtractionResult, concept: Concept
-    ) -> FieldResolution | None:
+    def get_resolution(metadata_extraction_result: GEOMetadataExtractionResult, concept: Concept) -> FieldResolution | None:
         if hasattr(metadata_extraction_result, "resolutions"):
             return metadata_extraction_result.resolutions.get(concept, None)  # type: ignore
         else:
@@ -475,7 +467,9 @@ def extract_dataset_metadata(
             age_f = float(age)  # type: ignore
         except (TypeError, ValueError):
             print(
-                f"\n\nCould not parse age value '{age_info}' for sample {gsm_name} in {accession_code}. Metadata is {gsm.get('characteristics_ch1', {})} and resolution is {age_resolution.model_dump()}"  # type: ignore
+                f"\n\nCould not parse age value '{age_info}' for sample {gsm_name} in {accession_code}. "
+                f"Metadata is {gsm.get('characteristics_ch1', {})} and resolution is "
+                f"{age_resolution.model_dump() if age_resolution else 'N/A'}"
             )
             age_f = None
 
@@ -641,9 +635,7 @@ def get_all_methylation_data(state_config: GEOIngestionConfig, state: GeoDataset
     return_dict = {"artifacts": []}
 
     gse = GEOparse.get_GEO(filepath=state.download_result.artifact.path, silent=True)  # type: ignore
-    methylation_dataframe_output_path = os.path.join(
-        state_config.output_root, accession_code, "preqc_methylation_matrix.csv"
-    )
+    methylation_dataframe_output_path = os.path.join(state_config.output_root, accession_code, "preqc_methylation_matrix.csv")
 
     for gsm_name, gsm in gse.gsms.items():
         # Remove poor quality CpG sites

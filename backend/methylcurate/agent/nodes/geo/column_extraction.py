@@ -90,15 +90,9 @@ def _randomly_sample_from_dataset(
 async def extract_metadata_schema(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     if check_step_completion("extract_metadata_schema", state.datasets, accession_codes):
-        return Command(
-            update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]}
-        )
+        return Command(update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]})
     running_accession_codes = sorted(
-        [
-            accession_code
-            for accession_code in accession_codes
-            if state.datasets[accession_code].steps["extract_metadata_schema"].status == "running"
-        ]
+        [accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["extract_metadata_schema"].status == "running"]
     )
 
     accession_code = running_accession_codes.pop(0)
@@ -108,9 +102,7 @@ async def extract_metadata_schema(state: GeoIngestionSubgraphState, config: Runn
         "llm_messages": [],
     }
     artifact = next(a for a in state.config.artifacts if a.accession_code == accession_code and a.kind == "soft_file")
-    metadata_artifact = next(
-        a for a in state.config.artifacts if a.accession_code == accession_code and a.kind == "metadata_cache"
-    )
+    metadata_artifact = next(a for a in state.config.artifacts if a.accession_code == accession_code and a.kind == "metadata_cache")
     metadata = None
     with open(metadata_artifact.path, encoding="utf-8") as f:
         metadata = json.load(f)
@@ -120,9 +112,7 @@ async def extract_metadata_schema(state: GeoIngestionSubgraphState, config: Runn
         "dataset_summary": metadata["dataset_metadata"]["summary"],
         "dataset_overall_design": metadata["dataset_metadata"]["overall_design"],
     }
-    return_dict = _randomly_sample_from_dataset(
-        metadata, return_dict, accession_code, artifact=artifact, num_samples=10
-    )
+    return_dict = _randomly_sample_from_dataset(metadata, return_dict, accession_code, artifact=artifact, num_samples=10)
     user_input = GEOMetadataExtractionInput(**return_dict["datasets"][accession_code]["metadata_extraction_input"])
     GSESpecificMetadataExtractionResult, _, __, key_names = _get_custom_models(user_input)
 
@@ -176,26 +166,16 @@ async def extract_metadata_schema(state: GeoIngestionSubgraphState, config: Runn
     )
     return_dict["main_messages"] = [update_progress_tracker(state)]
     return_dict["messages"] = [update_progress_tracker(state)]
-    return_dict["config"]["artifacts"] = consolidate_artifacts(
-        [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], [artifact]
-    )
+    return_dict["config"]["artifacts"] = consolidate_artifacts([ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], [artifact])
     return Command(update=return_dict)
 
 
-async def check_column_extraction_rule_formatting(
-    state: GeoIngestionSubgraphState, config: RunnableConfig
-) -> dict[str, Any]:
+async def check_column_extraction_rule_formatting(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     if check_step_completion("refine_metadata_schema", state.datasets, accession_codes):
-        return Command(
-            update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]}
-        )
+        return Command(update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]})
     running_accession_codes = sorted(
-        [
-            accession_code
-            for accession_code in accession_codes
-            if state.datasets[accession_code].steps["refine_metadata_schema"].status == "running"
-        ]
+        [accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["refine_metadata_schema"].status == "running"]
     )
 
     accession_code = running_accession_codes.pop(0)
@@ -235,21 +215,13 @@ async def check_column_extraction_rule_formatting(
     return_dict["datasets"][accession_code]["refinement_history"]["formatting_history"].append(flagged_concepts)
 
     metadata_cache_artifact = next(
-        (
-            artifact
-            for artifact in state.config.artifacts
-            if (artifact.kind == "metadata_cache") and (artifact.accession_code == accession_code)
-        ),
+        (artifact for artifact in state.config.artifacts if (artifact.kind == "metadata_cache") and (artifact.accession_code == accession_code)),
         None,
     )
     with open(metadata_cache_artifact.path, encoding="utf-8") as f:  # type: ignore
         metadata_dict = json.load(f)
     metadata_artifact = next(
-        (
-            artifact
-            for artifact in state.config.artifacts
-            if (artifact.kind == "dataset_metadata") and (artifact.accession_code == accession_code)
-        ),
+        (artifact for artifact in state.config.artifacts if (artifact.kind == "dataset_metadata") and (artifact.accession_code == accession_code)),
         None,
     )
     metadata = pd.read_csv(metadata_artifact.path, index_col=0)  # type: ignore
@@ -279,16 +251,10 @@ async def check_column_extraction_rule_formatting(
     return Command(update=return_dict)
 
 
-async def check_column_extraction_rule_accuracy(
-    state: GeoIngestionSubgraphState, config: RunnableConfig
-) -> dict[str, Any]:
+async def check_column_extraction_rule_accuracy(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
     accession_codes = get_accession_codes(state)
     running_accession_codes = sorted(
-        [
-            accession_code
-            for accession_code in accession_codes
-            if state.datasets[accession_code].steps["refine_metadata_schema"].status == "running"
-        ]
+        [accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["refine_metadata_schema"].status == "running"]
     )
     accession_code = running_accession_codes.pop(0)
     return_dict = {
@@ -296,9 +262,7 @@ async def check_column_extraction_rule_accuracy(
         "datasets": {accession_code: state.datasets[accession_code].model_dump()},
     }
 
-    metadata_artifact = next(
-        a for a in state.config.artifacts if a.accession_code == accession_code and a.kind == "metadata_cache"
-    )
+    metadata_artifact = next(a for a in state.config.artifacts if a.accession_code == accession_code and a.kind == "metadata_cache")
     metadata = None
     with open(metadata_artifact.path, encoding="utf-8") as f:
         metadata = json.load(f)
@@ -370,21 +334,13 @@ async def check_column_extraction_rule_accuracy(
     return_dict["datasets"][accession_code]["refinement_history"]["parsing_history"].append(flagged_concepts)
 
     metadata_cache_artifact = next(
-        (
-            artifact
-            for artifact in state.config.artifacts
-            if (artifact.kind == "metadata_cache") and (artifact.accession_code == accession_code)
-        ),
+        (artifact for artifact in state.config.artifacts if (artifact.kind == "metadata_cache") and (artifact.accession_code == accession_code)),
         None,
     )
     with open(metadata_cache_artifact.path, encoding="utf-8") as f:  # type: ignore
         metadata_dict = json.load(f)
     metadata_artifact = next(
-        (
-            artifact
-            for artifact in state.config.artifacts
-            if (artifact.kind == "dataset_metadata") and (artifact.accession_code == accession_code)
-        ),
+        (artifact for artifact in state.config.artifacts if (artifact.kind == "dataset_metadata") and (artifact.accession_code == accession_code)),
         None,
     )
     metadata = pd.read_csv(metadata_artifact.path, index_col=0)  # type: ignore
@@ -420,15 +376,9 @@ def geo_metadata_column_extraction_approval_node(state: GeoIngestionSubgraphStat
     """
     accession_codes = get_accession_codes(state)
     running_accession_codes = sorted(
-        [
-            accession_code
-            for accession_code in accession_codes
-            if state.datasets[accession_code].steps["refine_metadata_schema"].status == "running"
-        ]
+        [accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["refine_metadata_schema"].status == "running"]
     )
-    running_accession_codes = [
-        x for x in running_accession_codes if state.datasets[x].metadata_extraction_result is not None
-    ]
+    running_accession_codes = [x for x in running_accession_codes if state.datasets[x].metadata_extraction_result is not None]
 
     accession_code = running_accession_codes[0]
     return_dict = {
@@ -437,9 +387,7 @@ def geo_metadata_column_extraction_approval_node(state: GeoIngestionSubgraphStat
     }
     artifact_path = os.path.join(state.config.output_root, accession_code, "extraction_protocol.json")
     metadata_extraction_result = return_dict["datasets"][accession_code].get("metadata_extraction_result")
-    resolutions = {
-        key: metadata_extraction_result[key] for key in get_args(Concept) if key in metadata_extraction_result
-    }
+    resolutions = {key: metadata_extraction_result[key] for key in get_args(Concept) if key in metadata_extraction_result}
     return_dict["main_messages"] = [update_progress_tracker(state)]
     return_dict["messages"] = [update_progress_tracker(state)]
 
@@ -451,18 +399,16 @@ def geo_metadata_column_extraction_approval_node(state: GeoIngestionSubgraphStat
         if all((r["status"] in ["resolved", "missing"]) and (r["confidence"] > 0.6) for r in resolutions.values()):
             with open(artifact_path, "w", encoding="utf-8") as f:
                 json.dump(resolutions, f, ensure_ascii=False, indent=2)
-            return_dict["datasets"][accession_code]["metadata_extraction_result"]["artifact"] = (
-                ArtifactRef.model_validate(
-                    {
-                        "path": artifact_path,
-                        "kind": "metadata_extraction_protocol",
-                        "accession_code": accession_code,
-                        "sha256": compute_sha256(artifact_path, is_path=True),
-                        "bytes": os.path.getsize(artifact_path),
-                        "created_at": datetime.now(UTC).isoformat(),
-                    }
-                ).model_dump()
-            )
+            return_dict["datasets"][accession_code]["metadata_extraction_result"]["artifact"] = ArtifactRef.model_validate(
+                {
+                    "path": artifact_path,
+                    "kind": "metadata_extraction_protocol",
+                    "accession_code": accession_code,
+                    "sha256": compute_sha256(artifact_path, is_path=True),
+                    "bytes": os.path.getsize(artifact_path),
+                    "created_at": datetime.now(UTC).isoformat(),
+                }
+            ).model_dump()
         return_dict["datasets"][accession_code]["steps"]["refine_metadata_schema"] = set_step_status(
             status="completed", step=return_dict["datasets"][accession_code]["steps"]["refine_metadata_schema"]
         )
@@ -471,8 +417,7 @@ def geo_metadata_column_extraction_approval_node(state: GeoIngestionSubgraphStat
             [
                 artifact
                 for artifact in state.config.artifacts
-                if (artifact.kind == "supplementary_file_methylation_data")
-                and (artifact.accession_code == accession_code)
+                if (artifact.kind == "supplementary_file_methylation_data") and (artifact.accession_code == accession_code)
             ],
             key=lambda artifact: artifact.path,
         )

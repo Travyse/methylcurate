@@ -114,8 +114,7 @@ def make_geo_ingestion_state(run_id: str, params: dict[str, Any]) -> GeoIngestio
         messages=[SystemMessage(content=generate_geo_system_prompt(**general_kwargs))],
         llm_messages=[SystemMessage(content=generate_geo_system_prompt(**general_kwargs))],
         concept_messages={
-            concept: [SystemMessage(content=generate_geo_system_concept_prompt(**prompt_kwargs[concept]))]
-            for concept in get_args(GEOConcepts)
+            concept: [SystemMessage(content=generate_geo_system_concept_prompt(**prompt_kwargs[concept]))] for concept in get_args(GEOConcepts)
         },
         datasets=datasets,
     )
@@ -128,9 +127,7 @@ def make_harmonization_state(run_id: str, params: dict[str, Any]) -> Harmonizati
     for accession_code in config.accessions:
         dataset_path = os.path.join(config.output_root, accession_code)
         os.makedirs(dataset_path, exist_ok=True)
-        datasets[accession_code] = HarmonizationDatasetState.model_validate(
-            {"accession": accession_code, "output_dir": dataset_path}
-        )
+        datasets[accession_code] = HarmonizationDatasetState.model_validate({"accession": accession_code, "output_dir": dataset_path})
 
     return HarmonizationSubgraphState(run_id=run_id, config=config, datasets=datasets)
 
@@ -155,9 +152,7 @@ def make_benchmarking_state(run_id: str, params: dict[str, Any]) -> Benchmarking
     for accession_code in config.accessions:
         dataset_path = os.path.join(config.output_root, accession_code)
         os.makedirs(dataset_path, exist_ok=True)
-        datasets[accession_code] = BenchmarkingDatasetState.model_validate(
-            {"accession": accession_code, "output_dir": dataset_path}
-        )
+        datasets[accession_code] = BenchmarkingDatasetState.model_validate({"accession": accession_code, "output_dir": dataset_path})
 
     return BenchmarkingSubgraphState(run_id=run_id, config=config, datasets=datasets)
 
@@ -294,7 +289,7 @@ def get_dataset_for_subgraph(subgraph_name: str) -> Any:
 
 
 # Register parameter schemas for each subgraph
-from ..registry.nodes import PARAM_SCHEMAS
+from ..registry.nodes import PARAM_SCHEMAS  # noqa: E402
 
 PARAM_SCHEMAS["geo_retrieval"] = GEOIngestionConfig
 PARAM_SCHEMAS["harmonization"] = HarmonizationIngestionConfig

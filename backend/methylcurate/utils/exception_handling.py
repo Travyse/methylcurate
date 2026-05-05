@@ -24,9 +24,7 @@ def classify_geo_error(e: Exception) -> tuple[str, str, str]:
     # -------------------------
     # NETWORK / CONNECTIVITY
     # -------------------------
-    if isinstance(
-        e, (urllib.error.URLError, socket.timeout, socket.gaierror, ConnectionResetError, TimeoutError, ssl.SSLError)
-    ):
+    if isinstance(e, (urllib.error.URLError, socket.timeout, socket.gaierror, ConnectionResetError, TimeoutError, ssl.SSLError)):
         return ("network_error", "Network connection failed. Please check your internet or firewall.", str(e))
 
     # -------------------------

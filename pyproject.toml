@@ -87,8 +87,17 @@ packages = ["backend/methylcurate"]
 # Example override: relax a rule for the entire project (uncomment if needed).
 # rules.TY015 = "warn"  # For invalid-argument-type, warn instead of error.
 
+[tool.ty.environment]
+root = ["backend"]
+
+[[tool.ty.overrides]]
+include = ["tests/**"]
+
+[tool.ty.overrides.rules]
+invalid-argument-type = "ignore"
+
 [tool.ruff]
-line-length = 120
+line-length = 150
 
 [tool.ruff.lint]
 select = [
@@ -99,6 +108,12 @@ select = [
     "B",   # flake8-bugbear
     "UP",  # pyupgrade
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/methylcurate/utils/examples.py" = ["E501"]
+"backend/methylcurate/agent/nodes/harmonize.py" = ["E501"]
+"backend/methylcurate/agent/nodes/qc.py" = ["E501"]
+"backend/methylcurate/agent/nodes/router.py" = ["E501"]
 
 [tool.coverage.run]
 branch = true

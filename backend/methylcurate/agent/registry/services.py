@@ -9,7 +9,9 @@ from ..runtime.chat_runner import StreamingRunner
 
 def build_services_with_checkpointer(checkpointer) -> tuple[StreamingRunner, Deps]:
     """
-    Builds the services with the provided checkpointer instance. This ensures that all graphs and subgraphs share the same checkpointer, allowing for consistent state management across the entire system.
+    Builds the services with the provided checkpointer instance. This ensures that all
+    graphs and subgraphs share the same checkpointer, allowing for consistent state
+    management across the entire system.
 
     Args:
         checkpointer: An instance of the checkpointer to be used across all graphs and subgraphs.
