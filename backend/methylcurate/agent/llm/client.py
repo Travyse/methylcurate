@@ -1,0 +1,381 @@
+# agent/llm/client.py
+from __future__ import annotations
+
+import os
+import re
+from collections.abc import AsyncIterator
+from dataclasses import dataclass, fields
+from typing import Any, Literal, TypeVar
+
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import AnyMessage
+from langchain_ollama import ChatOllama
+from langchain_openai import AzureChatOpenAI, ChatOpenAI
+from pydantic import BaseModel, SecretStr
+
+T = TypeVar("T", bound=BaseModel)
+
+Provider = Literal["openai", "azure_openai", "anthropic", "ollama"]
+
+
+@dataclass
+class LLMConfig:
+    """
+    Configuration for the LLM client.
+
+    Attributes:
+        provider (Provider): The LLM provider.
+        model (str): The model name.
+        api_key (Optional[str]): API key for the provider.
+        base_url (Optional[str]): Base URL override for the provider.
+        azure_endpoint (Optional[str]): Azure endpoint.
+        azure_deployment (Optional[str]): Azure deployment.
+        azure_api_version (Optional[str]): Azure API version.
+        temperature (float): Sampling temperature.
+        top_k (int): Top-k sampling.
+        top_p (float): Top-p sampling.
+        timeout_s (int): Timeout in seconds.
+        max_retries (int): Maximum retries.
+        reasoning (Optional[bool]): Enable reasoning.
+        streaming (bool): Enable streaming.
+    """
+
+    provider: Provider
+    model: str
+
+    api_key: str | None = None
+    base_url: str | None = None
+
+    # Azure OpenAI
+    azure_endpoint: str | None = None
+    azure_deployment: str | None = None
+    azure_api_version: str | None = None
+
+    # Runtime behavior
+    temperature: float = 0.0
+    top_k: int = 40
+    top_p: float = 0.9
+    timeout_s: int = 120
+    max_retries: int = 2
+    reasoning: bool | None = None
+
+    # Streaming
+    streaming: bool = True
+
+    @staticmethod
+    def _interpolate_env(value: str) -> str:
+        pattern = re.compile(r"\$\{(\w+)\}")
+        missing: list[str] = []
+
+        def _replace(match: re.Match[str]) -> str:
+            var = match.group(1)
+            val = os.getenv(var)
+            if val is None:
+                missing.append(var)
+                return match.group(0)
+            return val
+
+        result = pattern.sub(_replace, value)
+        if missing:
+            raise ValueError(f"Environment variable(s) not set: {', '.join(missing)}")
+        return result
+
+    @classmethod
+    def _interpolate_value(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return cls._interpolate_env(value)
+        if isinstance(value, list):
+            return [cls._interpolate_value(v) for v in value]
+        if isinstance(value, dict):
+            return {k: cls._interpolate_value(v) for k, v in value.items()}
+        return value
+
+    @classmethod
+    def from_yaml(cls, path: str | None) -> LLMConfig | None:
+        if not path:
+            return None
+
+        try:
+            import yaml
+        except ImportError as err:
+            raise ImportError("pyyaml is required to load LLM config from a YAML file. Install it with: pip install pyyaml>=6.0") from err
+
+        resolved = os.path.expandvars(path)
+        resolved = os.path.expanduser(resolved)
+
+        if not os.path.isfile(resolved):
+            return None
+
+        with open(resolved) as f:
+            raw = yaml.safe_load(f)
+
+        if not isinstance(raw, dict):
+            raise ValueError(f"LLM config file must contain a YAML mapping, got: {type(raw).__name__}")
+
+        known_fields = {f.name for f in fields(cls)}
+        interpolated = {k: cls._interpolate_value(v) for k, v in raw.items() if k in known_fields}
+
+        missing_required = []
+        for req in ("provider", "model"):
+            if req not in interpolated:
+                missing_required.append(req)
+        if missing_required:
+            raise ValueError(f"LLM config missing required field(s): {', '.join(missing_required)}")
+
+        return cls(**interpolated)
+
+
+class LLMClient:
+    """
+    LLM client wrapper that abstracts over different providers and enforces certain capabilities:
+        Native structured output (tool/function calling) via with_structured_output()
+        Token streaming via astream()
+    """
+
+    def __init__(self, config: LLMConfig):
+        """
+        Initialize the LLM client.
+
+        Args:
+            config (LLMConfig): The configuration for the LLM client.
+        """
+        self.config = config
+        self._llm = self._build_llm(config)
+
+        # Enforce "native structured output only"
+        if not hasattr(self._llm, "with_structured_output"):
+            raise RuntimeError(
+                f"Model wrapper for provider={config.provider} does not expose with_structured_output(). Pick a tool-calling-capable backend/version."
+            )
+
+        # Enforce "token streaming"
+        if not hasattr(self._llm, "astream"):
+            raise RuntimeError(
+                f"Model wrapper for provider={config.provider} does not expose astream(). "
+                "Pin a LangChain version that supports async streaming for this backend."
+            )
+
+    # ----------------------------
+    # Construction
+    # ----------------------------
+    def _build_llm(self, cfg: LLMConfig):
+        """
+        Build the LLM instance based on the configuration.
+
+        Args:
+            cfg (LLMConfig): The configuration for the LLM client.
+
+        Returns:
+            An instance of the LLM client.
+        """
+        if cfg.provider == "openai":
+            api_key = cfg.api_key or os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                raise ValueError("Missing OpenAI API key (OPENAI_API_KEY or config.api_key).")
+
+            kwargs: dict[str, Any] = dict(
+                model=cfg.model,
+                api_key=api_key,
+                temperature=cfg.temperature,
+                timeout=cfg.timeout_s,
+                max_retries=cfg.max_retries,
+                streaming=cfg.streaming,
+            )
+            if cfg.base_url:
+                kwargs["base_url"] = cfg.base_url
+
+            return ChatOpenAI(**kwargs)
+
+        if cfg.provider == "azure_openai":
+            api_key = cfg.api_key or os.getenv("AZURE_OPENAI_API_KEY")
+            endpoint = cfg.azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
+            deployment = cfg.azure_deployment or os.getenv("AZURE_OPENAI_DEPLOYMENT")
+            api_version = cfg.azure_api_version or os.getenv("AZURE_OPENAI_API_VERSION")
+
+            missing = [
+                k
+                for k, v in {
+                    "AZURE_OPENAI_API_KEY": api_key,
+                    "AZURE_OPENAI_ENDPOINT": endpoint,
+                    "AZURE_OPENAI_DEPLOYMENT": deployment,
+                    "AZURE_OPENAI_API_VERSION": api_version,
+                }.items()
+                if not v
+            ]
+            if missing:
+                raise ValueError(f"Azure OpenAI config missing: {', '.join(missing)}")
+
+            return AzureChatOpenAI(
+                azure_endpoint=endpoint,
+                azure_deployment=deployment,
+                api_version=api_version,
+                api_key=SecretStr(api_key) if api_key else None,
+                temperature=cfg.temperature,
+                timeout=cfg.timeout_s,
+                max_retries=cfg.max_retries,
+                streaming=cfg.streaming,
+            )
+
+        if cfg.provider == "anthropic":
+            api_key = cfg.api_key or os.getenv("ANTHROPIC_API_KEY")
+            if not api_key:
+                raise ValueError("Missing Anthropic API key (ANTHROPIC_API_KEY or config.api_key).")
+
+            return ChatAnthropic(
+                model_name=cfg.model,
+                api_key=SecretStr(api_key),
+                temperature=cfg.temperature,
+                timeout=cfg.timeout_s,
+                max_retries=cfg.max_retries,
+                streaming=cfg.streaming,
+            )
+
+        if cfg.provider == "ollama":
+            kwargs: dict[str, Any] = dict(model=cfg.model, temperature=cfg.temperature, top_k=cfg.top_k, top_p=cfg.top_p, seed=42)
+            if cfg.base_url:
+                kwargs["base_url"] = cfg.base_url
+            return ChatOllama(**kwargs)
+
+        raise ValueError(f"Unsupported provider: {cfg.provider}")
+
+    # ----------------------------
+    # Plain (non-streaming) calls
+    # ----------------------------
+    def call_text(self, prompt: str) -> str:
+        """
+        Synchronous full response text.
+        (Not streaming; use astream_text for streaming.)
+
+        Args:
+            prompt (str): The input prompt.
+
+        Returns:
+            str: The full response text.
+        """
+        msg = self._llm.invoke(prompt)
+        return self._stringify_content(getattr(msg, "content", msg))
+
+    async def acall_text(self, prompt: str) -> str:
+        """
+        Async full response text.
+
+        Args:
+            prompt (str): The input prompt.
+        Returns:
+            str: The full response text.
+        """
+        msg = await self._llm.ainvoke(prompt)
+        return self._stringify_content(getattr(msg, "content", msg))
+
+    # ----------------------------
+    # Native structured output
+    # ----------------------------
+    def call_structured(self, prompt: str, schema: type[T]) -> T:
+        """
+        Native structured output using tool/function calling.
+        Returns a Pydantic model instance of type `schema`.
+
+        Args:
+            prompt (str): The input prompt.
+            schema (Type[T]): The Pydantic model class to validate the output against.
+
+        Returns:
+            T: An instance of the Pydantic model `schema`.
+        """
+        runnable = self._llm.with_structured_output(schema)
+        out = runnable.invoke(prompt)
+
+        # LangChain usually returns an instance of schema, but be defensive.
+        if isinstance(out, schema):
+            return out
+        return schema.model_validate(out)
+
+    async def acall_structured(self, prompt: str | list[AnyMessage], schema: type[T]) -> T:
+        """
+        Async native structured output using tool/function calling.
+        Returns a Pydantic model instance of type `schema`.
+
+        Args:
+            prompt (str): The input prompt.
+            schema (Type[T]): The Pydantic model class to validate the output against.
+
+        Returns:
+            T: An instance of the Pydantic model `schema`.
+        """
+        runnable = self._llm.with_structured_output(schema)
+        out = await runnable.ainvoke(prompt)
+        if isinstance(out, schema):
+            return out
+        return schema.model_validate(out)
+
+    # ----------------------------
+    # Token streaming
+    # ----------------------------
+    async def astream_text(self, prompt: str) -> AsyncIterator[str]:
+        """
+        Async generator yielding token deltas (text chunks).
+
+        Args:
+            prompt (str): The input prompt.
+
+        Returns:
+            AsyncIterator[str]: An async iterator yielding text chunks.
+        """
+        async for chunk in self._llm.astream(prompt):
+            # chunk is usually an AIMessageChunk with .content
+            content = getattr(chunk, "content", chunk)
+            text = self._stringify_content(content)
+            if text:
+                yield text
+
+    async def astream_structured_events(self, prompt: str, schema: type[T]) -> AsyncIterator[dict[str, Any]]:
+        """
+        If you want to stream *events* for structured calls (tool call events), you typically do this at the
+        LangGraph/LangChain runnable layer with astream_events.
+
+        This method provides a streaming events iterator for the runnable produced by with_structured_output.
+        You can feed these events into SSE for debugging/progress UI.
+
+        Args:
+            prompt (str): The input prompt.
+            schema (Type[T]): The Pydantic model class to validate the output against.
+
+        Returns:
+            AsyncIterator[Dict[str, Any]]: An async iterator yielding structured events.
+        """
+        runnable = self._llm.with_structured_output(schema)
+        if not hasattr(runnable, "astream_events"):
+            raise RuntimeError("Runnable does not support astream_events() in this pinned version.")
+        async for ev in runnable.astream_events(prompt, version="v2"):
+            yield ev
+
+    # ----------------------------
+    # Utils
+    # ----------------------------
+    def _stringify_content(self, content: Any) -> str:
+        """
+        Normalize message content to text.
+        Handles providers that return list-of-blocks.
+
+        Args:
+            content (Any): The raw content from the LLM response.
+
+        Returns:
+            str: The normalized text content.
+        """
+        if content is None:
+            return ""
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = []
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict) and "text" in item:
+                    parts.append(str(item["text"]))
+                else:
+                    # last resort
+                    parts.append(str(item))
+            return "".join(parts)
+        return str(content)

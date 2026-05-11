@@ -1,0 +1,35 @@
+# QC Configuration File
+#
+# Copy this file to qc_config.yml and edit thresholds as needed.
+# Then set the QC_CONFIG_PATH environment variable:
+#
+#   export QC_CONFIG_PATH=./qc_config.yml
+#
+# All fields are optional — unset fields use the built-in defaults listed below.
+
+# --- Thresholds ---
+#
+# dnam_cutoff: 0.96
+#   Minimum allowed DNAm value per sample.
+#   Samples with maximum DNAm below this value are removed.
+#   Built-in default: 0.96
+#
+# sample_level_missing_cutoff: 0.1
+#   Maximum allowed fraction of missing values per sample.
+#   Samples exceeding this are removed.
+#   Built-in default: 0.1
+#
+# cpg_level_missing_cutoff: 0.2
+#   Maximum allowed fraction of missing values per CpG site.
+#   CpG sites exceeding this are removed, then remaining missing values are imputed.
+#   Built-in default: 0.2
+#
+# correlation_cutoff: 0.9
+#   Minimum allowed mean inter-array correlation per sample.
+#   Samples below this threshold are removed.
+#   Built-in default: 0.9
+
+dnam_cutoff: 0.96
+sample_level_missing_cutoff: 0.1
+cpg_level_missing_cutoff: 0.2
+correlation_cutoff: 0.9

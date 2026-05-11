@@ -1,0 +1,44 @@
+# LLM Configuration File
+#
+# Copy this file to llm_config.yml and edit it for your provider.
+# Then set the LLM_CONFIG_PATH environment variable:
+#
+#   export LLM_CONFIG_PATH=./llm_config.yml
+#
+# Secrets (API keys) should use ${ENV_VAR} syntax so they are never
+# committed to the config file.  The corresponding environment variable
+# must be set at runtime.
+
+provider: openai          
+model: gpt-4o
+
+# --- Secrets: use ${ENV_VAR} syntax ---
+api_key: ${OPENAI_API_KEY}
+# base_url:               
+
+# --- Azure OpenAI ---
+# provider: azure_openai
+# model: gpt-4o
+# api_key: ${AZURE_OPENAI_API_KEY}
+# azure_endpoint: ${AZURE_OPENAI_ENDPOINT}
+# azure_deployment: ${AZURE_OPENAI_DEPLOYMENT}
+# azure_api_version: ${AZURE_OPENAI_API_VERSION}
+
+# --- Anthropic ---
+# provider: anthropic
+# model: claude-sonnet-4-5-20250929
+# api_key: ${ANTHROPIC_API_KEY}
+
+# --- Ollama ---
+# provider: ollama
+# model: qwen3.5:397b-cloud
+# base_url: http://localhost:11434
+
+# --- Runtime behavior ---
+temperature: 0.0
+top_k: 40
+top_p: 0.9
+timeout_s: 120
+max_retries: 2
+streaming: true
+# reasoning: true              

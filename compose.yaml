@@ -1,0 +1,41 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app/backend
+      - ./pyproject.toml:/app/pyproject.toml
+      - outputs:/app/outputs
+      # To use a custom LLM config file, uncomment and place llm_config.yml next to compose.yaml:
+      # - ./llm_config.yml:/app/llm_config.yml:ro
+    environment:
+      - AAIS_OUTPUT_DIR=/app/outputs
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_MODEL=qwen3.5:397b-cloud
+      # Set LLM_CONFIG_PATH to use a custom LLM config file:
+      # - LLM_CONFIG_PATH=/app/llm_config.yml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - LANGGRAPH_API_URL=http://backend:8000
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
+      - NEXT_PUBLIC_LANGGRAPH_ASSISTANT_ID=${NEXT_PUBLIC_LANGGRAPH_ASSISTANT_ID:-}
+    depends_on:
+      - backend
+
+volumes:
+  outputs:

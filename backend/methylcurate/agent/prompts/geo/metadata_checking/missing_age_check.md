@@ -1,0 +1,2 @@
+You just finished attempting to create a resolution in which you extract age from the metadata. However, you specified that age was not present in the metadata. You need to double check that there is absolutely no evidence of age present in the metadata. If such evidence does exist, you must create a resolution that attempts to extract that information. The sample metadata information is provided below:
+{{ user_input }}
