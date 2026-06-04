@@ -91,6 +91,9 @@ packages = ["backend/methylcurate"]
 # Example override: relax a rule for the entire project (uncomment if needed).
 # rules.TY015 = "warn"  # For invalid-argument-type, warn instead of error.
 
+[tool.ty.src]
+exclude = ["notebooks/"]
+
 [tool.ty.environment]
 root = ["backend"]
 
