@@ -19,8 +19,8 @@ nav = [
     { "Reproduce Blood and Brain Dataset Evaluation" = "tutorials/reproduce.md" },
   ]},
   { "API Reference" = [
-    "MethylCurate package" = "api.md"
-  ]},
+   { "MethylCurate package" = "api.md" }
+  ]}
 ]
 
 [[project.theme.palette]]

@@ -102,6 +102,7 @@ invalid-argument-type = "ignore"
 
 [tool.ruff]
 line-length = 150
+extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
 select = [
