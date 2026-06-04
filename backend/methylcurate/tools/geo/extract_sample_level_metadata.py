@@ -268,7 +268,7 @@ def get_platform_metadata(gse: Any = None, accession_code: str = None) -> dict[s
     return platform_metadata[platform]
 
 
-def _merge_to_dataframe(rows: list[Any], col_names: list[str], index_col: str | None = None) -> pd.DataFrame:
+def _merge_to_dataframe(rows: list[Any], col_names: list[list[str]], index_col: str | None = None) -> pd.DataFrame:
     """Merge heterogeneous rows and column-name lists into a unified DataFrame.
 
     Delegates to ``cpg_union`` to align columns and then constructs a

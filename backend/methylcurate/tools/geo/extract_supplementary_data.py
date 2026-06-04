@@ -1401,14 +1401,15 @@ def _extract_best_subject_id_fields(user_input: Any, target_values: list[str]) -
                         candidate_dict[attr][k].append(v)
         else:
             for item in getattr(user_input, attr):
-                candidate_dict[attr].extend(item)
+                if isinstance(candidate_dict[attr], list):
+                    candidate_dict[attr].extend(item)
 
     print(f"\nCandidate fields and values for subject extraction: {candidate_dict}")
     print(f"\nTarget values for subject extraction: {target_values}")
     for f, f_value in candidate_dict.items():
         if not f_value:
             continue
-        if f == "characteristics_ch1":
+        if f == "characteristics_ch1" and isinstance(f_value, dict):
             for k, k_value in f_value.items():
                 score_matrix = lexical_score_matrix(k_value, target_values)
                 max_score = np.max(score_matrix)
@@ -1416,7 +1417,7 @@ def _extract_best_subject_id_fields(user_input: Any, target_values: list[str]) -
                     best_match = max_score
                     field_name = f
                     key_name = k
-        else:
+        elif isinstance(f_value, list):
             score_matrix = lexical_score_matrix(f_value, target_values)
             max_score = np.max(score_matrix)
             if max_score > best_match:
