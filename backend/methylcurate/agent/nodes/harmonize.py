@@ -303,14 +303,12 @@ async def higher_level_disease_mapping_node(state: HarmonizationSubgraphState, c
         proper_mapping = construct_raw_to_harmonized_label_mapping(disease_label_guessing, disease_label_mapping)
         for mapping in proper_mapping.mappings:
             harmonized_group_label = next(
-                group_mapping.target_label  # type: ignore
-                for group_mapping in proper_group_mapping.mappings
-                if group_mapping.source_label == mapping.target_label  # type: ignore
+                group_mapping.target_label for group_mapping in proper_group_mapping.mappings if group_mapping.source_label == mapping.target_label
             )
             rows.append(
                 {
                     "original_label": mapping.source_label,
-                    "harmonized_label": mapping.target_label,  # type: ignore
+                    "harmonized_label": mapping.target_label,
                     "harmonized_group_label": harmonized_group_label,
                 }
             )
@@ -474,7 +472,7 @@ async def higher_level_tissue_mapping_node(state: HarmonizationSubgraphState, co
         for mapping in proper_mapping.mappings:
             harmonized_group_label = next(
                 (
-                    group_mapping.target_label  # type: ignore
+                    group_mapping.target_label
                     for group_mapping in proper_group_mapping.mappings
                     if hasattr(mapping, "target_label") and group_mapping.source_label == mapping.target_label
                 ),

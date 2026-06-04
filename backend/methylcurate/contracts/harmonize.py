@@ -152,6 +152,7 @@ class MissingMapping(BaseMapping):
 
     ontology: Literal["missing"]
     source_label: str = Field(..., description="The label that was meant to be harmonized but failed")
+    target_label: None = None
 
 
 OntologicalMapping = Annotated[

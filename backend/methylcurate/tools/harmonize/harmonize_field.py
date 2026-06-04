@@ -916,7 +916,7 @@ def construct_raw_to_harmonized_label_mapping(guessed_ontology_labels: LabelMapp
             )
             continue
         best_guess_mapping = next(
-            (m for m in ontology_label_selection.mappings if m.source_label == mapping.target_label),  # ty: ignore
+            (m for m in ontology_label_selection.mappings if m.source_label == mapping.target_label),
             None,
         )
         if best_guess_mapping is None:

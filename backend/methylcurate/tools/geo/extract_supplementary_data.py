@@ -147,12 +147,12 @@ async def _process_detection_columns(
         raise ValueError(f"Unable to determine column scheme for dataset {artifact.accession_code}")
 
     beta_pat = (
-        re.compile(column_scheme.beta_column.pattern, re.IGNORECASE)  # type: ignore
+        re.compile(column_scheme.beta_column.pattern, re.IGNORECASE)  # ty: ignore[no-matching-overload]
         if column_scheme.beta_column.status == "resolved"
         else None
     )
     det_pat = (
-        re.compile(column_scheme.detection_column.pattern, re.IGNORECASE)  # type: ignore
+        re.compile(column_scheme.detection_column.pattern, re.IGNORECASE)  # ty: ignore[no-matching-overload]
         if column_scheme.detection_column.status == "resolved"
         else None
     )
@@ -351,14 +351,14 @@ async def _process_detection_columns_alt(
         )
 
     beta_pattern = (
-        re.compile(column_scheme.beta_column.pattern, re.IGNORECASE)  # type: ignore
+        re.compile(column_scheme.beta_column.pattern, re.IGNORECASE)  # ty: ignore[no-matching-overload]
         if column_scheme.beta_column.status == "resolved"
         else None
     )
-    beta_columns = [idx for idx, col in enumerate(sample_data.columns) if beta_pattern.search(col)]  # type: ignore
+    beta_columns = [idx for idx, col in enumerate(sample_data.columns) if beta_pattern.search(col)]  # ty: ignore[unresolved-attribute]
 
     detection_pattern = (
-        re.compile(column_scheme.detection_column.pattern, re.IGNORECASE)  # type: ignore
+        re.compile(column_scheme.detection_column.pattern, re.IGNORECASE)  # ty: ignore[no-matching-overload]
         if column_scheme.detection_column.status == "resolved"
         else None
     )
@@ -868,7 +868,7 @@ async def _get_column_scheme(
         print(f"\nBeta columns identified with pattern {resolved.beta_column.pattern}: {beta_columns}")
         print(f"\nColumns that failed to match beta pattern {resolved.beta_column.pattern}: {missing_beta_columns}")
 
-        detection_pattern = re.compile(resolved.detection_column.pattern, re.IGNORECASE) if resolved.detection_column.status == "resolved" else None  # type: ignore
+        detection_pattern = re.compile(resolved.detection_column.pattern, re.IGNORECASE) if resolved.detection_column.status == "resolved" else None  # ty: ignore[no-matching-overload]
         detection_columns = [col for col in sorted(new_columns.columns.tolist()) if detection_pattern and detection_pattern.search(col)]
         missing_detection_columns = [col for col in sorted(new_columns.columns.tolist()) if col not in detection_columns]
         if detection_pattern:
@@ -1401,8 +1401,9 @@ def _extract_best_subject_id_fields(user_input: Any, target_values: list[str]) -
                         candidate_dict[attr][k].append(v)
         else:
             for item in getattr(user_input, attr):
-                if isinstance(candidate_dict[attr], list):
-                    candidate_dict[attr].extend(item)
+                attr_val = candidate_dict[attr]
+                if isinstance(attr_val, list):
+                    attr_val.extend(item)
 
     print(f"\nCandidate fields and values for subject extraction: {candidate_dict}")
     print(f"\nTarget values for subject extraction: {target_values}")

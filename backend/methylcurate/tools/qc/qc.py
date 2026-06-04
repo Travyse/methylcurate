@@ -68,11 +68,11 @@ def handle_cpg_level_missingness(qc_input: CpGLevelQCInput, data_df: pd.DataFram
 
     if qc_input.imputation_strategy.imputation_model.concept == "knn":
         imputer = KNNImputer(
-            n_neighbors=qc_input.imputation_strategy.imputation_model.n_neighbors,  # type: ignore
-            weights=qc_input.imputation_strategy.imputation_model.weights,  # type: ignore
+            n_neighbors=qc_input.imputation_strategy.imputation_model.n_neighbors,  # ty: ignore[unresolved-attribute]
+            weights=qc_input.imputation_strategy.imputation_model.weights,  # ty: ignore[unresolved-attribute]
         )
     else:
-        imputer = SimpleImputer(strategy=qc_input.imputation_strategy.imputation_model.strategy)  # type: ignore
+        imputer = SimpleImputer(strategy=qc_input.imputation_strategy.imputation_model.strategy)  # ty: ignore[unresolved-attribute]
 
     data_df_filtered.loc[:, high_quality_cpgs] = imputer.fit_transform(data_df_filtered[high_quality_cpgs])
     state_result = CpGLevelQCResult.model_validate({"removed_cpgs": removed_cpgs, "missing_before_imputation": overall_missing_rate})
