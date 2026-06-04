@@ -14,6 +14,7 @@ from ...contracts.common import StepStatus
 from ...utils.helper import consolidate_artifacts
 from ...utils.provenance import set_active_provenance
 from ..graphs.deps import Deps
+from ..llm.token_tracker import TokenUsageTracker, set_tracker
 from ..state.models import (
     BenchmarkingDatasetState,
     DatasetQualityControlState,
@@ -425,6 +426,9 @@ class StreamingRunner:
             accessions = params.get("accessions", [])
             thread_prov = self.deps.provenance.get_or_create(run_id, os.path.dirname(params.get("output_root", "")), subgraph=subgraph_name)
             set_active_provenance(thread_prov)
+            if self.deps.token_tracker is not None:
+                self.deps.token_tracker = TokenUsageTracker()
+                set_tracker(self.deps.token_tracker)
             thread_prov.emit_run_started(
                 provider=llm_cfg.provider,
                 model=llm_cfg.model,
@@ -502,13 +506,19 @@ class StreamingRunner:
                         manifest.append({"kind": getattr(a, "kind", None), "path": getattr(a, "path", None), "sha256": getattr(a, "sha256", None)})
                 thread_prov = self.deps.provenance.get(run_id)
                 if thread_prov is not None:
+                    tracker = self.deps.token_tracker
+                    total_calls = tracker.call_count if tracker else 0
+                    total_tokens = tracker.total_tokens if tracker and tracker.total_tokens > 0 else None
                     thread_prov.emit_run_completed(
                         status="completed",
                         total_artifacts=len(sub_artifacts),
+                        total_llm_calls=total_calls,
+                        total_tokens=total_tokens,
                         artifact_manifest=manifest,
                     )
                     thread_prov.close()
                 set_active_provenance(None)
+                set_tracker(None)
 
             seen = {_artifact_key(a) for a in main_artifacts}
             merged = list(main_artifacts)

@@ -5,13 +5,14 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ...utils.provenance import ProvenanceLogger, ProvenanceRegistry
+    from ..llm.token_tracker import TokenUsageTracker
 
 
 @dataclass
 class Deps:
     llm: Any
     provenance: ProvenanceRegistry | None = None
-    # later add metrics, tracing, etc.
+    token_tracker: TokenUsageTracker | None = None
 
     def get_provenance(self, thread_id: str) -> ProvenanceLogger | None:
         if self.provenance is None:

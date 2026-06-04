@@ -6,6 +6,7 @@ from ..graphs.deps import Deps
 from ..graphs.router import build_main_graph
 from ..graphs.subgraphs import build_subgraphs
 from ..llm.client import LLMClient, LLMConfig
+from ..llm.token_tracker import TokenUsageTracker
 from ..runtime.chat_runner import StreamingRunner
 
 _PROVENANCE_ENABLED = True
@@ -47,7 +48,7 @@ def build_services_with_checkpointer(checkpointer, config_path: str | None = Non
         llm = LoggedLLMClient(base_llm)
     else:
         llm = base_llm
-    deps = Deps(llm=llm, provenance=provenance)  # pyright: ignore[reportArgumentType]
+    deps = Deps(llm=llm, provenance=provenance, token_tracker=TokenUsageTracker())  # pyright: ignore[reportArgumentType]
 
     main_builder = build_main_graph()
     subgraph_builders = build_subgraphs()

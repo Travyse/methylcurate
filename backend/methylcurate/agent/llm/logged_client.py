@@ -161,6 +161,11 @@ class LoggedLLMClient:
                     completion_tokens=token_usage["completion_tokens"],
                     total_tokens=token_usage["total_tokens"],
                 )
+                from .token_tracker import get_tracker
+
+                tracker = get_tracker()
+                if tracker is not None:
+                    tracker.record(token_usage["prompt_tokens"], token_usage["completion_tokens"])
 
         return result
 

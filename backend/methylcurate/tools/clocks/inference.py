@@ -7,9 +7,6 @@ __all__ = [
     "compute_mae",
     "compute_medae",
     "compute_pearson_r",
-    "bootstrap_aa1_test",
-    "bootstrap_welch_one_sided_aac_gt_hc",
-    "merge_and_process_computation_dfs",
     "get_extraction_protocol",
     "make_internal_clock_predictions",
 ]
@@ -24,7 +21,6 @@ import pandas as pd
 import pyaging as pya
 import statsmodels.api as sm
 import torch
-from joblib import Parallel, delayed
 from scipy import stats
 
 from ...contracts.clocks import MethylationAgingClock, MethylationClocks
@@ -52,9 +48,6 @@ def get_extraction_protocol(accession_code: str, artifacts: list[Any]) -> Any:
     with open(extraction_protocol_artifact.path) as f:
         extraction_protocol = json.load(f)
     return extraction_protocol
-
-
-_HC_SAMPLE_THRESHOLD = 10
 
 
 def _get_healthy_subset(prediction_df, extraction_protocol):
@@ -189,243 +182,6 @@ def compute_age_acceleration(adata: Any, clock_names: Sequence[str]):
         adata.obs.loc[valid.index, accel_col] = residuals
         adata.obs[accel_col] = adata.obs[accel_col].astype(float)
     return adata
-
-
-def welch_one_sided_aac_gt_hc(
-    df,
-    shuffled_labels: list,
-    value_col: str,
-    control_label: str = "Control",
-    group_col: str = "cohort",
-    bootstrap_id: int = 1,
-) -> tuple[float, float] | tuple[None, None]:
-    """
-    Two-sample Welch t-test for a single dataset with one-sided alternative:
-        H_A: mean(AAC) > mean(HC)
-
-    Returns a dict with summary stats, t, Welch df, and one-sided p-value.
-
-    Args:
-        df (pd.DataFrame): The DataFrame containing the data.
-        shuffled_labels (list): The shuffled labels for the bootstrap iteration.
-        value_col (str): The column name for the values to be tested.
-        control_label (str): The label for the control group.
-        group_col (str): The column name for the group labels.
-        bootstrap_id (int): The bootstrap iteration ID.
-
-    Returns:
-        Tuple[float, float]: The t-statistic and one-sided p-value.
-    """
-    print(f"Performing AA2 {bootstrap_id}")
-    df = df.copy()
-    df[group_col] = shuffled_labels
-    df[group_col] = df[group_col].apply(lambda x: "Control" if x == control_label else "Other")
-
-    aac = df.loc[df[group_col] == "Other", value_col].dropna().to_numpy()
-    hc = df.loc[df[group_col] == "Control", value_col].dropna().to_numpy()
-
-    if len(aac) < 2 or len(hc) < 2:
-        # raise ValueError(f"Need >=2 non-NA values per group. Got AAC={len(aac)}, HC={len(hc)}")
-        return None, None
-
-    # Welch's t-test with one-sided alternative
-    res = stats.ttest_ind(aac, hc, equal_var=False, alternative="greater")
-    t_stat = float(res.statistic)
-    p_one = float(res.pvalue)
-    return t_stat, p_one
-
-
-def bootstrap_welch_one_sided_aac_gt_hc(
-    prediction_df: pd.DataFrame,
-    extraction_protocol: dict[str, Any],
-    clocks: Sequence[str] | None = None,
-    n_bootstraps: int = 1000,
-) -> pd.DataFrame:
-    """
-    Perform a bootstrap analysis using Welch's one-sided t-test for age acceleration
-    differences between disease and control groups across multiple clocks.
-
-    Args:
-        prediction_df (pd.DataFrame): The DataFrame containing the predictions and metadata for the dataset.
-        extraction_protocol (Any): The metadata extraction protocol containing information about disease status and control values.
-        clocks (list): A list of clock names to analyze.
-        n_bootstraps (int): The number of bootstrap iterations to perform.
-    Returns:
-        pd.DataFrame: A DataFrame containing the results of the bootstrap analysis, including t-stat
-    """
-    if clocks is None:
-        clocks = []
-    rows = []
-    accession_code = prediction_df["Accession_Code"].unique()[0]
-    control_label = extraction_protocol["disease_status"]["extraction"]["control_value"]
-    target_labels = [x for x in prediction_df["Disease_Status"].unique().tolist() if x != control_label]
-    for target_label in target_labels:
-        sub_prediction_df = prediction_df[prediction_df["Disease_Status"].isin([control_label, target_label])]
-
-        control_count = sub_prediction_df[sub_prediction_df["Disease_Status"] == control_label].shape[0]
-        target_count = sub_prediction_df[sub_prediction_df["Disease_Status"] == target_label].shape[0]
-        if any(count < 10 for count in [control_count, target_count]):
-            continue
-
-        shuffled_labels = [sub_prediction_df["Disease_Status"].sample(frac=1, random_state=i).to_numpy() for i in range(n_bootstraps)]
-        for clock in clocks:
-            if clock not in sub_prediction_df.columns:
-                continue
-            clock_t_stats = []
-
-            bootstrapped_results = Parallel(n_jobs=-1)(
-                delayed(welch_one_sided_aac_gt_hc)(
-                    sub_prediction_df,
-                    shuffled_labels[i],
-                    f"{clock.lower()}_accel",
-                    group_col="Disease_Status",
-                    control_label=control_label,
-                    bootstrap_id=i,
-                )
-                for i in range(n_bootstraps)
-            )
-            clock_t_stats.extend([t for t, p in bootstrapped_results if t is not None])
-
-            aatwo_t_stat, aatwo_p = welch_one_sided_aac_gt_hc(
-                sub_prediction_df,
-                sub_prediction_df["Disease_Status"].to_numpy(),
-                control_label=control_label,
-                value_col=f"{clock.lower()}_accel",
-                group_col="Disease_Status",
-                bootstrap_id=-1,
-            )
-
-            rows.append(
-                {
-                    "Accession_Code": accession_code,
-                    "Disease": target_label,
-                    "Disease_Group": sub_prediction_df["Disease_Group"].unique()[0],
-                    "Clock": clock,
-                    "AA2": aatwo_p,
-                    "AA2_Empirical_p": (sum(1 for t in clock_t_stats if t >= aatwo_t_stat) + 1) / (len(clock_t_stats) + 1),
-                }
-            )
-    if not rows:
-        return pd.DataFrame(columns=pd.Index(["Accession_Code", "Disease", "Disease_Group", "Clock", "AA2", "AA2_Empirical_p"]))
-    return pd.DataFrame(rows)
-
-
-def one_sample_t_test(
-    df,
-    shuffled_labels: list,
-    value_col: str,
-    control_label: str = "Control",
-    group_col: str = "cohort",
-    bootstrap_id: int = 1,
-):
-    """
-    Two-sample Welch t-test for a single dataset with one-sided alternative:
-        H_A: mean(AAC) > mean(HC)
-
-    Returns a dict with summary stats, t, Welch df, and one-sided p-value.
-
-    Args:
-        df (pd.DataFrame): The DataFrame containing the data.
-        shuffled_labels (list): The shuffled labels for the bootstrap iteration.
-        value_col (str): The column name for the values to be tested.
-        control_label (str): The label for the control group.
-        group_col (str): The column name for the group labels.
-        bootstrap_id (int): The bootstrap iteration ID.
-
-    Returns:
-        Tuple[float, float]: The t-statistic and one-sided p-value.
-    """
-    print(f"Performing AA2 {bootstrap_id}")
-    mu0 = 0.0
-    df = df.copy()
-    df[group_col] = shuffled_labels
-    # For all values in group_col, if they are not equal to control_label, set value to "Other"
-    df[group_col] = df[group_col].apply(lambda x: "Control" if x == control_label else "Other")
-
-    aac = df.loc[df[group_col] == "Other", value_col].dropna().to_numpy()
-    if not aac.size > 0:
-        return None, None
-
-    t_test_res = stats.ttest_1samp(aac, popmean=mu0, alternative="greater")
-    t_stat, p_one_sided = t_test_res.statistic, t_test_res.pvalue
-
-    return t_stat, p_one_sided
-
-
-def bootstrap_aa1_test(
-    prediction_df: pd.DataFrame,
-    extraction_protocol: dict[str, Any],
-    clocks: Sequence[str] | None = None,
-    n_bootstraps: int = 1000,
-) -> pd.DataFrame:
-    """
-    Perform a bootstrap analysis for AA1 test.
-
-    Args:
-        prediction_df (pd.DataFrame): The DataFrame containing the predictions and metadata for the dataset.
-        extraction_protocol (Any): The metadata extraction protocol containing information about disease status and control values.
-        clocks (list): A list of clock names to analyze.
-        n_bootstraps (int): The number of bootstrap iterations to perform.
-
-    Returns:
-        pd.DataFrame: A DataFrame containing the results of the bootstrap analysis, including t-statistics and p-values.
-    """
-    if clocks is None:
-        clocks = []
-    rows = []
-    accession_code = prediction_df["Accession_Code"].unique()[0]
-    control_label = extraction_protocol["disease_status"]["extraction"]["control_value"]
-    target_labels = [x for x in prediction_df["Disease_Status"].unique().tolist() if x != control_label]
-    for target_label in target_labels:
-        sub_prediction_df = prediction_df[prediction_df["Disease_Status"].isin([control_label, target_label])]
-
-        control_count = sub_prediction_df[sub_prediction_df["Disease_Status"] == control_label].shape[0]
-        target_count = sub_prediction_df[sub_prediction_df["Disease_Status"] == target_label].shape[0]
-        if any(count < 10 for count in [control_count, target_count]):
-            continue
-
-        shuffled_labels = [sub_prediction_df["Disease_Status"].sample(frac=1, random_state=i).to_numpy() for i in range(n_bootstraps)]
-
-        for clock in clocks:
-            if clock not in sub_prediction_df.columns:
-                continue
-            clock_t_stats = []
-
-            bootstrapped_results = Parallel(n_jobs=-1)(
-                delayed(one_sample_t_test)(
-                    sub_prediction_df,
-                    shuffled_labels[i],
-                    f"{clock.lower()}_accel",
-                    group_col="Disease_Status",
-                    control_label=control_label,
-                    bootstrap_id=i,
-                )
-                for i in range(n_bootstraps)
-            )
-            clock_t_stats.extend([t for t, p in bootstrapped_results if t is not None])
-
-            aaone_t_stat, aaone_p = one_sample_t_test(
-                sub_prediction_df,
-                sub_prediction_df["Disease_Status"].tolist(),
-                control_label=control_label,
-                value_col=f"{clock.lower()}_accel",
-                group_col="Disease_Status",
-                bootstrap_id=-1,
-            )
-
-            rows.append(
-                {
-                    "Accession_Code": accession_code,
-                    "Disease": target_label,
-                    "Disease_Group": sub_prediction_df["Disease_Group"].unique()[0],
-                    "Clock": clock,
-                    "AA1": aaone_p,
-                    "AA1_Empirical_p": (sum(1 for t in clock_t_stats if t >= aaone_t_stat) + 1) / (len(clock_t_stats) + 1),
-                }
-            )
-    if not rows:
-        return pd.DataFrame(columns=pd.Index(["Accession_Code", "Disease", "Disease_Group", "Clock", "AA1", "AA1_Empirical_p"]))
-    return pd.DataFrame(rows)
 
 
 def _compute_hc_metric(prediction_df, extraction_protocol, clocks, metric_fn, metric_name):
@@ -604,7 +360,3 @@ def make_internal_clock_predictions(df, clocks, metadata_cols=None, imputer_stra
     else:
         res = results[0]
     return res
-
-
-def merge_and_process_computation_dfs(dfs):
-    return pd.concat(dfs, ignore_index=True)

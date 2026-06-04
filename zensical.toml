@@ -1,14 +1,26 @@
 [project]
-site_name = "methylcurate"
+site_name = "MethylCurate"
 site_url = "https://travyse.github.io/methylcurate/"
 repo_url = "https://github.com/travyse/methylcurate"
 repo_name = "travyse/methylcurate"
 
 nav = [
   { "Home" = "index.md" },
-  { "Installation" = "installation.md" },
-  { "Usage" = "usage.md" },
-  { "API Reference" = "api.md" },
+  { "Getting Started" = [
+    { "Installation" = "getting-started/installation.md" },
+    { "LLM Configuration" = "getting-started/llms.md" },
+  ]},
+  { "Tutorials" = [
+    { "Retrieval of DNA Methylation Datasets" = "tutorials/data-retrieval.md" },
+    { "Dataset Metadata Harmonization" = "tutorials/data-harmonization.md" },
+    { "Dataset Quality Control" = "tutorials/data-quality-control.md" },
+    { "Pre-existing Aging Clock Usage" = "tutorials/aging-clock-usage.md" },
+    { "Debugging" = "tutorials/debugging.md" },
+    { "Reproduce Blood and Brain Dataset Evaluation" = "tutorials/reproduce.md" },
+  ]},
+  { "API Reference" = [
+    "MethylCurate package" = "api.md"
+  ]},
 ]
 
 [[project.theme.palette]]
@@ -24,4 +36,4 @@ toggle.icon = "material/brightness-4"
 toggle.name = "Switch to light mode"
 
 [project.plugins.mkdocstrings.handlers.python]
-paths = ["src"]
+paths = ["backend"]
