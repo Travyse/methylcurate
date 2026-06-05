@@ -934,6 +934,54 @@ async def _get_column_scheme(
     return resolved, column_scheme_artifact
 
 
+def _read_and_shape_sample_data(file_path: str) -> pd.DataFrame:
+    sample_data = _read_sample_data(file_path)
+    df = _matrix_shape_check(sample_data)
+    return df.astype(np.float32)
+
+
+def _finalize_formatted_artifact(
+    df: pd.DataFrame,
+    methylation_dataframe_output_path: str,
+    return_dict: dict[str, Any],
+    accession_code: str,
+    artifact: ArtifactRef,
+    config: RunnableConfig,
+) -> dict[str, Any]:
+    write_feather(df, methylation_dataframe_output_path, index_name="subject_id")
+    mem_snap(f"format_individual:after_write {accession_code}")
+    del df
+    trim_heap(f"format_individual:trimmed {accession_code}")
+    methylation_artifact = ArtifactRef.model_validate(
+        {
+            "accession_code": accession_code,
+            "path": methylation_dataframe_output_path,
+            "kind": "supplementary_file_methylation_data_formatted",
+            "sha256": compute_sha256(methylation_dataframe_output_path, is_path=True),
+            "bytes": os.path.getsize(methylation_dataframe_output_path),
+            "created_at": datetime.now(UTC).isoformat(),
+        }
+    )
+
+    return_dict["config"]["artifacts"] = consolidate_artifacts([ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], [methylation_artifact])
+    return_dict["datasets"][accession_code]["supplementary_data"][artifact.sha256] = "running"
+
+    deps_init = config["configurable"].get("deps")
+    if deps_init is not None and getattr(deps_init, "provenance", None) is not None:
+        provenance = deps_init.get_provenance(config["configurable"]["thread_id"])
+        if provenance is not None:
+            provenance.emit_artifact_written(
+                artifact_kind=methylation_artifact.kind,
+                artifact_path=methylation_artifact.path,
+                artifact_sha256=methylation_artifact.sha256,
+                artifact_bytes=methylation_artifact.bytes,
+                accession_code=accession_code,
+                step="format_supplementary_data",
+            )
+
+    return return_dict
+
+
 async def format_individual_methylation_data(
     accession_code: str,
     return_dict: dict[str, Any],
@@ -976,43 +1024,18 @@ async def format_individual_methylation_data(
             index_col_name=index_col_name,
         )
     else:
-        sample_data = _read_sample_data(artifact.path)
-        df = _matrix_shape_check(sample_data)
-        df = df.astype(np.float32)
+        df = await asyncio.to_thread(_read_and_shape_sample_data, artifact.path)
     mem_snap(f"format_individual:after_detection {accession_code}")
 
-    write_feather(df, methylation_dataframe_output_path, index_name="subject_id")
-    mem_snap(f"format_individual:after_write {accession_code}")
-    del df
-    trim_heap(f"format_individual:trimmed {accession_code}")
-    methylation_artifact = ArtifactRef.model_validate(
-        {
-            "accession_code": accession_code,
-            "path": methylation_dataframe_output_path,
-            "kind": "supplementary_file_methylation_data_formatted",
-            "sha256": compute_sha256(methylation_dataframe_output_path, is_path=True),
-            "bytes": os.path.getsize(methylation_dataframe_output_path),
-            "created_at": datetime.now(UTC).isoformat(),
-        }
+    return await asyncio.to_thread(
+        _finalize_formatted_artifact,
+        df,
+        methylation_dataframe_output_path,
+        return_dict,
+        accession_code,
+        artifact,
+        config,
     )
-
-    return_dict["config"]["artifacts"] = consolidate_artifacts([ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], [methylation_artifact])
-    return_dict["datasets"][accession_code]["supplementary_data"][artifact.sha256] = "running"
-
-    deps_init = config["configurable"].get("deps")
-    if deps_init is not None and getattr(deps_init, "provenance", None) is not None:
-        provenance = deps_init.get_provenance(config["configurable"]["thread_id"])
-        if provenance is not None:
-            provenance.emit_artifact_written(
-                artifact_kind=methylation_artifact.kind,
-                artifact_path=methylation_artifact.path,
-                artifact_sha256=methylation_artifact.sha256,
-                artifact_bytes=methylation_artifact.bytes,
-                accession_code=accession_code,
-                step="format_supplementary_data",
-            )
-
-    return return_dict
 
 
 def merge_formatted_supplementary_data(state: GeoIngestionSubgraphState, accession_code: str) -> pd.DataFrame:

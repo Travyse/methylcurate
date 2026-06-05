@@ -6,6 +6,7 @@ __all__ = [
     "refine_extracted_columns",
     "summarize_geo_findings",
 ]
+import asyncio
 import gc
 import hashlib
 import json
@@ -70,72 +71,82 @@ def _emit_new_artifact_events(
 
 
 async def extract_sample_metadata(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
-    mem_snap("data:extract_sample_metadata:entry")
-    accession_codes = get_accession_codes(state)
-    if check_step_completion("extract_data", state.datasets, accession_codes):
-        return Command(update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]})
-    running_accession_codes = sorted(
-        [accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["extract_data"].status == "running"]
-    )
-    accession_code = running_accession_codes[0]
-    dataset_state = state.datasets[accession_code]
-    metadata_artifact = next(
-        (artifact for artifact in state.config.artifacts if (artifact.kind == "metadata_cache") and (artifact.accession_code == accession_code)),
-        None,
-    )
-    with open(metadata_artifact.path, encoding="utf-8") as f:  # type: ignore
-        metadata_dict = json.load(f)
-    return_dict = {"config": state.config.model_dump(), "datasets": {accession_code: dataset_state.model_dump()}}
-    pre_paths = {a.get("path", "") for a in return_dict["config"]["artifacts"]}
-    return_dict = extract_dataset_metadata(
-        accession_code,
-        state.config,
-        metadata_dict,
-        dataset_state.metadata_extraction_result,  # type: ignore
-        True,
-        gpls=[dataset_state.platform_metadata.platform_id],  # type: ignore
-        platform=[dataset_state.platform_metadata.title],  # type: ignore
-        return_dict=return_dict,
-    )
-    _emit_new_artifact_events(pre_paths, return_dict["config"]["artifacts"], config, "extract_data")
-    return_dict["main_messages"] = [update_progress_tracker(state)]
-    return_dict["messages"] = [update_progress_tracker(state)]
-    return Command(update=return_dict)
+    def _run():
+        mem_snap("data:extract_sample_metadata:entry")
+        accession_codes = get_accession_codes(state)
+        if check_step_completion("extract_data", state.datasets, accession_codes):
+            return Command(update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]})
+        running_accession_codes = sorted(
+            [accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["extract_data"].status == "running"]
+        )
+        accession_code = running_accession_codes[0]
+        dataset_state = state.datasets[accession_code]
+        metadata_artifact = next(
+            (artifact for artifact in state.config.artifacts if (artifact.kind == "metadata_cache") and (artifact.accession_code == accession_code)),
+            None,
+        )
+        with open(metadata_artifact.path, encoding="utf-8") as f:  # type: ignore
+            metadata_dict = json.load(f)
+        return_dict: dict[str, Any] = {"config": state.config.model_dump(), "datasets": {accession_code: dataset_state.model_dump()}}
+        pre_paths = {a.get("path", "") for a in return_dict["config"]["artifacts"]}
+        return_dict = extract_dataset_metadata(
+            accession_code,
+            state.config,
+            metadata_dict,
+            dataset_state.metadata_extraction_result,  # type: ignore
+            True,
+            gpls=[dataset_state.platform_metadata.platform_id],  # type: ignore
+            platform=[dataset_state.platform_metadata.title],  # type: ignore
+            return_dict=return_dict,
+        )
+        _emit_new_artifact_events(pre_paths, return_dict["config"]["artifacts"], config, "extract_data")
+        return_dict["main_messages"] = [update_progress_tracker(state)]
+        return_dict["messages"] = [update_progress_tracker(state)]
+        return Command(update=return_dict)
+
+    return await asyncio.to_thread(_run)
 
 
 async def generate_metadata_extraction_summary(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
-    mem_snap("data:generate_metadata_extraction_summary:entry")
-    accession_codes = get_accession_codes(state)
-    running_accession_codes = sorted(
-        [accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["extract_data"].status == "running"]
-    )
-    if not running_accession_codes:
-        return Command(update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]})
-    accession_code = running_accession_codes[0]
-    dataset_state = state.datasets[accession_code]
-    return_dict = {"config": state.config.model_dump(), "datasets": {accession_code: dataset_state.model_dump()}}
-    metadata_artifact = next(
-        (artifact for artifact in state.config.artifacts if (artifact.kind == "dataset_metadata") and (artifact.accession_code == accession_code)),
-        None,
-    )
-    metadata = pd.read_csv(metadata_artifact.path, index_col=0)  # type: ignore
-    return_dict = generate_summary_data(
-        metadata,
-        accession_code,
-        [dataset_state.platform_metadata.platform_id],  # type: ignore
-        [dataset_state.platform_metadata.title],  # type: ignore
-        dataset_state.refinement_history.example_errors,  # type: ignore
-        return_dict,
-    )
-    return_dict["datasets"][accession_code]["steps"]["extract_data"] = set_step_status(
-        status="completed", step=return_dict["datasets"][accession_code]["steps"]["extract_data"]
-    )
-    return_dict["datasets"][accession_code]["steps"]["refine_metadata_schema"] = set_step_status(
-        status="running", step=return_dict["datasets"][accession_code]["steps"]["refine_metadata_schema"]
-    )
-    return_dict["main_messages"] = [update_progress_tracker(state)]
-    return_dict["messages"] = [update_progress_tracker(state)]
-    return Command(update=return_dict)
+    def _run():
+        mem_snap("data:generate_metadata_extraction_summary:entry")
+        accession_codes = get_accession_codes(state)
+        running_accession_codes = sorted(
+            [accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["extract_data"].status == "running"]
+        )
+        if not running_accession_codes:
+            return Command(update={"main_messages": [update_progress_tracker(state)], "messages": [update_progress_tracker(state)]})
+        accession_code = running_accession_codes[0]
+        dataset_state = state.datasets[accession_code]
+        return_dict: dict[str, Any] = {"config": state.config.model_dump(), "datasets": {accession_code: dataset_state.model_dump()}}
+        metadata_artifact = next(
+            (
+                artifact
+                for artifact in state.config.artifacts
+                if (artifact.kind == "dataset_metadata") and (artifact.accession_code == accession_code)
+            ),
+            None,
+        )
+        metadata = pd.read_csv(metadata_artifact.path, index_col=0)  # type: ignore
+        return_dict = generate_summary_data(
+            metadata,
+            accession_code,
+            [dataset_state.platform_metadata.platform_id],  # type: ignore
+            [dataset_state.platform_metadata.title],  # type: ignore
+            dataset_state.refinement_history.example_errors,  # type: ignore
+            return_dict,
+        )
+        return_dict["datasets"][accession_code]["steps"]["extract_data"] = set_step_status(
+            status="completed", step=return_dict["datasets"][accession_code]["steps"]["extract_data"]
+        )
+        return_dict["datasets"][accession_code]["steps"]["refine_metadata_schema"] = set_step_status(
+            status="running", step=return_dict["datasets"][accession_code]["steps"]["refine_metadata_schema"]
+        )
+        return_dict["main_messages"] = [update_progress_tracker(state)]
+        return_dict["messages"] = [update_progress_tracker(state)]
+        return Command(update=return_dict)
+
+    return await asyncio.to_thread(_run)
 
 
 async def format_supplementary_data(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
@@ -185,121 +196,137 @@ async def format_supplementary_data(state: GeoIngestionSubgraphState, config: Ru
 
 
 async def merge_supplementary_file_data(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
-    mem_snap("node:merge_supplementary:entry")
-    accession_codes = get_accession_codes(state)
-    running_accession_codes = sorted(
-        [accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["supplementary_file_check"].status == "running"]
-    )
-    accession_code = running_accession_codes[0]
-    formatted_supplementary_file_artifacts = sorted(
-        [
-            artifact
-            for artifact in state.config.artifacts
-            if (artifact.kind == "supplementary_file_methylation_data_formatted") and (artifact.accession_code == accession_code)
-        ],
-        key=lambda artifact: artifact.path,
-    )
-    dataset_state = state.datasets[accession_code]
-    methylation_dataframe_output_path = os.path.join(dataset_state.output_dir, "preqc_methylation_matrix.feather")
+    def _run():
+        mem_snap("node:merge_supplementary:entry")
+        accession_codes = get_accession_codes(state)
+        running_accession_codes = sorted(
+            [
+                accession_code
+                for accession_code in accession_codes
+                if state.datasets[accession_code].steps["supplementary_file_check"].status == "running"
+            ]
+        )
+        accession_code = running_accession_codes[0]
+        formatted_supplementary_file_artifacts = sorted(
+            [
+                artifact
+                for artifact in state.config.artifacts
+                if (artifact.kind == "supplementary_file_methylation_data_formatted") and (artifact.accession_code == accession_code)
+            ],
+            key=lambda artifact: artifact.path,
+        )
+        dataset_state = state.datasets[accession_code]
+        methylation_dataframe_output_path = os.path.join(dataset_state.output_dir, "preqc_methylation_matrix.feather")
 
-    return_dict = {"config": state.config.model_dump(), "datasets": {accession_code: dataset_state.model_dump()}}
-    pre_paths = {a.get("path", "") for a in return_dict["config"]["artifacts"]}
-    if len(formatted_supplementary_file_artifacts) == 1:
-        existing = formatted_supplementary_file_artifacts[0].path
-        if existing != methylation_dataframe_output_path:
-            try:
-                os.link(existing, methylation_dataframe_output_path)
-            except OSError:
-                import shutil
+        return_dict: dict[str, Any] = {"config": state.config.model_dump(), "datasets": {accession_code: dataset_state.model_dump()}}
+        pre_paths = {a.get("path", "") for a in return_dict["config"]["artifacts"]}
+        if len(formatted_supplementary_file_artifacts) == 1:
+            existing = formatted_supplementary_file_artifacts[0].path
+            if existing != methylation_dataframe_output_path:
+                try:
+                    os.link(existing, methylation_dataframe_output_path)
+                except OSError:
+                    import shutil
 
-                shutil.copy2(existing, methylation_dataframe_output_path)
-    else:
-        formatted_datasets = [read_feather(artifact.path, index_name="subject_id") for artifact in formatted_supplementary_file_artifacts]
-        formatted_data = pd.concat(formatted_datasets, axis=0)
-        write_feather(formatted_data, methylation_dataframe_output_path, index_name="subject_id")
-        del formatted_datasets, formatted_data
-        gc.collect()
+                    shutil.copy2(existing, methylation_dataframe_output_path)
+        else:
+            formatted_datasets = [read_feather(artifact.path, index_name="subject_id") for artifact in formatted_supplementary_file_artifacts]
+            formatted_data = pd.concat(formatted_datasets, axis=0)
+            write_feather(formatted_data, methylation_dataframe_output_path, index_name="subject_id")
+            del formatted_datasets, formatted_data
+            gc.collect()
 
-    methylation_artifact = ArtifactRef.model_validate(
-        {
-            "accession_code": accession_code,
-            "path": methylation_dataframe_output_path,
-            "kind": "preqc_methylation_data",
-            "sha256": compute_sha256(methylation_dataframe_output_path, is_path=True),
-            "bytes": os.path.getsize(methylation_dataframe_output_path),
-            "created_at": datetime.now(UTC).isoformat(),
-        }
-    )
+        methylation_artifact = ArtifactRef.model_validate(
+            {
+                "accession_code": accession_code,
+                "path": methylation_dataframe_output_path,
+                "kind": "preqc_methylation_data",
+                "sha256": compute_sha256(methylation_dataframe_output_path, is_path=True),
+                "bytes": os.path.getsize(methylation_dataframe_output_path),
+                "created_at": datetime.now(UTC).isoformat(),
+            }
+        )
 
-    return_dict["config"]["artifacts"] = consolidate_artifacts([ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], [methylation_artifact])
-    _emit_new_artifact_events(pre_paths, [methylation_artifact.model_dump()], config, "merge_supplementary_data")
-    return_dict["main_messages"] = [update_progress_tracker(state)]
-    return_dict["messages"] = [update_progress_tracker(state)]
-    mem_snap("node:merge_supplementary:exit")
-    return Command(update=return_dict)
+        return_dict["config"]["artifacts"] = consolidate_artifacts(
+            [ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], [methylation_artifact]
+        )
+        _emit_new_artifact_events(pre_paths, [methylation_artifact.model_dump()], config, "merge_supplementary_data")
+        return_dict["main_messages"] = [update_progress_tracker(state)]
+        return_dict["messages"] = [update_progress_tracker(state)]
+        mem_snap("node:merge_supplementary:exit")
+        return Command(update=return_dict)
+
+    return await asyncio.to_thread(_run)
 
 
 async def refine_extracted_columns(state: GeoIngestionSubgraphState, config: RunnableConfig) -> dict[str, Any]:
-    mem_snap("node:refine_extracted_columns:entry")
-    gc.collect()
-    mem_snap("node:refine_extracted_columns:after_collect")
-    accession_codes = get_accession_codes(state)
-    running_accession_codes = sorted(
-        [accession_code for accession_code in accession_codes if state.datasets[accession_code].steps["supplementary_file_check"].status == "running"]
-    )
-    accession_code = running_accession_codes[0]
-    dataset_state = state.datasets[accession_code]
-    return_dict = {
-        "config": state.config.model_dump(),
-        "datasets": {accession_code: dataset_state.model_dump()},
-        "main_messages": [update_progress_tracker(state)],
-        "messages": [update_progress_tracker(state)],
-    }
-    pre_paths = {a.get("path", "") for a in return_dict["config"]["artifacts"]}
+    def _run():
+        mem_snap("node:refine_extracted_columns:entry")
+        gc.collect()
+        mem_snap("node:refine_extracted_columns:after_collect")
+        accession_codes = get_accession_codes(state)
+        running_accession_codes = sorted(
+            [
+                accession_code
+                for accession_code in accession_codes
+                if state.datasets[accession_code].steps["supplementary_file_check"].status == "running"
+            ]
+        )
+        accession_code = running_accession_codes[0]
+        dataset_state = state.datasets[accession_code]
+        return_dict: dict[str, Any] = {
+            "config": state.config.model_dump(),
+            "datasets": {accession_code: dataset_state.model_dump()},
+            "main_messages": [update_progress_tracker(state)],
+            "messages": [update_progress_tracker(state)],
+        }
+        pre_paths = {a.get("path", "") for a in return_dict["config"]["artifacts"]}
 
-    methylation_artifact = get_correct_methylation_data(state.config.artifacts, accession_code)
-    target_values = pd.read_feather(methylation_artifact.path, columns=["subject_id"])["subject_id"].sort_values().tolist()
-    if not target_values:
+        methylation_artifact = get_correct_methylation_data(state.config.artifacts, accession_code)
+        target_values = pd.read_feather(methylation_artifact.path, columns=["subject_id"])["subject_id"].sort_values().tolist()
+        if not target_values:
+            return_dict["datasets"][accession_code]["steps"]["supplementary_file_check"] = set_step_status(
+                status="completed", step=return_dict["datasets"][accession_code]["steps"]["supplementary_file_check"]
+            )
+            return Command(update=return_dict)
+
+        metadata_artifact = next(
+            (artifact for artifact in state.config.artifacts if (artifact.kind == "metadata_cache") and (artifact.accession_code == accession_code)),
+            None,
+        )
+        with open(metadata_artifact.path, encoding="utf-8") as f:  # type: ignore
+            metadata_dict = json.load(f)
+            sample_subject_mapping = _create_subject_id_mapping(
+                accession_code,
+                dataset_state.metadata_extraction_input,  # type: ignore
+                metadata_dict,
+                target_values,
+            )
+        print("\nSample to subject mapping DataFrame created:\n")
+        mapper_artifact_path = os.path.join(
+            os.path.dirname(metadata_artifact.path),  # type: ignore
+            f"{metadata_artifact.accession_code}_subject_mapping.json",  # ty: ignore
+        )
+        sample_subject_mapping.to_csv(mapper_artifact_path, index=True)
+        mapper_artifact = ArtifactRef.model_validate(
+            {
+                "accession_code": metadata_artifact.accession_code,  # type: ignore
+                "path": mapper_artifact_path,
+                "kind": "subject_column_mapping",
+                "sha256": compute_sha256(mapper_artifact_path, is_path=True),
+                "bytes": os.path.getsize(mapper_artifact_path),
+                "created_at": datetime.now(UTC).isoformat(),
+            }
+        )
+        return_dict["config"]["artifacts"] = consolidate_artifacts([ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], [mapper_artifact])
+        _emit_new_artifact_events(pre_paths, [mapper_artifact.model_dump()], config, "refine_extracted_columns")
         return_dict["datasets"][accession_code]["steps"]["supplementary_file_check"] = set_step_status(
             status="completed", step=return_dict["datasets"][accession_code]["steps"]["supplementary_file_check"]
         )
+        trim_heap("node:refine_extracted_columns:trimmed")
         return Command(update=return_dict)
 
-    metadata_artifact = next(
-        (artifact for artifact in state.config.artifacts if (artifact.kind == "metadata_cache") and (artifact.accession_code == accession_code)),
-        None,
-    )
-    with open(metadata_artifact.path, encoding="utf-8") as f:  # type: ignore
-        metadata_dict = json.load(f)
-        sample_subject_mapping = _create_subject_id_mapping(
-            accession_code,
-            dataset_state.metadata_extraction_input,  # type: ignore
-            metadata_dict,
-            target_values,
-        )
-    print("\nSample to subject mapping DataFrame created:\n")
-    mapper_artifact_path = os.path.join(
-        os.path.dirname(metadata_artifact.path),  # type: ignore
-        f"{metadata_artifact.accession_code}_subject_mapping.json",  # ty: ignore
-    )
-    sample_subject_mapping.to_csv(mapper_artifact_path, index=True)
-    mapper_artifact = ArtifactRef.model_validate(
-        {
-            "accession_code": metadata_artifact.accession_code,  # type: ignore
-            "path": mapper_artifact_path,
-            "kind": "subject_column_mapping",
-            "sha256": compute_sha256(mapper_artifact_path, is_path=True),
-            "bytes": os.path.getsize(mapper_artifact_path),
-            "created_at": datetime.now(UTC).isoformat(),
-        }
-    )
-    return_dict["config"]["artifacts"] = consolidate_artifacts([ArtifactRef(**a) for a in return_dict["config"]["artifacts"]], [mapper_artifact])
-    _emit_new_artifact_events(pre_paths, [mapper_artifact.model_dump()], config, "refine_extracted_columns")
-    return_dict["datasets"][accession_code]["steps"]["supplementary_file_check"] = set_step_status(
-        status="completed", step=return_dict["datasets"][accession_code]["steps"]["supplementary_file_check"]
-    )
-    trim_heap("node:refine_extracted_columns:trimmed")
-    return Command(update=return_dict)
+    return await asyncio.to_thread(_run)
 
 
 def summarize_geo_findings(state: GeoIngestionSubgraphState, config: RunnableConfig) -> GeoIngestionSubgraphState:
