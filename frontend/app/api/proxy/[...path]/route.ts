@@ -56,6 +56,7 @@ async function handleRequest(req: NextRequest, method: string) {
     }
 
     (options as any).dispatcher = dispatcher;
+    (options as any).signal = AbortSignal.timeout(0);
 
     const upstream = await fetch(`${baseUrl}/${path}${queryString}`, options);
 
