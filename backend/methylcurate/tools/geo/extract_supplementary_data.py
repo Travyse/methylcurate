@@ -104,6 +104,58 @@ def _check_for_detection_columns(sample_data: pd.DataFrame) -> bool:
     return columns_lt_rows
 
 
+def _run_chunked_detection_filter(
+    sample_data: pd.DataFrame,
+    beta_cols: list[str],
+    det_cols: list[str],
+    det_pat: re.Pattern | None,
+) -> pd.DataFrame:
+    mem_snap("_process_detection_columns:before_chunk_loop")
+    n_probes = len(sample_data)
+    chunk_paths: list[str] = []
+    probe_ids = list(sample_data.index)
+
+    os.makedirs("/app/outputs/_tmp", exist_ok=True)
+    with tempfile.TemporaryDirectory(dir="/app/outputs/_tmp") as tmpdir:
+        for chunk_start in range(0, n_probes, DETECTION_CHUNK_SIZE):
+            chunk_end = min(chunk_start + DETECTION_CHUNK_SIZE, n_probes)
+            chunk_data = sample_data.iloc[chunk_start:chunk_end]
+
+            chunk_beta = chunk_data[beta_cols].values
+            chunk_det = chunk_data[det_cols].values
+
+            mask = np.where(np.array_equal(chunk_beta, chunk_det), 0.0, chunk_det) < 0.05
+            filtered = np.where(mask, chunk_beta, np.nan)
+
+            chunk_probe_ids = probe_ids[chunk_start:chunk_end]
+            chunk_df = pd.DataFrame(filtered.T, index=pd.Index(beta_cols), columns=pd.Index(chunk_probe_ids))
+            chunk_df = chunk_df.astype(np.float32)
+            chunk_df.columns = chunk_df.columns.astype(str)
+
+            chunk_path = os.path.join(tmpdir, f"detection_chunk_{chunk_start}.feather")
+            write_feather(chunk_df, chunk_path)
+            chunk_paths.append(chunk_path)
+
+            del chunk_data, chunk_beta, chunk_det, mask, filtered, chunk_df
+            gc.collect()
+
+        mem_snap("_process_detection_columns:after_chunk_write")
+        del sample_data
+        gc.collect()
+        mem_snap("_process_detection_columns:after_release_sample")
+
+        chunks = [read_feather(p) for p in chunk_paths]
+        mem_snap("_process_detection_columns:after_chunk_re_read")
+        methylation_df = pd.concat(chunks, axis=1)
+        mem_snap("_process_detection_columns:after_concat")
+        del chunks
+        gc.collect()
+        methylation_df.columns = methylation_df.columns.astype(str)
+        mem_snap("_process_detection_columns:after_cleanup")
+
+    return methylation_df
+
+
 async def _process_detection_columns(
     artifact: ArtifactRef,
     sample_data: pd.DataFrame,
@@ -200,52 +252,10 @@ async def _process_detection_columns(
     print(f"\nTime taken to map beta columns to detection columns: {mapping_time_taken} seconds\n")
 
     start_time = datetime.now()
-    mem_snap("_process_detection_columns:before_chunk_loop")
-    n_probes = len(sample_data)
-    chunk_paths: list[str] = []
-    probe_ids = list(sample_data.index)
-
-    os.makedirs("/app/outputs/_tmp", exist_ok=True)
-    with tempfile.TemporaryDirectory(dir="/app/outputs/_tmp") as tmpdir:
-        for chunk_start in range(0, n_probes, DETECTION_CHUNK_SIZE):
-            chunk_end = min(chunk_start + DETECTION_CHUNK_SIZE, n_probes)
-            chunk_data = sample_data.iloc[chunk_start:chunk_end]
-
-            chunk_beta = chunk_data[beta_cols].values
-            chunk_det = chunk_data[det_cols].values
-
-            mask = np.where(np.array_equal(chunk_beta, chunk_det), 0.0, chunk_det) < 0.05
-            filtered = np.where(mask, chunk_beta, np.nan)
-
-            chunk_probe_ids = probe_ids[chunk_start:chunk_end]
-            chunk_df = pd.DataFrame(filtered.T, index=pd.Index(beta_cols), columns=pd.Index(chunk_probe_ids))
-            chunk_df = chunk_df.astype(np.float32)
-            chunk_df.columns = chunk_df.columns.astype(str)
-
-            chunk_path = os.path.join(tmpdir, f"detection_chunk_{chunk_start}.feather")
-            write_feather(chunk_df, chunk_path)
-            chunk_paths.append(chunk_path)
-
-            del chunk_data, chunk_beta, chunk_det, mask, filtered, chunk_df
-            gc.collect()
-
-        mem_snap("_process_detection_columns:after_chunk_write")
-        del sample_data
-        gc.collect()
-        mem_snap("_process_detection_columns:after_release_sample")
-
-        chunks = [read_feather(p) for p in chunk_paths]
-        mem_snap("_process_detection_columns:after_chunk_re_read")
-        methylation_df = pd.concat(chunks, axis=1)
-        mem_snap("_process_detection_columns:after_concat")
-        del chunks
-        gc.collect()
-        methylation_df.columns = methylation_df.columns.astype(str)
-        mem_snap("_process_detection_columns:after_cleanup")
-
+    methylation_df = await asyncio.to_thread(_run_chunked_detection_filter, sample_data, beta_cols, det_cols, det_pat)
     end_time = datetime.now()
     detection_processing_time_taken = (end_time - start_time).total_seconds()
-    print(f"\nTime taken to process detection columns (chunked, {len(chunk_paths)} chunks): {detection_processing_time_taken} seconds\n")
+    print(f"\nTime taken to process detection columns (chunked): {detection_processing_time_taken} seconds\n")
 
     return methylation_df, artifact
 
@@ -260,11 +270,30 @@ async def _stream_process_detection_columns(
     det_pat: re.Pattern | None,
     beta_pat: re.Pattern,
 ) -> tuple[pd.DataFrame, ArtifactRef]:
+    methylation_df = await asyncio.to_thread(
+        _run_streamed_chunked_detection_filter,
+        file_path,
+        delimiter,
+        index_col_name,
+        beta_cols,
+        det_cols,
+        det_pat,
+    )
+    return methylation_df, artifact
+
+
+def _run_streamed_chunked_detection_filter(
+    file_path: str,
+    delimiter: str,
+    index_col_name: str | None,
+    beta_cols: list[str],
+    det_cols: list[str],
+    det_pat: re.Pattern | None,
+) -> pd.DataFrame:
     stream_cols = beta_cols + (det_cols if det_pat else [])
     stream_cols = list(dict.fromkeys(stream_cols))
 
     chunk_paths: list[str] = []
-    probe_ids_full: list[str] = []
 
     os.makedirs("/app/outputs/_tmp", exist_ok=True)
     with tempfile.TemporaryDirectory(dir="/app/outputs/_tmp") as tmpdir:
@@ -288,8 +317,6 @@ async def _stream_process_detection_columns(
             chunk = chunk.apply(pd.to_numeric, errors="coerce")
 
             chunk_beta = chunk[beta_cols].values
-            probe_ids = list(chunk.index)
-            probe_ids_full.extend(probe_ids)
 
             if det_pat and det_cols:
                 chunk_det = chunk[det_cols].values
@@ -298,7 +325,7 @@ async def _stream_process_detection_columns(
             else:
                 filtered = chunk_beta
 
-            chunk_df = pd.DataFrame(filtered.T, index=pd.Index(beta_cols), columns=pd.Index(probe_ids))
+            chunk_df = pd.DataFrame(filtered.T, index=pd.Index(beta_cols), columns=pd.Index(chunk.index))
             chunk_df = chunk_df.astype(np.float32)
             chunk_df.columns = chunk_df.columns.astype(str)
             chunk_path = os.path.join(tmpdir, f"stream_chunk_{chunk_idx}.feather")
@@ -317,7 +344,7 @@ async def _stream_process_detection_columns(
         del dfs, chunk_paths
         gc.collect()
 
-    return methylation_df, artifact
+    return methylation_df
 
 
 async def _process_detection_columns_alt(
