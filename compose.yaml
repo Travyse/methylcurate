@@ -10,13 +10,17 @@ services:
       - ./pyproject.toml:/app/pyproject.toml
       - outputs:/app/outputs
       # To use a custom LLM config file, uncomment and place llm_config.yml next to compose.yaml:
-      # - ./llm_config.yml:/app/llm_config.yml:ro
+      # - ./llm_config.example.yml:/app/llm_config.yml:ro
+      # To use a custom QC config file, uncomment and place qc_config.yml next to compose.yaml:
+      # - ./qc_config.example.yml:/app/qc_config.yml:ro
     environment:
       - AAIS_OUTPUT_DIR=/app/outputs
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - OLLAMA_MODEL=qwen3.5:397b-cloud
       # Set LLM_CONFIG_PATH to use a custom LLM config file:
       # - LLM_CONFIG_PATH=/app/llm_config.yml
+      # Set QC_CONFIG_PATH to use a custom QC config file:
+      # - QC_CONFIG_PATH=/app/qc_config.yml
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -32,8 +36,6 @@ services:
       - /app/.next
     environment:
       - LANGGRAPH_API_URL=http://backend:8000
-      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
-      - NEXT_PUBLIC_LANGGRAPH_ASSISTANT_ID=${NEXT_PUBLIC_LANGGRAPH_ASSISTANT_ID:-}
     depends_on:
       - backend
 
