@@ -2,7 +2,7 @@
 
 MethylCurate is an agentic-AI tool for retrieving GEO DNA methylation datasets, harmonizing metadata, constructing standardized beta matrices, and benchmarking epigenetic aging clocks.
 
-![MethylCurate workflow](figures/overview-figure.png)
+![MethylCurate workflow](figures/graphical_abstract.png)
 
 ## Explore our GitHub Repository
 

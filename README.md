@@ -26,7 +26,7 @@ MethylCurate combines deterministic data-processing modules with LLM-assisted ag
 
 Through a browser-based, dialogue-driven interface, users can retrieve GEO studies, generate standardized metadata, construct formatted beta matrices, and evaluate multiple epigenetic aging clocks with minimal manual intervention. 
 
-![MethylCurate workflow](figures/overview-figure.png)
+![MethylCurate workflow](figures/graphical_abstract.png)
 
 ## Documentation
 

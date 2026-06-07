@@ -6,6 +6,7 @@ __all__ = [
     "check_data_presence",
 ]
 
+import asyncio
 import os
 from datetime import UTC, datetime
 from typing import Any
@@ -320,36 +321,9 @@ def _check_if_data_present(artifacts: list[Any], return_dict: dict[str, Any]) ->
                 )
             else:
                 selections = [s for s in supplementary_files if any(y in s for y in selection["data"]["data"]["selections"])]
-                download_results = parallel_downloads(accession_code, selections, return_dict["datasets"][accession_code]["output_dir"])
-                return_dict["config"]["artifacts"] = consolidate_artifacts(
-                    [ArtifactRef.model_validate(x) for x in return_dict["config"]["artifacts"]],
-                    download_results["artifacts"],
-                )
-                return_dict["datasets"][accession_code]["supplementary_data"] = (
-                    {artifact.sha256: "pending" for artifact in download_results["artifacts"]}
-                    if return_dict["datasets"][accession_code].get("supplementary_data", None) is None
-                    else return_dict["datasets"][accession_code]["supplementary_data"]
-                )
-
-                return_dict["datasets"][accession_code]["steps"]["check_valid_dataset"] = set_step_status(
-                    status="completed", step=return_dict["datasets"][accession_code]["steps"]["check_valid_dataset"]
-                )
-                return_dict["datasets"][accession_code]["steps"]["extract_metadata_schema"] = set_step_status(
-                    status="running", step=return_dict["datasets"][accession_code]["steps"]["extract_metadata_schema"]
-                )
-                return_dict["datasets"][accession_code]["steps"]["refine_metadata_schema"] = set_step_status(
-                    status="not_started",
-                    step=return_dict["datasets"][accession_code]["steps"]["refine_metadata_schema"],
-                )
-                return_dict["datasets"][accession_code]["steps"]["extract_data"] = set_step_status(
-                    status="not_started", step=return_dict["datasets"][accession_code]["steps"]["extract_data"]
-                )
-                return_dict["datasets"][accession_code]["steps"]["supplementary_file_check"] = set_step_status(
-                    status="not_started",
-                    step=return_dict["datasets"][accession_code]["steps"]["supplementary_file_check"],
-                )
-                return_dict["datasets"][accession_code]["is_valid_dataset"] = True
-
+                return_dict["_supplementary_selections"] = selections
+                return_dict["_supplementary_destdir"] = return_dict["datasets"][accession_code]["output_dir"]
+                return_dict["_interrupted"] = True
         else:
             return_dict["datasets"][accession_code]["status"] = "completed"
             return_dict["datasets"][accession_code]["steps"]["check_valid_dataset"] = set_step_status(
@@ -402,6 +376,42 @@ async def check_data_presence(state: GeoIngestionSubgraphState, config: Runnable
         "datasets": {current_accession_code: state.datasets[current_accession_code].model_dump()},
     }
     return_dict = _check_if_data_present(artifacts, return_dict)
+
+    selections = return_dict.pop("_supplementary_selections", None)
+    destdir = return_dict.pop("_supplementary_destdir", None)
+    interrupted = return_dict.pop("_interrupted", False)
+
+    if interrupted and selections is not None and destdir is not None:
+        download_results = await asyncio.to_thread(parallel_downloads, current_accession_code, selections, destdir)
+        return_dict["config"]["artifacts"] = consolidate_artifacts(
+            [ArtifactRef.model_validate(x) for x in return_dict["config"]["artifacts"]],
+            download_results["artifacts"],
+        )
+        return_dict["datasets"][current_accession_code]["supplementary_data"] = (
+            {artifact.sha256: "pending" for artifact in download_results["artifacts"]}
+            if return_dict["datasets"][current_accession_code].get("supplementary_data", None) is None
+            else return_dict["datasets"][current_accession_code]["supplementary_data"]
+        )
+        return_dict["datasets"][current_accession_code]["steps"]["check_valid_dataset"] = set_step_status(
+            status="completed", step=return_dict["datasets"][current_accession_code]["steps"]["check_valid_dataset"]
+        )
+        return_dict["datasets"][current_accession_code]["steps"]["extract_metadata_schema"] = set_step_status(
+            status="running", step=return_dict["datasets"][current_accession_code]["steps"]["extract_metadata_schema"]
+        )
+        return_dict["datasets"][current_accession_code]["steps"]["refine_metadata_schema"] = set_step_status(
+            status="not_started",
+            step=return_dict["datasets"][current_accession_code]["steps"]["refine_metadata_schema"],
+        )
+        return_dict["datasets"][current_accession_code]["steps"]["extract_data"] = set_step_status(
+            status="not_started", step=return_dict["datasets"][current_accession_code]["steps"]["extract_data"]
+        )
+        return_dict["datasets"][current_accession_code]["steps"]["supplementary_file_check"] = set_step_status(
+            status="not_started",
+            step=return_dict["datasets"][current_accession_code]["steps"]["supplementary_file_check"],
+        )
+        return_dict["datasets"][current_accession_code]["is_valid_dataset"] = True
+
+    state.datasets[current_accession_code] = GeoDatasetState(**return_dict["datasets"][current_accession_code])
     return_dict["main_messages"] = [update_progress_tracker(state)]
     return_dict["messages"] = [update_progress_tracker(state)]
     return Command(update=return_dict)
